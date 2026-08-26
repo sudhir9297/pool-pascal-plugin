@@ -38,7 +38,48 @@ export interface Placeable {
 
 const DUMMY = new Object3D()
 const INSTANCE_MATRIX = new Matrix4()
+const ZERO_MATRIX = new Matrix4().makeScale(0, 0, 0)
 const NO_RAYCAST = () => {}
+
+// ── Runtime per-instance hiding ──────────────────────────────────────────────
+// Lets a GAME layer (e.g. the Boots plugin's destructible-tree mode) hide a
+// single plant's instance WITHOUT touching the scene store: hidden nodes get
+// a zero-scale matrix at write time and every InstancedSubMesh rewrites when
+// the epoch bumps. Exposed on globalThis under a well-known key so consumers
+// need no package dependency (feature-detect `__pascalTreesRuntime`). State
+// is transient by design — a reload or `restoreAll()` brings every plant back.
+
+const hiddenNodeIds = new Set<string>()
+let hiddenEpoch = 0
+
+export const treesRuntime = {
+  /** Zero-scale this node's instance until restored. Returns true if it changed. */
+  hide(nodeId: string): boolean {
+    if (hiddenNodeIds.has(nodeId)) return false
+    hiddenNodeIds.add(nodeId)
+    hiddenEpoch++
+    return true
+  },
+  restore(nodeId: string): boolean {
+    const changed = hiddenNodeIds.delete(nodeId)
+    if (changed) hiddenEpoch++
+    return changed
+  },
+  restoreAll(): void {
+    if (hiddenNodeIds.size === 0) return
+    hiddenNodeIds.clear()
+    hiddenEpoch++
+  },
+  isHidden: (nodeId: string): boolean => hiddenNodeIds.has(nodeId),
+  get epoch(): number {
+    return hiddenEpoch
+  },
+}
+
+if (typeof globalThis !== 'undefined') {
+  ;(globalThis as { __pascalTreesRuntime?: typeof treesRuntime }).__pascalTreesRuntime =
+    treesRuntime
+}
 
 // Wind is a TSL vertex bend baked into the variant materials (see `wind-node.ts`)
 // — animated on the GPU, so the instance matrices here stay static.
@@ -205,6 +246,10 @@ function InstancedSubMesh<N extends Placeable>({
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i]
       if (!node) continue
+      if (hiddenNodeIds.has(node.id)) {
+        mesh.setMatrixAt(i, ZERO_MATRIX)
+        continue
+      }
       const scale = node.height / naturalHeight
       DUMMY.position.set(node.position[0], plantElevation(node, sceneNodes), node.position[2])
       DUMMY.rotation.set(node.rotation[0], node.rotation[1], node.rotation[2])
@@ -251,8 +296,16 @@ function InstancedSubMesh<N extends Placeable>({
   // callback has no explicit priority, so it runs before the priority-2 pass in
   // `InstancedKindSystem` that consumes them, whereas a React effect might not
   // flush until after the marks were already cleared.
+  // Rewrites when the runtime hidden set changes (game-mode hide/restore).
+  const seenEpoch = useRef(hiddenEpoch)
+
   useFrame(() => {
     if (!ref.current) return
+    if (seenEpoch.current !== hiddenEpoch) {
+      seenEpoch.current = hiddenEpoch
+      writeMatrices()
+      return
+    }
     if (!localSpace) {
       for (const [id, cached] of parentWorlds.current) {
         const parent = sceneRegistry.nodes.get(id)
