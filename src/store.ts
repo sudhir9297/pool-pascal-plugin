@@ -1,80 +1,80 @@
 import { create } from 'zustand'
-import { FLOWER_PRESETS } from './flower-presets'
-import type { FlowerPreset } from './flower-schema'
-import { GRASS_PRESETS } from './grass-presets'
-import type { GrassPreset } from './grass-schema'
-import { defaultHeightOf, TREE_PRESETS } from './presets'
-import type { TreePreset, TreeSize } from './schema'
+import { HOT_TUB_PRESETS } from './hotTub-presets'
+import type { HotTubPreset } from './hotTub-schema'
+import { WATER_FEATURE_PRESETS } from './waterFeatures-presets'
+import type { WaterFeaturesPreset } from './waterFeatures-schema'
+import { defaultHeightOf, POOL_PRESETS } from './presets'
+import type { PoolPreset, PoolSize } from './schema'
 
 /**
  * The plugin's own module-level state — the example of "plugins self-manage
  * runtime state with module-level stores" from the plugin-authoring contract.
- * It holds the placement "brush": what the next planted tree/flower looks like.
+ * It holds the placement brush: the design used by the next pool or spa.
  * The presets panel writes it; the placement tool reads it. No host lifecycle
  * slot. Colours are intentionally absent — they're edit-only (inspector).
  */
-/** Which section of the Nature panel is showing. */
-export type TreesPanelMode = 'trees' | 'flowers' | 'grass'
+/** Which section of the Pool panel is showing. */
+export type PoolsPanelMode = 'pools' | 'hotTubs' | 'waterFeatures'
 
-type TreesStore = {
+type PoolsStore = {
   /** Active panel section — in the store (not panel-local state) so the host's
    * "find in catalog" can land on the right section (see `find-sync.ts`). */
-  mode: TreesPanelMode
-  setMode: (mode: TreesPanelMode) => void
-  preset: TreePreset
-  size: TreeSize
-  /** Height (m) of the next tree — a per-instance scale, never affects placed trees. */
+  mode: PoolsPanelMode
+  setMode: (mode: PoolsPanelMode) => void
+  preset: PoolPreset
+  size: PoolSize
+  /** Height (m) of the next pool — a per-instance scale, never affects placed pools. */
   height: number
   /** Leaf-count multiplier vs the preset (folded into the instancing variant). */
-  foliageDensity: number
+  detailDensity: number
   /** Branch-radius multiplier (folded into the instancing variant). */
-  trunkThickness: number
-  /** Plant bare (leafless) trees. */
-  leafless: boolean
-  setPreset: (preset: TreePreset) => void
-  setSize: (size: TreeSize) => void
+  wallThickness: number
+  /** Feature bare (minimal) pools. */
+  minimal: boolean
+  setPreset: (preset: PoolPreset) => void
+  setSize: (size: PoolSize) => void
   setHeight: (height: number) => void
-  setFoliageDensity: (value: number) => void
-  setTrunkThickness: (value: number) => void
-  setLeafless: (value: boolean) => void
-  // Flower brush (sibling kind).
-  flowerPreset: FlowerPreset
-  flowerHeight: number
-  setFlowerPreset: (preset: FlowerPreset) => void
-  setFlowerHeight: (height: number) => void
-  // Grass brush (sibling kind).
-  grassPreset: GrassPreset
-  grassHeight: number
-  setGrassPreset: (preset: GrassPreset) => void
-  setGrassHeight: (height: number) => void
+  setDetailDensity: (value: number) => void
+  setWallThickness: (value: number) => void
+  setMinimal: (value: boolean) => void
+  // HotTub brush (sibling kind).
+  hotTubPreset: HotTubPreset
+  hotTubHeight: number
+  setHotTubPreset: (preset: HotTubPreset) => void
+  setHotTubHeight: (height: number) => void
+  // WaterFeatures brush (sibling kind).
+  waterFeaturesPreset: WaterFeaturesPreset
+  waterFeaturesHeight: number
+  setWaterFeaturesPreset: (preset: WaterFeaturesPreset) => void
+  setWaterFeaturesHeight: (height: number) => void
 }
 
-export const useTreesStore = create<TreesStore>((set, get) => ({
-  mode: 'trees',
+export const usePoolsStore = create<PoolsStore>((set, get) => ({
+  mode: 'pools',
   setMode: (mode) => set({ mode }),
-  preset: 'oak',
+  preset: 'family',
   size: 'medium',
-  height: TREE_PRESETS.oak.height.medium,
-  foliageDensity: 1,
-  trunkThickness: 1,
-  leafless: false,
+  height: POOL_PRESETS.family.height.medium,
+  detailDensity: 1,
+  wallThickness: 1,
+  minimal: false,
   // Switching preset/size re-seeds the height to that combo's natural default;
-  // the foliage/trunk brush settings carry over. Growth model comes from the
-  // preset (oak → deciduous, pine → evergreen); override per-tree in the inspector.
+  // the foliage/coping brush settings carry over. Growth model comes from the
+  // Design defaults are applied on placement; overrides remain editable in the inspector.
   setPreset: (preset) => set({ preset, height: defaultHeightOf(preset, get().size) }),
   setSize: (size) => set({ size, height: defaultHeightOf(get().preset, size) }),
   setHeight: (height) => set({ height }),
-  setFoliageDensity: (foliageDensity) => set({ foliageDensity }),
-  setTrunkThickness: (trunkThickness) => set({ trunkThickness }),
-  setLeafless: (leafless) => set({ leafless }),
-  flowerPreset: 'daisy',
-  flowerHeight: FLOWER_PRESETS.daisy.defaultHeight,
-  setFlowerPreset: (flowerPreset) =>
-    set({ flowerPreset, flowerHeight: FLOWER_PRESETS[flowerPreset].defaultHeight }),
-  setFlowerHeight: (flowerHeight) => set({ flowerHeight }),
-  grassPreset: 'meadow',
-  grassHeight: GRASS_PRESETS.meadow.defaultHeight,
-  setGrassPreset: (grassPreset) =>
-    set({ grassPreset, grassHeight: GRASS_PRESETS[grassPreset].defaultHeight }),
-  setGrassHeight: (grassHeight) => set({ grassHeight }),
+  setDetailDensity: (detailDensity) => set({ detailDensity }),
+  setWallThickness: (wallThickness) => set({ wallThickness }),
+  setMinimal: (minimal) => set({ minimal }),
+  hotTubPreset: 'spa',
+  hotTubHeight: HOT_TUB_PRESETS.spa.defaultHeight,
+  setHotTubPreset: (hotTubPreset) =>
+    set({ hotTubPreset, hotTubHeight: HOT_TUB_PRESETS[hotTubPreset].defaultHeight }),
+  setHotTubHeight: (hotTubHeight) => set({ hotTubHeight }),
+  waterFeaturesPreset: 'fountain',
+  waterFeaturesHeight: WATER_FEATURE_PRESETS.fountain.defaultHeight,
+  setWaterFeaturesPreset: (waterFeaturesPreset) =>
+    set({ waterFeaturesPreset, waterFeaturesHeight: WATER_FEATURE_PRESETS[waterFeaturesPreset].defaultHeight }),
+  setWaterFeaturesHeight: (waterFeaturesHeight) => set({ waterFeaturesHeight }),
 }))

@@ -1,7 +1,7 @@
 import { type AnyNode, getFloorStackedPosition, useScene } from '@pascal-app/core'
 
 /**
- * Where a plant actually stands: its stored base plus whatever the host elects
+ * Where a feature actually stands: its stored base plus whatever the host elects
  * under it — a stacked slab (deck, plinth) or the sculpted ground.
  *
  * Stored positions are flat by contract (`[x, 0, z]`); the lift is presentation
@@ -10,13 +10,13 @@ import { type AnyNode, getFloorStackedPosition, useScene } from '@pascal-app/cor
  * *registered* object — and for a collective renderer that object is the
  * invisible selection proxy, not the instance. So an instanced kind has to
  * resolve this itself, at every point it writes a transform. Reading
- * `node.position[1]` raw is what left every plant at `y = 0`: floating under a
+ * `node.position[1]` raw is what left every feature at `y = 0`: floating under a
  * deck and buried in a hillside.
  *
  * Kept in its own module, free of any Three.js or React import, so the seam is
  * testable without a canvas — see `elevation.test.ts`.
  */
-export function plantElevation(
+export function featureElevation(
   node: { id: string; type: string; position: [number, number, number] },
   nodes: Record<string, AnyNode> = useScene.getState().nodes,
 ): number {
@@ -30,7 +30,7 @@ export function plantElevation(
 /**
  * The ghost's Y for a draft the placement tool has not committed yet.
  *
- * Same question as {@link plantElevation}, but the draft is unparented, so the
+ * Same question as {@link featureElevation}, but the draft is unparented, so the
  * level it will land on has to be named explicitly — the resolver reads
  * `parentId` first and only falls back to `levelId`.
  */

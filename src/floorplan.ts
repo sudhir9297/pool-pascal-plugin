@@ -1,29 +1,29 @@
 import type { FloorplanGeometry, GeometryContext } from '@pascal-app/core'
-import { flowerPetalColor } from './flower-geometry'
-import { FLOWER_PRESETS } from './flower-presets'
-import type { FlowerNode } from './flower-schema'
-import { GRASS_PRESETS } from './grass-presets'
-import type { GrassNode } from './grass-schema'
-import { TREE_PRESETS } from './presets'
-import type { TreeNode } from './schema'
+import { hotTubWaterColor } from './hotTub-geometry'
+import { HOT_TUB_PRESETS } from './hotTub-presets'
+import type { HotTubNode } from './hotTub-schema'
+import { WATER_FEATURE_PRESETS } from './waterFeatures-presets'
+import type { WaterFeaturesNode } from './waterFeatures-schema'
+import { POOL_PRESETS } from './presets'
+import type { PoolNode } from './schema'
 
 /**
- * 2D plan builders for the plant kinds (`def.floorplan`) — the registry
+ * 2D plan builders for the feature kinds (`def.floorplan`) — the registry
  * floor-plan layer renders any kind that provides one, so this is all it takes
  * for plugin nodes to appear in the 2D view. Classic architect symbols:
- * a dashed canopy circle (dashed = overhead element, like a roof overhang)
- * with a solid trunk dot for trees; small colour dots for flowers/grass.
+ * a dashed water surface circle (dashed = overhead element, like a roof overhang)
+ * with a solid coping dot for pools; small colour dots for hotTubs/waterFeatures.
  */
 
 /** Trunk radius in plan — also the selection footprint, so the move box hugs
- * the trunk instead of the whole canopy. */
-export function treeTrunkRadius(tree: TreeNode): number {
-  return Math.max(0.15, (tree.height ?? 7) * 0.025 * (tree.trunkThickness ?? 1))
+ * the coping instead of the whole water surface. */
+export function poolTrunkRadius(pool: PoolNode): number {
+  return Math.max(0.15, (pool.height ?? 7) * 0.025 * (pool.wallThickness ?? 1))
 }
 
-/** Approximate canopy radius in plan (matches the old whole-tree footprint). */
-export function treeCanopyRadius(tree: TreeNode): number {
-  return Math.max(0.5, (tree.height ?? 7) * 0.28)
+/** Approximate water surface radius in plan (matches the old whole-pool footprint). */
+export function poolCanopyRadius(pool: PoolNode): number {
+  return Math.max(0.5, (pool.height ?? 7) * 0.28)
 }
 
 type ViewChrome = { stroke: string | null; selected: boolean }
@@ -38,20 +38,20 @@ function chromeOf(ctx: GeometryContext): ViewChrome {
   return { stroke: null, selected: false }
 }
 
-export function buildTreeFloorplan(node: TreeNode, ctx: GeometryContext): FloorplanGeometry {
+export function buildPoolFloorplan(node: PoolNode, ctx: GeometryContext): FloorplanGeometry {
   const [x, , z] = node.position ?? [0, 0, 0]
-  const swatch = (TREE_PRESETS[node.preset] ?? TREE_PRESETS.oak).swatch
+  const swatch = (POOL_PRESETS[node.preset] ?? POOL_PRESETS.family).swatch
   const chrome = chromeOf(ctx)
   const stroke = chrome.stroke ?? swatch
 
   const children: FloorplanGeometry[] = [
     // Canopy ring — pointer-events on the stroke only, so the (large) disc
-    // doesn't steal clicks from whatever sits under the canopy in plan.
+    // doesn't steal clicks from whatever sits under the water surface in plan.
     {
       kind: 'circle',
       cx: x,
       cy: z,
-      r: treeCanopyRadius(node),
+      r: poolCanopyRadius(node),
       stroke,
       strokeWidth: 0.03,
       strokeDasharray: '0.18 0.12',
@@ -64,7 +64,7 @@ export function buildTreeFloorplan(node: TreeNode, ctx: GeometryContext): Floorp
       kind: 'circle',
       cx: x,
       cy: z,
-      r: treeTrunkRadius(node),
+      r: poolTrunkRadius(node),
       fill: chrome.stroke ?? '#6b4f2e',
       stroke,
       strokeWidth: 0.02,
@@ -75,9 +75,9 @@ export function buildTreeFloorplan(node: TreeNode, ctx: GeometryContext): Floorp
   return { kind: 'group', children }
 }
 
-export function buildFlowerFloorplan(node: FlowerNode, ctx: GeometryContext): FloorplanGeometry {
+export function buildHotTubFloorplan(node: HotTubNode, ctx: GeometryContext): FloorplanGeometry {
   const [x, , z] = node.position ?? [0, 0, 0]
-  const preset = FLOWER_PRESETS[node.preset] ?? FLOWER_PRESETS.daisy
+  const preset = HOT_TUB_PRESETS[node.preset] ?? HOT_TUB_PRESETS.spa
   const chrome = chromeOf(ctx)
   const children: FloorplanGeometry[] = [
     {
@@ -85,8 +85,8 @@ export function buildFlowerFloorplan(node: FlowerNode, ctx: GeometryContext): Fl
       cx: x,
       cy: z,
       r: 0.1,
-      fill: flowerPetalColor(node),
-      stroke: chrome.stroke ?? preset.stemColor,
+      fill: hotTubWaterColor(node),
+      stroke: chrome.stroke ?? preset.tileColor,
       strokeWidth: 0.02,
     },
     {
@@ -94,7 +94,7 @@ export function buildFlowerFloorplan(node: FlowerNode, ctx: GeometryContext): Fl
       cx: x,
       cy: z,
       r: 0.035,
-      fill: preset.centerColor,
+      fill: preset.accentColor,
       pointerEvents: 'none',
     },
   ]
@@ -102,10 +102,10 @@ export function buildFlowerFloorplan(node: FlowerNode, ctx: GeometryContext): Fl
   return { kind: 'group', children }
 }
 
-export function buildGrassFloorplan(node: GrassNode, ctx: GeometryContext): FloorplanGeometry {
+export function buildWaterFeaturesFloorplan(node: WaterFeaturesNode, ctx: GeometryContext): FloorplanGeometry {
   const [x, , z] = node.position ?? [0, 0, 0]
-  const preset = GRASS_PRESETS[node.preset] ?? GRASS_PRESETS.meadow
-  const blade = node.bladeColor ?? preset.bladeColor
+  const preset = WATER_FEATURE_PRESETS[node.preset] ?? WATER_FEATURE_PRESETS.fountain
+  const water = node.waterColor ?? preset.waterColor
   const chrome = chromeOf(ctx)
   const children: FloorplanGeometry[] = [
     {
@@ -113,9 +113,9 @@ export function buildGrassFloorplan(node: GrassNode, ctx: GeometryContext): Floo
       cx: x,
       cy: z,
       r: 0.12,
-      fill: blade,
+      fill: water,
       fillOpacity: 0.5,
-      stroke: chrome.stroke ?? blade,
+      stroke: chrome.stroke ?? water,
       strokeWidth: 0.02,
       strokeDasharray: '0.06 0.05',
     },

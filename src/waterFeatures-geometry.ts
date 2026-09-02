@@ -1,25 +1,25 @@
 import { type BufferGeometry, ConeGeometry, DoubleSide, Group, Mesh } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { GRASS_PRESETS } from './grass-presets'
-import type { GrassNode, GrassPreset } from './grass-schema'
+import { WATER_FEATURE_PRESETS } from './waterFeatures-presets'
+import type { WaterFeaturesNode, WaterFeaturesPreset } from './waterFeatures-schema'
 import type { SubMesh, VariantData } from './instanced'
 import { mulberry32, naturalHeight } from './variant-utils'
 import { windStandardMaterial } from './wind-node'
 
-export function grassVariantKey(preset: GrassPreset, seed: number, bladeColor: string): string {
-  return `${preset}:${seed}:${bladeColor}`
+export function waterFeaturesVariantKey(preset: WaterFeaturesPreset, seed: number, waterColor: string): string {
+  return `${preset}:${seed}:${waterColor}`
 }
 
 const variantCache = new Map<string, VariantData>()
 
-/** Cached procedural grass geometry for a (preset, seed, bladeColor). One
+/** Cached procedural waterFeatures geometry for a (preset, seed, waterColor). One
  * generation per variant is shared across every instance — a whole lawn of the
- * same tuft is a single InstancedMesh. */
-export function getGrassVariant(node: GrassNode): VariantData {
-  const key = grassVariantKey(node.preset, node.seed, node.bladeColor)
+ * same feature is a single InstancedMesh. */
+export function getWaterFeaturesVariant(node: WaterFeaturesNode): VariantData {
+  const key = waterFeaturesVariantKey(node.preset, node.seed, node.waterColor)
   const cached = variantCache.get(key)
   if (cached) return cached
-  const group = buildGrass(node.preset, node.seed, node.bladeColor)
+  const group = buildWaterFeatures(node.preset, node.seed, node.waterColor)
   const subMeshes: SubMesh[] = group.children
     .filter((c): c is Mesh => (c as Mesh).isMesh)
     .map((mesh) => ({ geometry: mesh.geometry, material: mesh.material }))
@@ -28,13 +28,13 @@ export function getGrassVariant(node: GrassNode): VariantData {
   return data
 }
 
-/** A tuft of flattened, leaning blades merged into one geometry (one draw per
+/** A feature of flattened, leaning blades merged into one geometry (one draw per
  * instance). Deterministic in `seed` so the same variant renders identically. */
-function buildGrass(preset: GrassPreset, seed: number, bladeColor: string): Group {
-  const spec = GRASS_PRESETS[preset] ?? GRASS_PRESETS.meadow
+function buildWaterFeatures(preset: WaterFeaturesPreset, seed: number, waterColor: string): Group {
+  const spec = WATER_FEATURE_PRESETS[preset] ?? WATER_FEATURE_PRESETS.fountain
   const rng = mulberry32(seed >>> 0)
   const group = new Group()
-  const mat = windStandardMaterial({ color: bladeColor, roughness: 0.9, side: DoubleSide })
+  const mat = windStandardMaterial({ color: waterColor, roughness: 0.9, side: DoubleSide })
   const h = spec.defaultHeight
 
   const blades: BufferGeometry[] = []

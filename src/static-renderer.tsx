@@ -1,19 +1,19 @@
 'use client'
 
-import { getVariantData, treeSpecOf, treeVariantKey } from './geometry'
+import { getVariantData, poolSpecOf, poolVariantKey } from './geometry'
 import { InstancedNodes } from './instanced'
-import type { TreeNode } from './schema'
+import type { PoolNode } from './schema'
 
-const variantKeyOf = (node: TreeNode) => treeVariantKey(treeSpecOf(node))
-const getVariant = (node: TreeNode) => getVariantData(treeSpecOf(node))
+const variantKeyOf = (node: PoolNode) => poolVariantKey(poolSpecOf(node))
+const getVariant = (node: PoolNode) => getVariantData(poolSpecOf(node))
 
 /**
  * Collective renderer for the baked `/viewer` (`bakeReplaceRenderer`): one baked
- * level's trees, instanced in level-local space (the viewer portals this into
+ * level's pools, instanced in level-local space (the viewer portals this into
  * that level's `Object3D`). Same instancing as the editor `system`, so wind
- * phase varies per tree via `instanceIndex` and a forest is a few draw calls.
+ * phase varies per pool via `instanceIndex` and a collection is a few draw calls.
  */
-export default function TreeReplaceInstances({ nodes }: { nodes: TreeNode[] }) {
+export default function PoolReplaceInstances({ nodes }: { nodes: PoolNode[] }) {
   return (
     <InstancedNodes getVariant={getVariant} localSpace nodes={nodes} variantKeyOf={variantKeyOf} />
   )

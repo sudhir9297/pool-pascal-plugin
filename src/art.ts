@@ -1,19 +1,18 @@
-import ash from './assets/ash.webp'
-import aspen from './assets/aspen.webp'
-import bush from './assets/bush.webp'
-import daisy from './assets/daisy.webp'
-import fescue from './assets/fescue.webp'
-import lavender from './assets/lavender.webp'
-import meadow from './assets/meadow.webp'
-import natureIcon from './assets/nature-icon.webp'
-import oak from './assets/oak.webp'
-import pine from './assets/pine.webp'
-import reed from './assets/reed.webp'
-import trellis from './assets/trellis.webp'
-import tulip from './assets/tulip.webp'
-import type { FlowerPreset } from './flower-schema'
-import type { GrassPreset } from './grass-schema'
-import type { TreePreset } from './schema'
+import courtyard from './assets/courtyard.webp'
+import family from './assets/family.webp'
+import fountain from './assets/fountain.webp'
+import infinity from './assets/infinity.webp'
+import lap from './assets/lap.webp'
+import poolIcon from './assets/pool-icon.webp'
+import plunge from './assets/plunge-pool.webp'
+import cascade from './assets/cascade.webp'
+import spa from './assets/spa.webp'
+import therapy from './assets/therapy.webp'
+import spillway from './assets/spillway.webp'
+import plungeSpa from './assets/plunge.webp'
+import type { HotTubPreset } from './hotTub-schema'
+import type { WaterFeaturesPreset } from './waterFeatures-schema'
+import type { PoolPreset } from './schema'
 
 /**
  * Bundled preset artwork. The webp live in `./assets` and travel with the
@@ -23,26 +22,26 @@ import type { TreePreset } from './schema'
  */
 const url = (asset: { src: string }): string => asset.src
 
-export const TREE_ART: Record<TreePreset, string> = {
-  oak: url(oak),
-  pine: url(pine),
-  aspen: url(aspen),
-  ash: url(ash),
-  bush: url(bush),
-  trellis: url(trellis),
+export const POOL_ART: Record<PoolPreset, string> = {
+  lap: url(lap),
+  family: url(family),
+  infinity: url(infinity),
+  plunge: url(plunge),
+  courtyard: url(courtyard),
+  spa: url(spa),
 }
 
-export const FLOWER_ART: Record<FlowerPreset, string> = {
-  daisy: url(daisy),
-  tulip: url(tulip),
-  lavender: url(lavender),
+export const HOT_TUB_ART: Record<HotTubPreset, string> = {
+  spa: url(spa),
+  therapy: url(therapy),
+  plunge: url(plungeSpa),
 }
 
-export const GRASS_ART: Record<GrassPreset, string> = {
-  meadow: url(meadow),
-  fescue: url(fescue),
-  reed: url(reed),
+export const WATER_FEATURE_ART: Record<WaterFeaturesPreset, string> = {
+  fountain: url(fountain),
+  spillway: url(spillway),
+  cascade: url(cascade),
 }
 
-/** The Nature panel / section icon. */
-export const NATURE_ICON = url(natureIcon)
+/** The Pool panel / section icon. */
+export const POOL_ICON = url(poolIcon)

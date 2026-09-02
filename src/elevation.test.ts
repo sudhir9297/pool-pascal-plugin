@@ -8,13 +8,13 @@ import {
   SlabNode,
   useScene,
 } from '@pascal-app/core'
-import { draftElevation, plantElevation } from './elevation'
-import { treesPlugin } from './index'
+import { draftElevation, featureElevation } from './elevation'
+import { poolsPlugin } from './index'
 
 /**
  * The elevation contract an instanced kind has to satisfy by hand.
  *
- * A plant's stored Y is always 0 — the surface it stands on is resolved at render
+ * A feature's stored Y is always 0 — the surface it stands on is resolved at render
  * time. For a per-node kind the host does that for free, but a collective renderer
  * draws into one `InstancedMesh`, and the host's `FloorElevationSystem` only writes
  * to a node's *registered* object, which here is the invisible selection proxy. So
@@ -26,7 +26,7 @@ import { treesPlugin } from './index'
  */
 
 const DECK_ELEVATION = 1.2
-const KINDS = ['trees:tree', 'trees:flower', 'trees:grass']
+const KINDS = ['pools:pool', 'pools:hotTub', 'pools:waterFeatures']
 
 /** `level_0` at grade, optionally holding a 4×4 deck slab over the origin. */
 function scene(deckElevation: number | null) {
@@ -73,8 +73,8 @@ async function publish(nodes: Record<string, AnyNode>) {
   await Bun.sleep(30)
 }
 
-/** A committed plant of `kind`, positioned flat the way its tool commits it. */
-function plant(kind: string, x: number, z: number) {
+/** A committed feature of `kind`, positioned flat the way its tool commits it. */
+function feature(kind: string, x: number, z: number) {
   return {
     id: `${kind}_1`,
     type: kind,
@@ -90,7 +90,7 @@ function plant(kind: string, x: number, z: number) {
 
 beforeAll(async () => {
   // The resolver reads each kind's `floorPlaced` footprint off the registry.
-  await loadPlugin(treesPlugin as never)
+  await loadPlugin(poolsPlugin as never)
   initSpatialGridSync()
 })
 
@@ -99,24 +99,24 @@ describe.each(KINDS)('%s', (kind) => {
     const nodes = scene(null)
     await publish(nodes)
 
-    expect(plantElevation(plant(kind, 2, 2), nodes)).toBe(0)
+    expect(featureElevation(feature(kind, 2, 2), nodes)).toBe(0)
   })
 
   test('rides a slab it stands on rather than its stored zero', async () => {
     const nodes = scene(DECK_ELEVATION)
     await publish(nodes)
 
-    const node = plant(kind, 2, 2)
+    const node = feature(kind, 2, 2)
     expect(node.position[1]).toBe(0)
-    expect(plantElevation(node, nodes)).toBeCloseTo(DECK_ELEVATION)
+    expect(featureElevation(node, nodes)).toBeCloseTo(DECK_ELEVATION)
   })
 
-  test('a plant beyond the slab stays on the storey plane', async () => {
+  test('a feature beyond the slab stays on the storey plane', async () => {
     const nodes = scene(DECK_ELEVATION)
     await publish(nodes)
 
     // Outside the deck's 0..4 footprint: the lift is per-position, not global.
-    expect(plantElevation(plant(kind, 20, 20), nodes)).toBe(0)
+    expect(featureElevation(feature(kind, 20, 20), nodes)).toBe(0)
   })
 })
 
@@ -126,7 +126,7 @@ describe('placement ghost', () => {
     await publish(nodes)
 
     // An uncommitted draft has no parent, so the level is named explicitly.
-    const draft = { ...plant('trees:tree', 0, 0), parentId: null }
+    const draft = { ...feature('pools:pool', 0, 0), parentId: null }
     expect(draftElevation(draft, 'level_0', [2, 0, 2], nodes)).toBeCloseTo(DECK_ELEVATION)
     expect(draftElevation(draft, 'level_0', [20, 0, 20], nodes)).toBe(0)
   })
@@ -135,7 +135,7 @@ describe('placement ghost', () => {
     const nodes = scene(DECK_ELEVATION)
     await publish(nodes)
 
-    const draft = { ...plant('trees:tree', 0, 0), parentId: null }
+    const draft = { ...feature('pools:pool', 0, 0), parentId: null }
     expect(draftElevation(draft, 'level_missing', [2, 0, 2], nodes)).toBe(0)
   })
 })

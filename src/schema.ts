@@ -1,57 +1,56 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
 
-/** Tree species the plugin can place, each backed by an ez-tree preset family.
+/** Pool designs the plugin can place, backed by the procedural geometry family.
  * The string persists in scene JSON. */
-export const TreePreset = z.enum(['oak', 'pine', 'aspen', 'ash', 'bush', 'trellis'])
-export type TreePreset = z.infer<typeof TreePreset>
+export const PoolPreset = z.enum(['lap', 'family', 'infinity', 'plunge', 'courtyard', 'spa'])
+export type PoolPreset = z.infer<typeof PoolPreset>
 
-/** Preset size variant. Maps to ez-tree's Small/Medium/Large presets (and
- * Bush 1/2/3); ignored for `trellis`, which has a single preset. */
-export const TreeSize = z.enum(['small', 'medium', 'large'])
-export type TreeSize = z.infer<typeof TreeSize>
+/** Preset size variant for the pool footprint. */
+export const PoolSize = z.enum(['small', 'medium', 'large'])
+export type PoolSize = z.infer<typeof PoolSize>
 
-/** ez-tree's two growth models — deciduous (spreading) vs evergreen (conical). */
-export const TreeType = z.enum(['deciduous', 'evergreen'])
-export type TreeType = z.infer<typeof TreeType>
+/** Water profile used to shape the pool surround and planting-ready edge. */
+export const PoolType = z.enum(['chlorinated', 'saltwater'])
+export type PoolType = z.infer<typeof PoolType>
 
 /**
- * Schema for a placed tree. Composed from the public `BaseNode` exactly the way
+ * Schema for a placed pool. Composed from the public `BaseNode` exactly the way
  * built-in node kinds are — `objectId`/`nodeType` come from `@pascal-app/core`,
  * so a plugin needs no private host internals to mint a persistable node.
  *
- * `type` is the namespaced kind `trees:tree`. Every geometry-relevant field
- * (preset/size/treeType/seed/foliage/trunk/leafless/leafColor/branchColor) is
+ * `type` is the namespaced kind `pools:pool`. Every geometry-relevant field
+ * (preset/size/waterProfile/seed/detailDensity/wallThickness/minimal/waterColor/copingColor) is
  * folded into the instancing variant key; `height`/`position`/`rotation` are
  * cheap per-instance transforms.
  */
-export const TreeNode = BaseNode.extend({
-  id: objectId('tree'),
-  type: nodeType('trees:tree'),
+export const PoolNode = BaseNode.extend({
+  id: objectId('pool'),
+  type: nodeType('pools:pool'),
   position: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
   rotation: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
-  preset: TreePreset.default('oak'),
-  size: TreeSize.default('medium'),
-  // Overrides — all optional so an unset field inherits the ez-tree preset (its
-  // own seed/type/tints), exactly like flower `petalColor`. Placing a tree stores
-  // none of these, so a fresh tree is the pure preset; the inspector sets them.
-  /** Growth-model override. Unset ⇒ inherit the preset (oak → deciduous, pine → evergreen). */
-  treeType: TreeType.optional(),
+  preset: PoolPreset.default('family'),
+  size: PoolSize.default('medium'),
+  // Overrides — all optional so an unset field inherits the procedural geometry
+  // preset. Placing a pool stores
+  // none of these, so a fresh pool is the pure preset; the inspector sets them.
+  /** Water profile override. */
+  waterProfile: PoolType.optional(),
   height: z.number().positive().default(7),
   /** Geometry-seed override. Unset ⇒ the preset's own seed (its canonical silhouette);
-   *  set (e.g. via Randomize) to vary the tree. */
+   *  set (e.g. via Randomize) to vary the pool. */
   seed: z.number().int().optional(),
   // Curated geometry params (folded into the instancing variant key):
-  /** Leaf-count multiplier vs the preset (1 = preset default). */
-  foliageDensity: z.number().min(0).max(1.5).default(1),
-  /** Branch-radius multiplier (1 = preset default). */
-  trunkThickness: z.number().min(0.3).max(2.5).default(1),
-  /** Strip all leaves — a bare winter silhouette. */
-  leafless: z.boolean().default(false),
-  /** Leaf tint override (hex). Unset ⇒ the preset's leaf tint. */
-  leafColor: z.string().optional(),
-  /** Bark/branch tint override (hex). Unset ⇒ the preset's bark tint. */
-  branchColor: z.string().optional(),
+  /** Detail multiplier vs the preset (1 = preset default). */
+  detailDensity: z.number().min(0).max(1.5).default(1),
+  /** Wall/thickness multiplier (1 = preset default). */
+  wallThickness: z.number().min(0.3).max(2.5).default(1),
+  /** Remove the optional edge-detail geometry. */
+  minimal: z.boolean().default(false),
+  /** Water tint override (hex). */
+  waterColor: z.string().optional(),
+  /** Coping/surround tint override (hex). */
+  copingColor: z.string().optional(),
 })
 
-export type TreeNode = z.infer<typeof TreeNode>
+export type PoolNode = z.infer<typeof PoolNode>

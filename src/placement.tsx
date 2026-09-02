@@ -10,7 +10,7 @@ const worldVec = new Vector3()
 
 /** Snap a planar position to the grid when grid snapping is the active mode —
  * reading the same `isGridSnapActive()` toggle + `gridSnapStep` the built-in
- * item/shelf tools use, so plants honour the snap mode like every other item. */
+ * item/shelf tools use, so features honour the snap mode like every other item. */
 export function snapXZ(x: number, z: number): readonly [number, number] {
   const editor = useEditor.getState() as ReturnType<typeof useEditor.getState> & {
     snappingModeByContext?: { item?: string }
@@ -41,7 +41,7 @@ export function toLevelLocal(
 }
 
 /**
- * Shared placement wiring for any plant tool: ghosts a preview at the snapped
+ * Shared placement wiring for any feature tool: ghosts a preview at the snapped
  * cursor on `grid:move`, and calls `onCommit` with the snapped level-local
  * position on `grid:click`. Returns the cursor group ref + visibility for the
  * tool to attach its preview to. `onCommit` is read through a ref so a tool can
@@ -76,7 +76,7 @@ export function usePlacement(
      * itself stays flat (`[x, 0, z]`); the lift is presentation, applied to the
      * stored base by the host's floor-elevation pass once the node exists. A
      * ghost that skipped this floated at the storey plane over a deck and sank
-     * into every hillside, so the plant jumped on click.
+     * into every hillside, so the feature jumped on click.
      */
     const ghostY = (x: number, z: number): number => {
       const node = previewRef.current

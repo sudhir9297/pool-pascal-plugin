@@ -1,60 +1,60 @@
 import { type AnyNodeId, type ParametricDescriptor, useScene } from '@pascal-app/core'
-import { defaultHeightOf, TREE_SEED_POOL } from './presets'
-import type { TreeNode } from './schema'
+import { defaultHeightOf, POOL_SEED_POOL } from './presets'
+import type { PoolNode } from './schema'
 
 /**
- * The tree's right-hand inspector. This descriptor is the entire inspector —
+ * The pool's right-hand inspector. This descriptor is the entire inspector —
  * the host's `ParametricInspector` renders every control (selects, sliders,
  * segmented switches, the native colour pickers, the vec3, and the Randomize
- * action) with zero tree-specific code in the editor. Demonstrates the "right
+ * action) with zero pool-specific code in the editor. Demonstrates the "right
  * inspector comes free from `def.parametrics`" leg of the plugin surface.
  *
- * Colours (`leafColor`/`branchColor`) are edit-only — they're not on the
- * placement brush, so a planted tree starts neutral (texture colours) and is
- * tinted here per-tree.
+ * Colours (`waterColor`/`copingColor`) are edit-only — they're not on the
+ * placement brush, so a placed pool starts neutral (texture colours) and is
+ * tinted here per-pool.
  */
-export const treeParametrics: ParametricDescriptor<TreeNode> = {
+export const poolParametrics: ParametricDescriptor<PoolNode> = {
   groups: [
     {
-      label: 'Tree',
+      label: 'Pool',
       fields: [
         {
           key: 'preset',
           kind: 'enum',
-          options: ['oak', 'pine', 'aspen', 'ash', 'bush', 'trellis'],
+          options: ['lap', 'family', 'infinity', 'plunge', 'courtyard', 'spa'],
         },
         {
           key: 'size',
           kind: 'enum',
           options: ['small', 'medium', 'large'],
           display: 'segmented',
-          visibleIf: (n) => n.preset !== 'trellis',
+          visibleIf: (n) => n.preset !== 'spa',
         },
         {
-          key: 'treeType',
+          key: 'waterProfile',
           kind: 'enum',
-          options: ['deciduous', 'evergreen'],
+          options: ['chlorinated', 'saltwater'],
           display: 'segmented',
         },
         { key: 'height', kind: 'number', unit: 'm', min: 1, max: 15, step: 0.5 },
-        { key: 'branchColor', kind: 'color' },
+        { key: 'copingColor', kind: 'color' },
         { key: 'seed', kind: 'number', min: 0, max: 9999, step: 1 },
       ],
     },
     {
-      label: 'Foliage',
+      label: 'Construction',
       fields: [
-        { key: 'leafless', kind: 'boolean' },
+        { key: 'minimal', kind: 'boolean' },
         {
-          key: 'foliageDensity',
+          key: 'detailDensity',
           kind: 'number',
           min: 0,
           max: 1.5,
           step: 0.1,
-          visibleIf: (n) => !n.leafless,
+          visibleIf: (n) => !n.minimal,
         },
-        { key: 'trunkThickness', kind: 'number', min: 0.3, max: 2.5, step: 0.1 },
-        { key: 'leafColor', kind: 'color', visibleIf: (n) => !n.leafless },
+        { key: 'wallThickness', kind: 'number', min: 0.3, max: 2.5, step: 0.1 },
+        { key: 'waterColor', kind: 'color', visibleIf: (n) => !n.minimal },
       ],
     },
     {
@@ -66,14 +66,14 @@ export const treeParametrics: ParametricDescriptor<TreeNode> = {
     {
       label: 'Randomize',
       // The action receives the live node; writing a new seed re-generates the
-      // tree. Pick from the bounded pool so the result stays an instancing
-      // variant shared with other trees, not a one-off mesh.
+      // pool. Pick from the bounded pool so the result stays an instancing
+      // variant shared with other pools, not a one-off mesh.
       onClick: (n) =>
         useScene.getState().updateNode(
           n.id as AnyNodeId,
           {
-            seed: TREE_SEED_POOL[Math.floor(Math.random() * TREE_SEED_POOL.length)] ?? 1,
-          } as Partial<TreeNode> as never,
+            seed: POOL_SEED_POOL[Math.floor(Math.random() * POOL_SEED_POOL.length)] ?? 1,
+          } as Partial<PoolNode> as never,
         ),
     },
     {
@@ -84,7 +84,7 @@ export const treeParametrics: ParametricDescriptor<TreeNode> = {
           .getState()
           .updateNode(
             n.id as AnyNodeId,
-            { height: defaultHeightOf(n.preset, n.size) } as Partial<TreeNode> as never,
+            { height: defaultHeightOf(n.preset, n.size) } as Partial<PoolNode> as never,
           ),
     },
   ],

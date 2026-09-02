@@ -5,62 +5,62 @@ import { EDITOR_LAYER, triggerSFX } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useMemo } from 'react'
 import { usePlacement } from './placement'
-import TreePreview from './preview'
-import { TreeNode } from './schema'
-import { useTreesStore } from './store'
+import PoolPreview from './preview'
+import { PoolNode } from './schema'
+import { usePoolsStore } from './store'
 
 /**
- * The trees placement tool. Mounted by the host's registry-first `ToolManager`
- * whenever `tool === 'trees:tree'` — no host edit per kind. Reads the panel
+ * The pools placement tool. Mounted by the host's registry-first `ToolManager`
+ * whenever `tool === 'pools:pool'` — no host edit per kind. Reads the panel
  * brush from the plugin store, ghosts a preview at the snapped cursor, and
- * commits a tree on click. Snapping + level conversion live in `usePlacement`.
+ * commits a pool on click. Snapping + level conversion live in `usePlacement`.
  */
-export default function TreeTool() {
+export default function PoolTool() {
   const activeLevelId = useViewer((s) => s.selection.levelId)
-  const preset = useTreesStore((s) => s.preset)
-  const size = useTreesStore((s) => s.size)
-  const height = useTreesStore((s) => s.height)
-  const foliageDensity = useTreesStore((s) => s.foliageDensity)
-  const trunkThickness = useTreesStore((s) => s.trunkThickness)
-  const leafless = useTreesStore((s) => s.leafless)
+  const preset = usePoolsStore((s) => s.preset)
+  const size = usePoolsStore((s) => s.size)
+  const height = usePoolsStore((s) => s.height)
+  const detailDensity = usePoolsStore((s) => s.detailDensity)
+  const wallThickness = usePoolsStore((s) => s.wallThickness)
+  const minimal = usePoolsStore((s) => s.minimal)
 
   const previewNode = useMemo(
     () =>
-      TreeNode.parse({
+      PoolNode.parse({
         preset,
         size,
         height,
-        foliageDensity,
-        trunkThickness,
-        leafless,
-        // seed/treeType left unset → the ghost shows the pure preset, as placed.
+        detailDensity,
+        wallThickness,
+        minimal,
+        // seed/waterProfile left unset → the ghost shows the pure preset, as placed.
         position: [0, 0, 0],
         rotation: [0, 0, 0],
       }),
-    [preset, size, height, foliageDensity, trunkThickness, leafless],
+    [preset, size, height, detailDensity, wallThickness, minimal],
   )
 
   const { cursorRef, cursorVisible } = usePlacement(
     activeLevelId,
     (position) => {
       if (!activeLevelId) return
-      const s = useTreesStore.getState()
-      const tree = TreeNode.parse({
+      const s = usePoolsStore.getState()
+      const pool = PoolNode.parse({
         preset: s.preset,
         size: s.size,
         height: s.height,
-        foliageDensity: s.foliageDensity,
-        trunkThickness: s.trunkThickness,
-        leafless: s.leafless,
-        // seed/treeType unset → the pure ez-tree preset (its canonical seed + type).
-        // All same-preset trees then share one instancing variant; a random Y
-        // rotation keeps a planted row from looking cloned. Use Randomize (inspector)
-        // to vary a tree's seed.
+        detailDensity: s.detailDensity,
+        wallThickness: s.wallThickness,
+        minimal: s.minimal,
+        // seed/waterProfile unset → the pure the procedural geometry dependency preset (its canonical seed + type).
+        // All same-preset pools then share one instancing variant; a random Y
+        // rotation keeps a placed row from looking cloned. Use Randomize (inspector)
+        // to vary a pool's seed.
         position,
         rotation: [0, (Math.floor(Math.random() * 8) * Math.PI) / 4, 0],
       })
-      useScene.getState().createNode(tree as unknown as AnyNode, activeLevelId as AnyNodeId)
-      useViewer.getState().setSelection({ selectedIds: [tree.id as AnyNodeId] })
+      useScene.getState().createNode(pool as unknown as AnyNode, activeLevelId as AnyNodeId)
+      useViewer.getState().setSelection({ selectedIds: [pool.id as AnyNodeId] })
       triggerSFX('sfx:item-place')
     },
     previewNode,
@@ -70,7 +70,7 @@ export default function TreeTool() {
 
   return (
     <group layers={EDITOR_LAYER} ref={cursorRef} visible={cursorVisible}>
-      <TreePreview node={previewNode} />
+      <PoolPreview node={previewNode} />
     </group>
   )
 }

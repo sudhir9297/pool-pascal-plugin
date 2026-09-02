@@ -1,16 +1,16 @@
 import type { ParametricDescriptor } from '@pascal-app/core'
-import type { FlowerNode } from './flower-schema'
+import type { HotTubNode } from './hotTub-schema'
 
-/** Inspector for a placed flower — rendered for free by the host's
+/** Inspector for a placed hotTub — rendered for free by the host's
  * `ParametricInspector` from this descriptor. */
-export const flowerParametrics: ParametricDescriptor<FlowerNode> = {
+export const hotTubParametrics: ParametricDescriptor<HotTubNode> = {
   groups: [
     {
-      label: 'Flower',
+      label: 'HotTub',
       fields: [
-        { key: 'preset', kind: 'enum', options: ['daisy', 'tulip', 'lavender'] },
+        { key: 'preset', kind: 'enum', options: ['spa', 'therapy', 'plunge'] },
         { key: 'height', kind: 'number', unit: 'm', min: 0.2, max: 2, step: 0.05 },
-        { key: 'petalColor', kind: 'color' },
+        { key: 'waterColor', kind: 'color' },
         { key: 'seed', kind: 'number', min: 0, max: 9999, step: 1 },
       ],
     },

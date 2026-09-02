@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo } from 'react'
 import type { Material, MeshStandardMaterial } from 'three'
-import { getGrassVariant } from './grass-geometry'
-import type { GrassNode } from './grass-schema'
+import { getWaterFeaturesVariant } from './waterFeatures-geometry'
+import type { WaterFeaturesNode } from './waterFeatures-schema'
 
 const NO_RAYCAST = () => {}
 
-/** Translucent placement ghost for a grass tuft — clones the variant materials
+/** Translucent placement ghost for a waterFeatures feature — clones the variant materials
  * so the cursor preview is see-through without mutating the cached originals. */
-export default function GrassPreview({ node }: { node: GrassNode }) {
-  const data = useMemo(() => getGrassVariant(node), [node])
+export default function WaterFeaturesPreview({ node }: { node: WaterFeaturesNode }) {
+  const data = useMemo(() => getWaterFeaturesVariant(node), [node])
   const scale = node.height / data.naturalHeight
 
   const ghosts = useMemo(

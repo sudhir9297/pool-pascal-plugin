@@ -3,24 +3,24 @@
 import { EDITOR_LAYER } from '@pascal-app/editor'
 import { useEffect, useMemo } from 'react'
 import type { Material } from 'three'
-import { generateTree, treeSpecOf } from './geometry'
-import type { TreeNode } from './schema'
+import { generatePool, poolSpecOf } from './geometry'
+import type { PoolNode } from './schema'
 import { naturalHeight } from './variant-utils'
 
 /**
- * Translucent placement ghost — a single ez-tree (not instanced) scaled to the
+ * Translucent placement ghost — a single the procedural geometry dependency (not instanced) scaled to the
  * node's height, following the cursor. Clones each material for the see-through
  * look and disables raycast so the ghost never intercepts the cursor ray (which
  * would freeze `grid:move`).
  */
-export default function TreePreview({ node }: { node: TreeNode }) {
+export default function PoolPreview({ node }: { node: PoolNode }) {
   const built = useMemo(() => {
-    const tree = generateTree(treeSpecOf(node))
-    tree.scale.setScalar(node.height / naturalHeight(tree))
+    const pool = generatePool(poolSpecOf(node))
+    pool.scale.setScalar(node.height / naturalHeight(pool))
     // Overlay layer keeps the ghost out of export/snapshot passes. Layers
-    // don't inherit, so every object in the built tree needs it.
-    tree.traverse((obj) => obj.layers.set(EDITOR_LAYER))
-    return tree
+    // don't inherit, so every object in the built pool needs it.
+    pool.traverse((obj) => obj.layers.set(EDITOR_LAYER))
+    return pool
   }, [node])
 
   useEffect(() => {

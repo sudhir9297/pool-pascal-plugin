@@ -1,14 +1,14 @@
 {
-  "name": "@pascal-app/plugin-trees",
+  "name": "@pascal-app/plugin-pools",
   "version": "0.1.0",
-  "description": "First-party example Pascal editor plugin — a procedural trees node with a presets rail panel. Structurally identical to a third-party plugin (peer-deps on @pascal-app/*).",
+  "description": "Pascal swimming-pool plugin with procedural pool, spa, and water-feature nodes.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pascalorg/plugin-trees.git"
+    "url": "git+https://github.com/pascalorg/plugin-pools.git"
   },
   "homepage": "https://editor.pascal.app/docs/developers/plugins",
   "bugs": {
-    "url": "https://github.com/pascalorg/plugin-trees/issues"
+    "url": "https://github.com/pascalorg/plugin-pools/issues"
   },
   "type": "module",
   "main": "./src/index.ts",
@@ -25,7 +25,8 @@
   ],
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "build": "tsc --noEmit"
   },
   "dependencies": {
     "@dgreenheck/ez-tree": "^1.1.0"

@@ -1,24 +1,24 @@
 'use client'
 
-import { getVariantData, treeSpecOf, treeVariantKey } from './geometry'
+import { getVariantData, poolSpecOf, poolVariantKey } from './geometry'
 import { InstancedKindSystem } from './instanced'
-import type { TreeNode } from './schema'
+import type { PoolNode } from './schema'
 
 // Module-scope so identities stay stable (the system memoises on them).
-const variantKeyOf = (node: TreeNode) => treeVariantKey(treeSpecOf(node))
-const getVariant = (node: TreeNode) => getVariantData(treeSpecOf(node))
+const variantKeyOf = (node: PoolNode) => poolVariantKey(poolSpecOf(node))
+const getVariant = (node: PoolNode) => getVariantData(poolSpecOf(node))
 
 /**
- * Collective instanced renderer for every placed tree — contributed via
- * `def.system`. Buckets trees by their geometry variant and draws each variant
- * as one InstancedMesh per ez-tree sub-mesh, so a forest is a handful of draw
+ * Collective instanced renderer for every placed pool — contributed via
+ * `def.system`. Buckets pools by their geometry variant and draws each variant
+ * as one InstancedMesh per the procedural geometry dependency sub-mesh, so a collection is a handful of draw
  * calls. Selection/outline come from the per-node proxy renderer.
  */
-export default function TreesSystem() {
+export default function PoolsSystem() {
   return (
-    <InstancedKindSystem<TreeNode>
+    <InstancedKindSystem<PoolNode>
       getVariant={getVariant}
-      kind="trees:tree"
+      kind="pools:pool"
       variantKeyOf={variantKeyOf}
     />
   )

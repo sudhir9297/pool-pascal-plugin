@@ -1,20 +1,18 @@
 import type { HandleDescriptor, NodeDefinition } from '@pascal-app/core'
-import { buildTreeFloorplan, treeTrunkRadius } from './floorplan'
-import { treeParametrics } from './parametrics'
-import { TreeNode } from './schema'
+import { buildPoolFloorplan, poolTrunkRadius } from './floorplan'
+import { poolParametrics } from './parametrics'
+import { PoolNode } from './schema'
 
-type TreeDefinition = NodeDefinition<typeof TreeNode> & Record<string, unknown>
+type PoolDefinition = NodeDefinition<typeof PoolNode> & Record<string, unknown>
 
 const ROTATE_RING_OFFSET = 0.35
-/** Ring hugs the ground like the item gizmo — high enough to clear the grass,
+  /** Ring hugs the ground like the item gizmo — high enough to clear the water features,
  * low enough to read as a floor affordance. */
 const ROTATE_RING_Y = 0.25
 
-/** Whole-tree Y-rotation gizmo (same rig as shelf/item): a ring around the
- * trunk near the ground — not the canopy, which would put the handle meters
- * from the trunk on a large oak. */
-function treeRotateHandle(): HandleDescriptor<TreeNode> {
-  const ringRadius = (n: TreeNode) => treeTrunkRadius(n) + ROTATE_RING_OFFSET
+/** Whole-pool Y-rotation gizmo: a ring around the pool near the ground. */
+function poolRotateHandle(): HandleDescriptor<PoolNode> {
+  const ringRadius = (n: PoolNode) => poolTrunkRadius(n) + ROTATE_RING_OFFSET
   const ringY = () => ROTATE_RING_Y
   return {
     kind: 'arc-resize',
@@ -40,33 +38,33 @@ function treeRotateHandle(): HandleDescriptor<TreeNode> {
   }
 }
 
-const treeFloorPlacement = {
+const poolFloorPlacement = {
   footprint: (node: unknown) => {
-    const tree = node as TreeNode
-    const radius = treeTrunkRadius(tree)
+    const pool = node as PoolNode
+    const radius = poolTrunkRadius(pool)
     return {
-      dimensions: [radius * 2, tree.height, radius * 2] as [number, number, number],
-      rotation: tree.rotation,
+      dimensions: [radius * 2, pool.height, radius * 2] as [number, number, number],
+      rotation: pool.rotation,
     }
   },
   collides: false,
 }
 
 /**
- * The tree node definition. Rendering uses the instanced path rather than the
- * per-node `def.geometry`: a collective `def.system` batches every tree into
- * `InstancedMesh`es (forest-scale draw calls), while a featherweight
+ * The pool node definition. Rendering uses the instanced path rather than the
+ * per-node `def.geometry`: a collective `def.system` batches every pool into
+ * `InstancedMesh`es (collection-scale draw calls), while a featherweight
  * `def.renderer` mounts an invisible per-node proxy so the host's selection /
  * outline / zone machinery works unchanged. `parametrics` gives the inspector
  * for free; `tool`/`preview` drive placement. No host dispatch code per kind.
  */
-export const treeDefinition: TreeDefinition = {
-  kind: 'trees:tree',
+export const poolDefinition: PoolDefinition = {
+  kind: 'pools:pool',
   // Static in the bake for portability; our viewer removes the baked meshes and
   // re-renders live (wind, LODs) via this def's own path. See plans → Part D.
   bake: 'replace',
   schemaVersion: 1,
-  schema: TreeNode,
+  schema: PoolNode,
   category: 'furnish',
   snapProfile: 'item',
 
@@ -77,16 +75,16 @@ export const treeDefinition: TreeDefinition = {
     metadata: {},
     position: [0, 0, 0],
     rotation: [0, 0, 0],
-    preset: 'oak',
+    preset: 'family',
     size: 'medium',
-    treeType: 'deciduous',
+    waterProfile: 'chlorinated',
     height: 7,
     seed: 1,
-    foliageDensity: 1,
-    trunkThickness: 1,
-    leafless: false,
-    leafColor: '#ffffff',
-    branchColor: '#ffffff',
+    detailDensity: 1,
+    wallThickness: 1,
+    minimal: false,
+    waterColor: '#ffffff',
+    copingColor: '#ffffff',
   }),
 
   capabilities: {
@@ -100,26 +98,26 @@ export const treeDefinition: TreeDefinition = {
     deletable: true,
     groupable: true,
     snappable: {},
-    // The auto-measured drag box would wrap the whole canopy (the proxy shows
-    // the real geometry while selected) — declare trunk-sized bounds instead.
+    // The auto-measured drag box would wrap the whole water surface (the proxy shows
+    // the real geometry while selected) — declare coping-sized bounds instead.
     dragBounds: (node) => {
-      const tree = node as unknown as TreeNode
-      const radius = treeTrunkRadius(tree)
-      return { size: [radius * 2, tree.height ?? 7, radius * 2] }
+      const pool = node as unknown as PoolNode
+      const radius = poolTrunkRadius(pool)
+      return { size: [radius * 2, pool.height ?? 7, radius * 2] }
     },
     // Defined outside the contextually typed object so the optional `collides`
     // hint remains compatible with Pascal hosts released before that field.
-    floorPlaced: treeFloorPlacement,
+    floorPlaced: poolFloorPlacement,
   },
 
-  parametrics: treeParametrics,
-  // 2D plan symbol: dashed canopy ring + trunk dot (see floorplan.ts).
-  floorplan: buildTreeFloorplan,
-  handles: [treeRotateHandle()],
+  parametrics: poolParametrics,
+  // 2D plan symbol: dashed water ring + coping dot (see floorplan.ts).
+  floorplan: buildPoolFloorplan,
+  handles: [poolRotateHandle()],
 
   // Instanced rendering: an invisible per-node proxy for selection/outline...
   renderer: { kind: 'parametric', module: () => import('./proxy-renderer') },
-  // ...and a collective system that batches every tree into InstancedMeshes.
+  // ...and a collective system that batches every pool into InstancedMeshes.
   system: { module: () => import('./system'), priority: 3 },
   // Baked `/viewer` re-render for `bake: 'replace'` — collective, instanced.
   bakeReplaceRenderer: { module: () => import('./static-renderer') },
@@ -127,20 +125,20 @@ export const treeDefinition: TreeDefinition = {
   preview: () => import('./preview'),
   tool: () => import('./tool'),
   toolHints: [
-    { key: 'Left click', label: 'Plant tree' },
+    { key: 'Left click', label: 'Feature pool' },
     { key: 'Esc', label: 'Stop' },
   ],
 
   presentation: {
-    label: 'Tree',
-    description: 'A procedural ez-tree. Oak, pine, aspen, ash, bush, or trellis.',
-    icon: { kind: 'iconify', name: 'lucide:trees' },
+    label: 'Pool',
+    description: 'A procedural swimming pool. Lap, family, infinity, plunge, courtyard, or spa.',
+    icon: { kind: 'iconify', name: 'lucide:pools' },
     paletteSection: 'furnish',
     hidden: true,
   },
 
   mcp: {
     description:
-      'A procedural ez-tree (example plugin node). Species presets (oak/pine/aspen/ash/bush/trellis) × size, deciduous/evergreen type, adjustable height, foliage/trunk, leaf & branch tint, and a seed for variation.',
+      'A procedural swimming pool with lap, family, infinity, plunge, courtyard, and spa designs, adjustable dimensions, water profile, surround detail, tint, and deterministic variation.',
   },
 }

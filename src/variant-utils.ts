@@ -1,12 +1,12 @@
 import { Box3, type Object3D } from 'three'
 
-// Pure helpers shared by the tree/flower/grass variant builders. They live
-// apart from `geometry.ts` because that module imports ez-tree, which loads
+// Pure helpers shared by the pool/hotTub/waterFeatures variant builders. They live
+// apart from `geometry.ts` because that module imports the procedural geometry dependency, which loads
 // its inlined textures at module scope (needs `document`) and therefore must
 // never sit on an eagerly-imported path (index → definitions → floorplan) —
 // SSR/prerender would crash. Only lazy client modules may import `geometry.ts`.
 
-/** Natural (unscaled) height of a generated plant, so the renderer can scale
+/** Natural (unscaled) height of a generated feature, so the renderer can scale
  * each instance to the node's `height`. */
 export function naturalHeight(obj: Object3D): number {
   const box = new Box3().setFromObject(obj)
@@ -14,7 +14,7 @@ export function naturalHeight(obj: Object3D): number {
 }
 
 /** Deterministic 32-bit RNG (mulberry32) — same seed ⇒ same geometry. Shared by
- * the procedural flower/grass builders so a variant is stable across instances. */
+ * the procedural hotTub/waterFeatures builders so a variant is stable across instances. */
 export function mulberry32(seed: number): () => number {
   let a = seed || 1
   return () => {

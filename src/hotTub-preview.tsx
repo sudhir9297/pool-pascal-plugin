@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo } from 'react'
 import type { Material, MeshStandardMaterial } from 'three'
-import { getFlowerVariant } from './flower-geometry'
-import type { FlowerNode } from './flower-schema'
+import { getHotTubVariant } from './hotTub-geometry'
+import type { HotTubNode } from './hotTub-schema'
 
 const NO_RAYCAST = () => {}
 
-/** Translucent placement ghost for a flower — clones the variant materials so
+/** Translucent placement ghost for a hotTub — clones the variant materials so
  * the cursor preview is see-through without mutating the cached originals. */
-export default function FlowerPreview({ node }: { node: FlowerNode }) {
-  const data = useMemo(() => getFlowerVariant(node), [node])
+export default function HotTubPreview({ node }: { node: HotTubNode }) {
+  const data = useMemo(() => getHotTubVariant(node), [node])
   const scale = node.height / data.naturalHeight
 
   const ghosts = useMemo(

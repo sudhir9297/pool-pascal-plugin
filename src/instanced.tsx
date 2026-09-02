@@ -12,20 +12,20 @@ import { useNodeEvents, useViewer } from '@pascal-app/viewer'
 import { useFrame } from '@react-three/fiber'
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { type BufferGeometry, type InstancedMesh, type Material, Matrix4, Object3D } from 'three'
-import { plantElevation } from './elevation'
+import { featureElevation } from './elevation'
 import { toStaticMaterial } from './wind-node'
 
 /**
- * Generic instanced-rendering core shared by every plant kind (trees, flowers,
+ * Generic instanced-rendering core shared by every feature kind (pools, hotTubs,
  * …). A kind plugs in two pure functions — `variantKeyOf` (how to bucket nodes
  * that can share geometry) and `getVariant` (cached geometry for a node) — and
- * gets forest-scale instancing plus true-silhouette selection for free.
+ * gets collection-scale instancing plus true-silhouette selection for free.
  */
 
 export type SubMesh = { geometry: BufferGeometry; material: Material | Material[] }
 export type VariantData = { subMeshes: SubMesh[]; naturalHeight: number }
 
-/** The shape every placeable plant node shares. */
+/** The shape every placeable feature node shares. */
 export interface Placeable {
   id: string
   type: string
@@ -42,17 +42,17 @@ const ZERO_MATRIX = new Matrix4().makeScale(0, 0, 0)
 const NO_RAYCAST = () => {}
 
 // ── Runtime per-instance hiding ──────────────────────────────────────────────
-// Lets a GAME layer (e.g. the Boots plugin's destructible-tree mode) hide a
-// single plant's instance WITHOUT touching the scene store: hidden nodes get
+// Lets a GAME layer (e.g. the Boots plugin's destructible-pool mode) hide a
+// single feature's instance WITHOUT touching the scene store: hidden nodes get
 // a zero-scale matrix at write time and every InstancedSubMesh rewrites when
 // the epoch bumps. Exposed on globalThis under a well-known key so consumers
-// need no package dependency (feature-detect `__pascalTreesRuntime`). State
-// is transient by design — a reload or `restoreAll()` brings every plant back.
+// need no package dependency (feature-detect `__pascalPoolsRuntime`). State
+// is transient by design — a reload or `restoreAll()` brings every feature back.
 
 const hiddenNodeIds = new Set<string>()
 let hiddenEpoch = 0
 
-export const treesRuntime = {
+export const poolsRuntime = {
   /** Zero-scale this node's instance until restored. Returns true if it changed. */
   hide(nodeId: string): boolean {
     if (hiddenNodeIds.has(nodeId)) return false
@@ -77,8 +77,8 @@ export const treesRuntime = {
 }
 
 if (typeof globalThis !== 'undefined') {
-  ;(globalThis as { __pascalTreesRuntime?: typeof treesRuntime }).__pascalTreesRuntime =
-    treesRuntime
+  ;(globalThis as { __pascalPoolsRuntime?: typeof poolsRuntime }).__pascalPoolsRuntime =
+    poolsRuntime
 }
 
 // Wind is a TSL vertex bend baked into the variant materials (see `wind-node.ts`)
@@ -98,7 +98,7 @@ export function InstancedKindSystem<N extends Placeable>({
   const scene = useScene((s) => s.nodes)
   const hoveredId = useViewer((s) => s.hoveredId)
   const selectedIds = useViewer((s) => s.selection.selectedIds)
-  // Hovered/selected plants render through their proxy instead (real geometry,
+  // Hovered/selected features render through their proxy instead (real geometry,
   // static materials) so the outline matches the visible mesh and a move drag
   // animates in realtime — skip them here to avoid a double draw. Keyed by the
   // *relevant* ids only, so hovering unrelated kinds doesn't churn matrices.
@@ -149,8 +149,8 @@ export function InstancedKindSystem<N extends Placeable>({
  *   the level transform), so instance matrices stay level-local, and the meshes
  *   are `NO_RAYCAST` (scenery; a pick would resolve to the level anyway).
  *
- * Instancing carries the per-tree wind phase for free via `instanceIndex`; a
- * per-node render (one mesh each) would give every tree phase 0 → a whole
+ * Instancing carries the per-pool wind phase for free via `instanceIndex`; a
+ * per-node render (one mesh each) would give every pool phase 0 → a whole
  * variant sways in unison.
  */
 export function InstancedNodes<N extends Placeable>({
@@ -251,7 +251,7 @@ function InstancedSubMesh<N extends Placeable>({
         continue
       }
       const scale = node.height / naturalHeight
-      DUMMY.position.set(node.position[0], plantElevation(node, sceneNodes), node.position[2])
+      DUMMY.position.set(node.position[0], featureElevation(node, sceneNodes), node.position[2])
       DUMMY.rotation.set(node.rotation[0], node.rotation[1], node.rotation[2])
       DUMMY.scale.set(scale, scale, scale)
       DUMMY.updateMatrix()
@@ -285,12 +285,12 @@ function InstancedSubMesh<N extends Placeable>({
   //
   // - the parent level's world transform (explode, level-height edits), which is
   //   baked into every instance matrix, and
-  // - the floor a plant stands on: a deck slab raised, or the ground sculpted —
+  // - the floor a feature stands on: a deck slab raised, or the ground sculpted —
   //   and a terrain stroke publishes to a transient store, never touching the
   //   scene graph, so there is no node change to observe.
   //
   // The floor case rides the host's dirty marks (it marks every `floorPlaced` node
-  // at grade on each dab) rather than re-resolving every instance: a forest would
+  // at grade on each dab) rather than re-resolving every instance: a collection would
   // be thousands of spatial queries per frame for a signal that is idle almost
   // always. Reading the marks *here* rather than in an effect is deliberate — this
   // callback has no explicit priority, so it runs before the priority-2 pass in
@@ -361,10 +361,10 @@ const toStatic = (material: Material | Material[]) =>
  * While hovered/selected the collective system skips this node and the proxy
  * mounts the real geometry with **static twins** of the wind materials — the
  * outline mask renders with an override material and can't follow GPU sway,
- * so the plant holds still while outlined and the silhouette matches exactly.
+ * so the feature holds still while outlined and the silhouette matches exactly.
  * During a GLB export the geometry mounts with the real materials instead, so
- * the exporter (which clones only the `scene-renderer` subtree, not the
- * collective InstancedMesh) captures each plant; the collider is dropped so it
+ * the exporter (which clones only the `scene-renderer` subpool, not the
+ * collective InstancedMesh) captures each feature; the collider is dropped so it
  * doesn't bake as a phantom solid.
  */
 export function KindProxy<N extends Placeable & { id: string }>({
@@ -392,7 +392,7 @@ export function KindProxy<N extends Placeable & { id: string }>({
   // imperatively to the registered group; applying it React-side too keeps the
   // two in agreement (and moves the collider along with the drag). The rotate /
   // resize gizmos publish through `useLiveNodeOverrides` instead — fold that in
-  // too (mirrors ParametricNodeRenderer) so the plant turns live mid-drag
+  // too (mirrors ParametricNodeRenderer) so the feature turns live mid-drag
   // rather than snapping on commit.
   const live = useLiveTransforms((s) => s.get(node.id))
   const liveOverride = useLiveNodeOverrides((s) => s.overrides.get(node.id))
@@ -416,9 +416,9 @@ export function KindProxy<N extends Placeable & { id: string }>({
   // every frame with the resolved floor lift. The collider is a *sibling* of that
   // group (so the outline pass traces the real silhouette, not a box), which puts
   // it outside the host's reach — resolve the same lift for it here, or the hit
-  // volume stays at the storey plane while the plant it stands for rides a deck
+  // volume stays at the storey plane while the feature it stands for rides a deck
   // or a hillside.
-  const colliderY = plantElevation({ ...node, position }) + height / 2
+  const colliderY = featureElevation({ ...node, position }) + height / 2
 
   return (
     <group visible={node.visible !== false} {...handlers}>
