@@ -6,7 +6,8 @@ Plugin API v1.
 
 ## Included feature
 
-The manifest registers one node kind: `pool:pool`.
+The manifest registers pool, PVC pipe-network, skimmer, suction-valve, and
+circulation-pump node kinds.
 
 It supports:
 
@@ -14,12 +15,14 @@ It supports:
 - rectangular, lap, L, kidney, round, oval, and polygonal pools;
 - shallow-to-deep floor profiles, steps, benches, shelves, and beach entries;
 - coping and shell geometry;
+- an optional deterministic rock border made from individually shaped stones;
 - animated water with Clear, Genshin, and Tropical presets;
 - editable water color, normals, ripples, reflections, refraction, caustics,
   shoreline, rain, breeze, and sun settings.
+- placeable plumbing items with a procedural pump model showing inlet and
+  outlet unions for pipe connections.
 
-No hot tubs, fountains, waterfalls, equipment, fittings, pipes, rocks, or other
-scene items are registered by this package.
+No hot tubs, fountains, or waterfalls are registered by this package.
 
 ## Development
 
@@ -49,6 +52,10 @@ modules, so host metadata loading remains safe for SSR.
 src/
   swimming-pool/
     core/      schema, node definition, and geometry
+    pipe/      editable PVC pipe networks
+    pump/      circulation pump schema, geometry, and editor integration
+    skimmer/   wall-mounted skimmer schema, geometry, and placement
+    valve/     suction valve schema, geometry, and placement
     design/    outlines, depth, coping, entries, and opening sync
     editor/    panel, tool, preview, renderer, and parametrics
     shader/    water effect, presets, actions, and texture assets

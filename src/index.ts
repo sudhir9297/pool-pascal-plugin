@@ -1,5 +1,9 @@
 import type { AnyNodeDefinition, Plugin } from '@pascal-app/core'
 import { poolDefinition } from './swimming-pool/core/definition'
+import { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
+import { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
+import { poolValveDefinition } from './swimming-pool/valve/core/definition'
+import { poolPumpDefinition } from './swimming-pool/pump/core/definition'
 
 /**
  * The pool plugin manifest — the entire public surface of this package. A host
@@ -12,6 +16,10 @@ export const poolPlugin: Plugin = {
   apiVersion: 1,
   nodes: [
     poolDefinition as unknown as AnyNodeDefinition,
+    poolPipeDefinition as unknown as AnyNodeDefinition,
+    poolSkimmerDefinition as unknown as AnyNodeDefinition,
+    poolValveDefinition as unknown as AnyNodeDefinition,
+    poolPumpDefinition as unknown as AnyNodeDefinition,
   ],
 }
 
@@ -34,7 +42,17 @@ export const poolHostPanel: PoolHostPanel = {
 // `document` at module scope and would crash SSR (this barrel is eagerly
 // imported by host bootstraps). Lazy client modules import it directly.
 export { poolDefinition } from './swimming-pool/core/definition'
+export { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
+export { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
+export { poolValveDefinition } from './swimming-pool/valve/core/definition'
+export { poolPumpDefinition } from './swimming-pool/pump/core/definition'
 export { PoolNode, resolvePoolPolygon } from './swimming-pool/core/schema'
+export { PoolPipeNode } from './swimming-pool/pipe/core/schema'
+export { PoolSkimmerNode } from './swimming-pool/skimmer/core/schema'
+export { PoolValveNode } from './swimming-pool/valve/core/schema'
+export { PoolPumpNode } from './swimming-pool/pump/core/schema'
+export { POOL_FILTER_CATALOG, getPoolFilterData } from './swimming-pool/filter/data/catalog'
+export type { PoolFilterData, PoolFilterTechnology } from './swimming-pool/filter/data/types'
 export { poolParametrics } from './swimming-pool/editor/parametrics'
 export { usePoolStore } from './swimming-pool/editor/store'
 export {
@@ -51,6 +69,13 @@ export {
   type FreehandPoolOutline,
 } from './swimming-pool/design/freehand-outline'
 export { WATER_PRESETS, WATER_PRESET_SETTINGS, getWaterPresetSettings } from './swimming-pool/shader/water-presets'
+export { POOL_FINISHES, POOL_FINISH_SETTINGS, getPoolFinishSettings } from './swimming-pool/design/pool-finishes'
+export {
+  POOL_VISUAL_PRESETS,
+  POOL_VISUAL_PRESETS_SETTINGS,
+  getPoolVisualPreset,
+  type PoolVisualPreset,
+} from './swimming-pool/design/visual-presets'
 type PoolHostPanel = {
   id: string
   pluginId: string

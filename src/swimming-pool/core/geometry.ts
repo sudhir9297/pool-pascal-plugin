@@ -20,6 +20,8 @@ import { buildPoolOutlines } from '../design/outlines'
 import { PoolNode, type PoolPoint, resolvePoolPolygon } from './schema'
 import { PoolWaterEffect } from '../shader/water-effect'
 import { buildNaturalCopingGeometry } from '../design/coping'
+import { buildSubmergedFeatureCopingGeometry } from '../design/feature-coping'
+import { getPoolFinishSettings } from '../design/pool-finishes'
 
 function addPlanarUvAttribute(geometry: BufferGeometry) {
   const position = geometry.getAttribute('position')
@@ -335,7 +337,9 @@ function createPoolWallGeometry(
   }
 
   addWallFace(inner, false, coveRadius)
+  const outerStart = positions.length / 3
   addWallFace(outer, true)
+  const outerEnd = positions.length / 3
 
   if (coveRadius > GEOMETRY_EPSILON) {
     const inset = coveInner
@@ -392,6 +396,11 @@ function createPoolWallGeometry(
 
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  const vertexCount = positions.length / 3
+  geometry.clearGroups()
+  geometry.addGroup(0, outerStart, 0)
+  geometry.addGroup(outerStart, outerEnd - outerStart, 1)
+  geometry.addGroup(outerEnd, vertexCount - outerEnd, 0)
   addPlanarUvAttribute(geometry)
   geometry.computeVertexNormals()
   return geometry
@@ -575,7 +584,8 @@ function createWaterGeometry(points: PoolPoint[]) {
 }
 
 function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: PoolPoint[]) {
-  const material = new MeshBasicNodeMaterial({ color: node.shellColor, side: DoubleSide })
+  const finish = getPoolFinishSettings(node.interiorFinish)
+  const material = new MeshBasicNodeMaterial({ color: finish.base, side: DoubleSide })
   const normal = normalLocal.abs()
   const isFloor = normal.y.greaterThan(0.65)
   const wallU = normal.x.greaterThan(normal.z).select(positionLocal.z, positionLocal.x)
@@ -584,7 +594,7 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
 
   // 25 cm square ceramic tiles. The small fixed warp keeps the grid from
   // reading like graph paper while preserving clean grout through corners.
-  const tileScale = 4
+  const tileScale = finish.scale
   const tileU = sourceU.mul(tileScale).add(sin(sourceV.mul(2.8)).mul(0.035))
   const tileV = sourceV.mul(tileScale).add(sin(sourceU.mul(2.4)).mul(0.035))
   const cellU = tileU.floor()
@@ -595,7 +605,7 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
   const edgeV = withinV.min(float(1).sub(withinV))
   const tileMask = smoothstep(0.035, 0.07, edgeU.min(edgeV))
   const variation = sin(cellU.mul(12.9898).add(cellV.mul(78.233))).mul(43758.5453).fract()
-  const ceramic = mix(color('#1496b5'), color('#5dd4d8'), variation)
+  const ceramic = mix(color(finish.tile[0]), color(finish.tile[1]), variation)
   const xs = points.map(([x]) => x)
   const zs = points.map(([, z]) => z)
   const poolUv = positionLocal.xz.sub(vec2(Math.min(...xs), Math.min(...zs)))
@@ -606,7 +616,7 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
     .clamp(0, 1)
   const underwater = smoothstep(0.04, 0.35, positionLocal.y.negate())
   const caustic = effect.causticsAt(poolUv).mul(underwater).mul(0.5)
-  const tiledShell = mix(color('#c5d3d1'), ceramic, tileMask).add(caustic)
+  const tiledShell = mix(color(finish.grout), ceramic, tileMask).add(caustic)
   material.colorNode = tiledShell
   return material
 }
@@ -634,6 +644,7 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
   const copingOuter = outlines.copingOuter
   const waterEffect = new PoolWaterEffect(node)
   const shellMaterial = createTileMaterial(node, waterEffect, inner)
+  const outerWallMaterial = new MeshBasicNodeMaterial({ color: '#ffffff', side: DoubleSide })
   const copingMaterial = new MeshBasicNodeMaterial({ color: node.copingColor, side: DoubleSide })
   const depth = getPoolDepthResolver(node, inner)
   const cuts = depth.profile.kind === 'shallow-to-deep'
@@ -642,6 +653,23 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
         depth.minimumX + (depth.maximumX - depth.minimumX) * depth.profile.slopeEnd / 100,
       ]
     : []
+  const addSubmergedFeatureEdge = (
+    start: PoolPoint,
+    end: PoolPoint,
+    topDepth: number,
+    seed: number,
+  ) => {
+    if (node.copingStyle !== 'rock') return
+    group.add(buildSubmergedFeatureCopingGeometry(start, end, {
+      width: node.copingWidth,
+      thickness: node.copingThickness,
+      stoneLength: node.copingStoneLength,
+      irregularity: node.copingIrregularity,
+      seed,
+      color: node.copingColor,
+      topDepth,
+    }))
+  }
 
   const floor = new Mesh(
     createPoolFloorGeometry(inner, depth.depthAtX, node.floorThickness, cuts),
@@ -659,7 +687,7 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
       safeCoveRadius,
       outlines.coveInner,
     ),
-    shellMaterial,
+    [shellMaterial, outerWallMaterial],
   )
   walls.name = 'pool-shell-walls'
   group.add(walls)
@@ -693,6 +721,12 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
     )
     shelf.name = 'pool-entry-tanning-shelf'
     group.add(shelf)
+    const shelfIntervals = getCrossSectionIntervals(inner, endX)
+    for (const [minimumZ, maximumZ] of shelfIntervals) {
+      addSubmergedFeatureEdge([endX, minimumZ], [endX, maximumZ], node.entryWaterDepth, node.copingSeed + 101)
+      addSubmergedFeatureEdge([depth.minimumX, minimumZ], [endX, minimumZ], node.entryWaterDepth, node.copingSeed + 102)
+      addSubmergedFeatureEdge([depth.minimumX, maximumZ], [endX, maximumZ], node.entryWaterDepth, node.copingSeed + 103)
+    }
   } else if (node.entryFeature === 'beach-entry') {
     const length = Math.min(node.entryLength, (depth.maximumX - depth.minimumX) * 0.6)
     const beach = new Mesh(
@@ -724,6 +758,12 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
     )
     bench.name = 'pool-bench'
     group.add(bench)
+    const benchIntervals = getCrossSectionIntervals(inner, startX)
+    for (const [minimumZ, maximumZ] of benchIntervals) {
+      addSubmergedFeatureEdge([startX, minimumZ], [startX, maximumZ], node.benchWaterDepth, node.copingSeed + 202)
+      addSubmergedFeatureEdge([startX, minimumZ], [depth.maximumX, minimumZ], node.benchWaterDepth, node.copingSeed + 203)
+      addSubmergedFeatureEdge([startX, maximumZ], [depth.maximumX, maximumZ], node.benchWaterDepth, node.copingSeed + 204)
+    }
   }
 
   const water = new Mesh(createWaterGeometry(inner), waterEffect.material)
@@ -736,14 +776,15 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
   water.raycast = () => undefined
   group.add(water)
 
-  if (node.copingStyle === 'natural-stone') {
+  if (node.copingStyle === 'natural-stone' || node.copingStyle === 'rock') {
     group.add(buildNaturalCopingGeometry(inner, {
       width: Math.max(node.copingWidth, node.shellThickness + 0.03),
       thickness: node.copingThickness,
       stoneLength: node.copingStoneLength,
-      jointWidth: node.copingJointWidth,
-      irregularity: node.copingIrregularity,
+      jointWidth: node.copingStyle === 'rock' ? Math.min(node.copingJointWidth, 0.008) : node.copingJointWidth,
+      irregularity: node.copingStyle === 'rock' ? Math.max(node.copingIrregularity, 0.75) : node.copingIrregularity,
       seed: node.copingSeed,
+      rockLike: node.copingStyle === 'rock',
       color: node.copingColor,
     }))
     copingMaterial.dispose()

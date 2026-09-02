@@ -189,6 +189,8 @@ export const DEFAULT_POOL = {
   supportSlabId: null,
   waterColor: '#38bdf8',
   shellColor: '#e2e8f0',
+  interiorFinish: 'light-mosaic' as const,
+  visualPreset: 'custom' as const,
 } as const
 
 export function poolFloorplan(node: PoolNode): FloorplanGeometry {

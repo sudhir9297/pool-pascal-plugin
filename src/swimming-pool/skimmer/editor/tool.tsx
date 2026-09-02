@@ -1,0 +1,68 @@
+'use client'
+
+import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
+import { useViewer } from '@pascal-app/viewer'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Group, Material, Mesh } from 'three'
+import { worldPointToPoolLevel } from '../../design/level-coordinates'
+import type { PoolNode } from '../../core/schema'
+import { findNearestPoolWall, type SkimmerPlacement } from '../design/placement'
+import { poolSkimmerDefinition } from '../core/definition'
+import { PoolSkimmerNode } from '../core/schema'
+import { buildSkimmerGeometry } from '../core/geometry'
+
+export default function PoolSkimmerTool() {
+  const cursorRef = useRef<Group>(null)
+  const levelId = useViewer((state) => state.selection.levelId)
+  const setSelection = useViewer((state) => state.setSelection)
+  const [placement, setPlacement] = useState<SkimmerPlacement | null>(null)
+  useEffect(() => {
+    if (!levelId) return
+    const onMove = (event: GridEvent) => {
+      const level = sceneRegistry.nodes.get(levelId as never)
+      const local = worldPointToPoolLevel(level, event.position)
+      const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
+      const [x, z] = snapPointToGrid([local[0], local[2]], step)
+      const poolNodes = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
+      const next = findNearestPoolWall([x, z], poolNodes)
+      setPlacement(next)
+      if (cursorRef.current && next) cursorRef.current.position.set(next.position[0], next.position[1], next.position[2])
+    }
+    const onClick = (event: GridEvent) => {
+      const level = sceneRegistry.nodes.get(levelId as never)
+      const local = worldPointToPoolLevel(level, event.position)
+      const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
+      const [x, z] = snapPointToGrid([local[0], local[2]], step)
+      const poolNodes = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
+      const next = findNearestPoolWall([x, z], poolNodes)
+      if (!next) return
+      const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:skimmer').length
+      const skimmer = PoolSkimmerNode.parse({ ...poolSkimmerDefinition.defaults(), id: undefined, name: `Pool Skimmer ${count + 1}`, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
+      useScene.getState().createNode(skimmer as unknown as AnyNode, levelId)
+      setSelection({ selectedIds: [skimmer.id] })
+      useEditor.getState().setTool(null)
+      useEditor.getState().setMode('select')
+      triggerSFX('sfx:structure-build')
+    }
+    const onCancel = () => { markToolCancelConsumed(); setPlacement(null); useEditor.getState().setTool(null); useEditor.getState().setMode('select') }
+    emitter.on('grid:move', onMove); emitter.on('grid:click', onClick); emitter.on('tool:cancel', onCancel)
+    return () => { emitter.off('grid:move', onMove); emitter.off('grid:click', onClick); emitter.off('tool:cancel', onCancel) }
+  }, [levelId, setSelection])
+  return <group><CursorSphere color={placement ? '#22c55e' : '#f97316'} ref={cursorRef} />{placement && <SkimmerGhost placement={placement} />}</group>
+}
+
+function SkimmerGhost({ placement }: { placement: SkimmerPlacement }) {
+  const geometry = useMemo(() => {
+    const group = buildSkimmerGeometry(PoolSkimmerNode.parse({ position: placement.position, rotation: placement.rotation }))
+    group.traverse((child) => {
+      const mesh = child as Mesh
+      if (!mesh.isMesh) return
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const material of materials as Material[]) { material.transparent = true; material.opacity = 0.42; material.depthWrite = false }
+    })
+    return group
+  }, [placement])
+  useEffect(() => () => { geometry.traverse((child) => { const mesh = child as Mesh; if (mesh.isMesh) mesh.geometry.dispose() }) }, [geometry])
+  return <primitive object={geometry} position={placement.position} rotation={placement.rotation} />
+}

@@ -4,6 +4,8 @@ import { POOL_ENTRY_FEATURES } from '../design/entry-features'
 import { POOL_FLOOR_PROFILES } from '../design/depth-profile'
 import { POOL_SHAPES } from '../design/shapes'
 import { WATER_PRESETS } from '../shader/water-presets'
+import { POOL_FINISHES } from '../design/pool-finishes'
+import { POOL_VISUAL_PRESETS } from '../design/visual-presets'
 
 export const PoolNode = BaseNode.extend({
   id: objectId('pool'),
@@ -32,7 +34,7 @@ export const PoolNode = BaseNode.extend({
   benchWaterDepth: z.number().min(0.1).max(1.2).default(0.5),
   copingWidth: z.number().min(0.1).default(0.3),
   copingThickness: z.number().min(0.02).default(0.08),
-  copingStyle: z.enum(['continuous', 'natural-stone']).default('continuous'),
+  copingStyle: z.enum(['continuous', 'natural-stone', 'rock']).default('continuous'),
   copingStoneLength: z.number().min(0.2).max(2).default(0.65),
   copingJointWidth: z.number().min(0.005).max(0.1).default(0.025),
   copingIrregularity: z.number().min(0).max(1).default(0.4),
@@ -75,6 +77,8 @@ export const PoolNode = BaseNode.extend({
   specularHardness: z.number().min(0).max(1).default(0.82),
   waterColor: z.string().default('#38bdf8'),
   shellColor: z.string().default('#e2e8f0'),
+  interiorFinish: z.enum(POOL_FINISHES).default('light-mosaic'),
+  visualPreset: z.enum(POOL_VISUAL_PRESETS).default('custom'),
   copingProfile: z.enum(['square', 'bullnose', 'chamfered']).default('square'),
   copingCorner: z.enum(['miter', 'rounded']).default('miter'),
   supportSlabId: z.string().nullable().default(null),

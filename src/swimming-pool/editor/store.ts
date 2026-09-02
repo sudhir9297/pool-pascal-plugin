@@ -19,16 +19,18 @@ type PoolSettings = Pick<PoolNode,
   | 'causticsStrength' | 'causticsScale' | 'causticsSpeed' | 'intersectionStrength'
   | 'intersectionColor' | 'intersectionWidth' | 'shorelineStrength' | 'shorelineWidth'
   | 'shorelineSpeed' | 'specularStrength' | 'specularSize' | 'specularHardness'
-  | 'waterColor' | 'shellColor'
+  | 'waterColor' | 'shellColor' | 'interiorFinish' | 'visualPreset'
 >
 
 type PoolWaterAction = 'splash' | 'calm' | 'storm' | 'reset'
+type PoolCopingStyle = PoolNode['copingStyle']
 
 type PoolStore = PoolSettings & {
   waterAction: { type: PoolWaterAction; nonce: number } | null
   setShape: (shape: PoolShape) => void
   setLength: (value: number) => void
   setWidth: (value: number) => void
+  setCopingStyle: (value: PoolCopingStyle) => void
   setFloorProfile: (value: PoolFloorProfile) => void
   setDepth: (value: number) => void
   setShallowDepth: (value: number) => void
@@ -52,6 +54,7 @@ export const usePoolStore = create<PoolStore>((set) => ({
   setShape: (shape) => set({ shape, ...DEFAULT_POOL_SHAPE_DIMENSIONS[shape] }),
   setLength: (length) => set({ length }),
   setWidth: (width) => set({ width }),
+  setCopingStyle: (copingStyle) => set({ copingStyle }),
   setFloorProfile: (floorProfile) => set({ floorProfile }),
   setDepth: (depth) => set({ depth }),
   setShallowDepth: (shallowDepth) => set((state) => ({ shallowDepth, deepDepth: Math.max(state.deepDepth, shallowDepth) })),
