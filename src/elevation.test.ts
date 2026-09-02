@@ -8,8 +8,8 @@ import {
   SlabNode,
   useScene,
 } from '@pascal-app/core'
-import { draftElevation, featureElevation } from './elevation'
-import { poolsPlugin } from './index'
+import { draftElevation, featureElevation } from './swimming-pool/design/elevation'
+import { poolPlugin, PoolNode } from './index'
 
 /**
  * The elevation contract an instanced kind has to satisfy by hand.
@@ -26,9 +26,9 @@ import { poolsPlugin } from './index'
  */
 
 const DECK_ELEVATION = 1.2
-const KINDS = ['pools:pool', 'pools:hotTub', 'pools:waterFeatures']
+const KINDS = ['pool:pool']
 
-/** `level_0` at grade, optionally holding a 4×4 deck slab over the origin. */
+/** `level_0` at grade, optionally holding a 30×30 deck slab over the origin. */
 function scene(deckElevation: number | null) {
   const children: string[] = []
   const nodes: AnyNode[] = []
@@ -38,9 +38,9 @@ function scene(deckElevation: number | null) {
       parentId: 'level_0',
       polygon: [
         [0, 0],
-        [4, 0],
-        [4, 4],
-        [0, 4],
+        [30, 0],
+        [30, 30],
+        [0, 30],
       ],
       elevation: deckElevation,
       thickness: 0.05,
@@ -75,7 +75,9 @@ async function publish(nodes: Record<string, AnyNode>) {
 
 /** A committed feature of `kind`, positioned flat the way its tool commits it. */
 function feature(kind: string, x: number, z: number) {
+  const poolDefaults = kind === 'pool:pool' ? PoolNode.parse({}) : {}
   return {
+    ...poolDefaults,
     id: `${kind}_1`,
     type: kind,
     object: 'node' as const,
@@ -90,7 +92,7 @@ function feature(kind: string, x: number, z: number) {
 
 beforeAll(async () => {
   // The resolver reads each kind's `floorPlaced` footprint off the registry.
-  await loadPlugin(poolsPlugin as never)
+  await loadPlugin(poolPlugin as never)
   initSpatialGridSync()
 })
 
@@ -115,8 +117,8 @@ describe.each(KINDS)('%s', (kind) => {
     const nodes = scene(DECK_ELEVATION)
     await publish(nodes)
 
-    // Outside the deck's 0..4 footprint: the lift is per-position, not global.
-    expect(featureElevation(feature(kind, 20, 20), nodes)).toBe(0)
+    // Outside the deck's 0..30 footprint: the lift is per-position, not global.
+    expect(featureElevation(feature(kind, 100, 100), nodes)).toBe(0)
   })
 })
 
@@ -126,16 +128,16 @@ describe('placement ghost', () => {
     await publish(nodes)
 
     // An uncommitted draft has no parent, so the level is named explicitly.
-    const draft = { ...feature('pools:pool', 0, 0), parentId: null }
+    const draft = { ...feature('pool:pool', 0, 0), parentId: null }
     expect(draftElevation(draft, 'level_0', [2, 0, 2], nodes)).toBeCloseTo(DECK_ELEVATION)
-    expect(draftElevation(draft, 'level_0', [20, 0, 20], nodes)).toBe(0)
+    expect(draftElevation(draft, 'level_0', [100, 0, 100], nodes)).toBe(0)
   })
 
   test('an unresolvable level keeps the ghost flat rather than throwing', async () => {
     const nodes = scene(DECK_ELEVATION)
     await publish(nodes)
 
-    const draft = { ...feature('pools:pool', 0, 0), parentId: null }
+    const draft = { ...feature('pool:pool', 0, 0), parentId: null }
     expect(draftElevation(draft, 'level_missing', [2, 0, 2], nodes)).toBe(0)
   })
 })
