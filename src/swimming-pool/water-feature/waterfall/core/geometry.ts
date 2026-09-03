@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CircleGeometry,
   Color,
+  DoubleSide,
   Float32BufferAttribute,
   Group,
   Mesh,
@@ -10,7 +11,7 @@ import {
 } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {
-  WaterfallMistEffect,
+  WaterfallLineEffect,
   WaterfallPoolEffect,
   WaterfallWaterEffect,
 } from '../../../shader/waterfall-effect'
@@ -18,6 +19,7 @@ import {
   createLowPolyRockMesh,
   type LowPolyRockProfile,
 } from '../../../design/low-poly-rock'
+import { getPoolRockColor } from '../../../design/rock-colors'
 import { DEFAULT_POOL_WATERFALL } from './definition'
 import type { PoolWaterfallNode } from './schema'
 
@@ -78,6 +80,49 @@ const FLAT_EDGE_CURVE: Array<[number, number]> = [[-1, 0], [0, 0], [1, 0]]
 const ROCK_PACKING_WIDTH = 1.2
 const ROCK_PACKING_DEPTH = 1.12
 
+const MOUND_ROCK_ROWS: readonly (readonly RockPlacement[])[] = [
+  MOUND_ROCKS.filter((rock) => rock.y < 0.15),
+  MOUND_ROCKS.filter((rock) => rock.y >= 0.15 && rock.y < 0.35),
+  MOUND_ROCKS.filter((rock) => rock.y >= 0.35 && rock.y < 0.58),
+  MOUND_ROCKS.filter((rock) => rock.y >= 0.58 && rock.y < 0.78),
+  MOUND_ROCKS.filter((rock) => rock.y >= 0.78),
+]
+
+function adaptiveMoundRocks(node: PoolWaterfallNode) {
+  const widthScale = Math.max(0.65, Math.min(1.7, node.width / 3.6))
+  const density = Math.pow(widthScale, 0.58)
+  const rocks: RockPlacement[] = []
+  for (const [rowIndex, row] of MOUND_ROCK_ROWS.entries()) {
+    const targetCount = Math.max(1, Math.round(row.length * density))
+    for (let index = 0; index < targetCount; index += 1) {
+      // At the default width retain the authored formation exactly. Other
+      // widths interpolate across each layer so every size still has a real
+      // foundation, middle mass, side fill, and cap rather than a stretched
+      // duplicate of the same asset.
+      if (targetCount === row.length) {
+        rocks.push(row[index]!)
+        continue
+      }
+      const sourceT = targetCount === 1 ? 0.5 : index / (targetCount - 1)
+      const sourceIndex = Math.min(row.length - 1, Math.round(sourceT * (row.length - 1)))
+      const source = row[sourceIndex]!
+      const first = row[0]!
+      const last = row[row.length - 1]!
+      const x = first.x + (last.x - first.x) * sourceT
+      const jitter = Math.sin((node.rockSeed + rowIndex * 101 + index * 7919) * 0.017) * 0.025
+      const sizeScale = Math.max(0.72, Math.min(1.28, row.length / targetCount * 1.04))
+      rocks.push({
+        ...source,
+        x: x + jitter,
+        z: source.z + Math.cos((node.rockSeed + index * 43) * 0.013) * 0.018,
+        width: source.width * sizeScale,
+        depth: source.depth * sizeScale,
+      })
+    }
+  }
+  return rocks
+}
+
 export function buildWaterfallGeometry(node: PoolWaterfallNode) {
   // Scene hydration can hand renderers nodes saved under an older schema version
   // without reapplying Zod defaults. Normalize newly-added placement fields here
@@ -122,13 +167,10 @@ function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
   // The open spillway sits just above the solid modern headwall so the
   // horizontal water run remains visible before it rolls over the edge.
   const topY = node.height + node.lipThickness * 0.15
-  const flowWidth = node.width - 0.08
+  const flowWidth = Math.max(0.24, node.width - 0.08)
   addSpillwayBox(group, node, flowWidth, topY, fallZ)
   if (node.showFlow) {
     addWaterSheet(group, flowWidth, topY - node.targetWaterOffset, topY, fallZ, node)
-    const landingZ = getSpillwayLandingZ(fallZ, node.sheetDepth)
-    addImpactFoam(group, node, flowWidth, landingZ)
-    addMist(group, node.width * 0.55, node.targetWaterOffset, landingZ + 0.04, node.shallowWaterColor)
   }
   return group
 }
@@ -139,14 +181,15 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   addReceivingPool(group, node)
 
   const heightScale = node.waterfallType === 'spillover' ? 0.72 : 1
-  for (const [index, rock] of MOUND_ROCKS.entries()) {
+  const moundRocks = adaptiveMoundRocks(node)
+  for (const [index, rock] of moundRocks.entries()) {
     addRock(group, node, {
       ...rock,
       y: rock.y * heightScale,
       height: rock.height * heightScale,
     }, index)
   }
-  if (!node.poolId) addPondEdgeRocks(group, node, MOUND_ROCKS.length)
+  if (!node.poolId) addPondEdgeRocks(group, node, moundRocks.length)
 
   const topY = node.height * (node.waterfallType === 'spillover' ? 0.66 : 0.82)
   const fallZ = node.depth * 0.24
@@ -155,19 +198,16 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   // rounded spillway belongs only to the modern variant; showing it here made
   // the rock formation read as a box with stones attached to it.
   addNaturalCavity(group, node, fallWidth, topY, fallZ)
+  addNaturalChannel(group, node, fallWidth, topY, fallZ)
   if (node.showFlow) {
     addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node)
-    const impactZ = getSpillwayLandingZ(fallZ, node.sheetDepth)
-    addImpactFoam(group, node, fallWidth, impactZ)
-    addMist(group, fallWidth, node.targetWaterOffset, impactZ + 0.04, node.shallowWaterColor)
   }
   return group
 }
 
 function addRock(group: Group, node: PoolWaterfallNode, rock: RockPlacement, index: number) {
   const seed = node.rockSeed + index * 7919
-  const wetness = Math.max(0, 1 - rock.y / 0.25) * 0.7
-  const color = waterfallRockColor(node.rockColor, node.rockSeed, index, wetness)
+  const color = waterfallRockColor(node.rockColor, node.poolRockSeed, node.rockSeed, index)
   const mesh = createLowPolyRockMesh(
     rock.width * node.width * ROCK_PACKING_WIDTH,
     rock.height * node.height,
@@ -175,7 +215,7 @@ function addRock(group: Group, node: PoolWaterfallNode, rock: RockPlacement, ind
     seed,
     color,
     rock.profile,
-    0.96 - wetness * 0.2,
+    0.96,
   )
   mesh.name = `waterfall-rock-${index}-${rock.profile}`
   const x = rock.x * node.width
@@ -199,7 +239,7 @@ function addPondEdgeRocks(group: Group, node: PoolWaterfallNode, startIndex: num
       height * node.height,
       depth * node.receivingPoolDepth,
       seed,
-      waterfallRockColor(node.rockColor, node.rockSeed, index, 0.7),
+      waterfallRockColor(node.rockColor, node.poolRockSeed, node.rockSeed, index),
       profile,
       0.82,
     )
@@ -210,12 +250,12 @@ function addPondEdgeRocks(group: Group, node: PoolWaterfallNode, startIndex: num
   }
 }
 
-function waterfallRockColor(baseColor: string, seed: number, index: number, wetness: number) {
+function waterfallRockColor(baseColor: string, poolRockSeed: number | null, seed: number, index: number) {
   // Keep the user-selected rock color authoritative while retaining subtle,
   // deterministic facet-to-facet variation from the seed.
-  const color = new Color(baseColor)
+  const color = poolRockSeed === null ? new Color(baseColor) : getPoolRockColor(poolRockSeed, index)
   const variation = Math.sin((seed + index * 7919) * 0.017) * 0.018
-  color.offsetHSL(variation, -wetness * 0.025, variation - wetness * 0.08)
+  color.offsetHSL(variation, 0, variation)
   return `#${color.getHexString()}`
 }
 
@@ -227,20 +267,128 @@ function addNaturalCavity(
   lipZ: number,
 ) {
   const approach = getSpillwayApproach(node.depth)
-  const cavity = new Mesh(
-    new RoundedBoxGeometry(
-      waterWidth * 1.18,
-      Math.max(0.32, node.height * 0.28),
-      Math.max(0.08, node.lipThickness * 1.8),
-      2,
-      Math.max(0.015, node.lipThickness * 0.35),
-    ),
-    new MeshStandardMaterial({ color: '#050c10', roughness: 0.98, metalness: 0 }),
+  const openingWidth = Math.max(0.18, waterWidth * 0.92)
+  const openingHeight = Math.max(0.22, node.height * 0.22)
+  const frame = Math.max(0.07, node.lipThickness * 1.35)
+  const boxWidth = openingWidth + frame * 2
+  const boxHeight = openingHeight + frame * 2
+  const depth = Math.max(0.16, node.lipThickness * 2.8)
+  const centerY = waterY - node.height * 0.14
+  const sourceZ = lipZ - approach
+  const cavityRoot = new Group()
+  cavityRoot.name = 'waterfall-natural-cavity'
+
+  const frameMaterial = new MeshStandardMaterial({
+    color: new Color(node.rockColor).multiplyScalar(0.7),
+    roughness: 0.9,
+    metalness: 0,
+  })
+  const holeMaterial = new MeshStandardMaterial({
+    color: '#17201e',
+    roughness: 0.98,
+    metalness: 0,
+    side: DoubleSide,
+  })
+
+  const back = new Mesh(new BoxGeometry(boxWidth, boxHeight, depth), frameMaterial)
+  back.name = 'waterfall-natural-cavity-box'
+  back.position.set(0, centerY, sourceZ - depth * 0.42)
+  back.castShadow = true
+  back.receiveShadow = true
+  cavityRoot.add(back)
+
+  const hole = new Mesh(new BoxGeometry(openingWidth, openingHeight, depth * 0.12), holeMaterial)
+  hole.name = 'waterfall-natural-cavity-hole'
+  hole.position.set(0, centerY, sourceZ - depth * 0.94)
+  hole.receiveShadow = true
+  cavityRoot.add(hole)
+
+  const bars = [
+    [0, centerY - (openingHeight + frame) / 2 + frame / 2, boxWidth, frame],
+    [0, centerY + (openingHeight + frame) / 2 - frame / 2, boxWidth, frame],
+    [-(openingWidth + frame) / 2 + frame / 2, centerY, frame, openingHeight],
+    [(openingWidth + frame) / 2 - frame / 2, centerY, frame, openingHeight],
+  ] as const
+  for (const [index, [x, y, width, height]] of bars.entries()) {
+    const bar = new Mesh(new BoxGeometry(width, height, depth * 1.12), frameMaterial)
+    bar.name = `waterfall-natural-cavity-frame-${index}`
+    bar.position.set(x, y, sourceZ)
+    bar.castShadow = true
+    bar.receiveShadow = true
+    cavityRoot.add(bar)
+  }
+
+  group.add(cavityRoot)
+}
+
+function addNaturalChannel(
+  group: Group,
+  node: PoolWaterfallNode,
+  waterWidth: number,
+  waterY: number,
+  lipZ: number,
+) {
+  const approach = getSpillwayApproach(node.depth)
+  const channelWidth = Math.max(0.2, waterWidth * 1.1)
+  const channelDepth = Math.max(0.18, approach + node.lipThickness * 0.8)
+  const thickness = Math.max(0.045, node.lipThickness * 0.7)
+  const channel = new Mesh(
+    createCurvedChannelGeometry(channelWidth, channelDepth, thickness, node.edgeCurve),
+    new MeshStandardMaterial({
+      color: new Color(node.rockColor).multiplyScalar(0.58),
+      roughness: 0.86,
+      metalness: 0,
+    }),
   )
-  cavity.name = 'waterfall-natural-cavity'
-  cavity.position.set(0, waterY - node.height * 0.14, lipZ - approach - node.lipThickness * 0.25)
-  cavity.receiveShadow = true
-  group.add(cavity)
+  channel.name = 'waterfall-natural-channel'
+  channel.position.set(0, waterY - 0.012, lipZ - approach / 2)
+  channel.castShadow = true
+  channel.receiveShadow = true
+  group.add(channel)
+}
+
+function createCurvedChannelGeometry(
+  width: number,
+  depth: number,
+  thickness: number,
+  edgeCurve: readonly (readonly [number, number])[],
+) {
+  const xSegments = 40
+  const depthSegments = 4
+  const positions: number[] = []
+  const indices: number[] = []
+  const rowSize = xSegments + 1
+  for (let depthIndex = 0; depthIndex <= depthSegments; depthIndex += 1) {
+    const depthT = depthIndex / depthSegments
+    const localZ = (depthT - 0.5) * depth
+    for (let xIndex = 0; xIndex <= xSegments; xIndex += 1) {
+      const x = (xIndex / xSegments - 0.5) * width
+      const edgeOffset = sampleEdgeCurve(edgeCurve, x).z
+      positions.push(x, 0, localZ + edgeOffset)
+      positions.push(x, -thickness, localZ + edgeOffset)
+    }
+  }
+  const verticesPerDepthRow = rowSize * 2
+  for (let depthIndex = 0; depthIndex < depthSegments; depthIndex += 1) {
+    for (let xIndex = 0; xIndex < xSegments; xIndex += 1) {
+      const topLeft = depthIndex * verticesPerDepthRow + xIndex * 2
+      const topRight = topLeft + 2
+      const nextTopLeft = topLeft + verticesPerDepthRow
+      const nextTopRight = nextTopLeft + 2
+      const bottomLeft = topLeft + 1
+      const bottomRight = topRight + 1
+      const nextBottomLeft = nextTopLeft + 1
+      const nextBottomRight = nextTopRight + 1
+      indices.push(topLeft, nextTopLeft, topRight, topRight, nextTopLeft, nextTopRight)
+      indices.push(bottomLeft, bottomRight, nextBottomLeft, bottomRight, nextBottomRight, nextBottomLeft)
+    }
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+  return geometry
 }
 
 function addReceivingPool(group: Group, node: PoolWaterfallNode) {
@@ -273,9 +421,13 @@ function addReceivingPool(group: Group, node: PoolWaterfallNode) {
 
 function addWaterSheet(group: Group, width: number, height: number, topY: number, z: number, node: PoolWaterfallNode) {
   const effect = new WaterfallWaterEffect(node, node.flowStrength)
+  // Sink the broken lower strands slightly through the receiving water. A
+  // tiny overlap avoids a bright air gap from depth precision or displaced
+  // pool waves while remaining hidden beneath the animated pool surface.
+  const contactOverlap = node.poolId ? 0.045 : 0.03
   const geometry = createSpillwayGeometry(
     width,
-    height,
+    height + contactOverlap,
     getSpillwayApproach(node.depth),
     getSpillwayCurveRadius(node.sheetDepth),
     node.sheetDepth,
@@ -290,25 +442,14 @@ function addWaterSheet(group: Group, width: number, height: number, topY: number
   water.userData.shallowWaterColor = node.shallowWaterColor
   water.userData.deepWaterColor = node.deepWaterColor
   group.add(water)
-}
 
-function addImpactFoam(group: Group, node: PoolWaterfallNode, width: number, z: number) {
-  const foam = new Mesh(
-    new CircleGeometry(1, 48),
-    new MeshStandardMaterial({
-      color: node.shallowWaterColor,
-      roughness: 0.35,
-      transparent: true,
-      opacity: 0.36,
-      depthWrite: false,
-    }),
-  )
-  foam.name = 'waterfall-impact-foam'
-  foam.rotation.x = -Math.PI / 2
-  foam.position.set(0, node.targetWaterOffset + 0.018, z)
-  foam.scale.set(Math.max(0.12, width * 0.42), Math.max(0.08, node.sheetDepth * 3.2), 1)
-  foam.renderOrder = 4
-  group.add(foam)
+  const lineEffect = new WaterfallLineEffect(node, node.flowStrength)
+  const lines = new Mesh(geometry.clone(), lineEffect.material)
+  lines.position.copy(water.position)
+  lines.name = 'waterfall-flow-lines'
+  lines.renderOrder = 4
+  lines.userData.waterfallEffect = lineEffect
+  group.add(lines)
 }
 
 function addSpillwayBox(
@@ -334,7 +475,8 @@ function addSpillwayBox(
   })
   const linerColor = new Color(node.structureColor).multiplyScalar(0.48)
   const liner = new MeshStandardMaterial({ color: linerColor, roughness: 0.58, metalness: 0.08 })
-  const cavity = new MeshStandardMaterial({ color: '#050c10', roughness: 0.96, metalness: 0 })
+  const cavityColor = new Color(node.structureColor).multiplyScalar(0.2)
+  const cavity = new MeshStandardMaterial({ color: cavityColor, roughness: 0.96, metalness: 0 })
 
   const floorDepth = approach + wallThickness * 0.95
   const floorDrop = wallThickness * 0.38
@@ -555,13 +697,6 @@ function getSpillwayLandingZ(lipZ: number, sheetDepth: number) {
 export function getWaterfallImpactLocalPoint(node: PoolWaterfallNode): [number, number] {
   const lipZ = node.waterfallType === 'modern' ? node.depth / 2 + node.sheetDepth : node.depth * 0.24
   return [0, getSpillwayLandingZ(lipZ, node.sheetDepth)]
-}
-
-function addMist(group: Group, width: number, y: number, z: number, waterColor: string) {
-  const effect = new WaterfallMistEffect(width, z, waterColor)
-  effect.points.position.y = y
-  effect.points.userData.waterfallEffect = effect
-  group.add(effect.points)
 }
 
 function sampleEdgeCurve(curve: readonly (readonly [number, number])[] | null | undefined, x: number) {

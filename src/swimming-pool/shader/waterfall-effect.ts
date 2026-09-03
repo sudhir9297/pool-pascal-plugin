@@ -2,12 +2,18 @@ import { DataTexture, DoubleSide, LinearFilter, MeshBasicNodeMaterial, NoColorSp
 import {
   cameraFar,
   cameraNear,
+  cameraPosition,
   color,
+  dot,
   float,
   mix,
   normalLocal,
+  normalize,
   perspectiveDepthToViewZ,
   positionView,
+  positionWorld,
+  pow,
+  reflect,
   screenUV,
   sin,
   smoothstep,
@@ -18,8 +24,9 @@ import {
   vec2,
   vec3,
   viewportDepthTexture,
+  viewportSharedTexture,
 } from 'three/tsl'
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Points, PointsMaterial, TextureLoader, type Texture } from 'three'
+import { AdditiveBlending, TextureLoader, type Texture } from 'three'
 import {
   getWaterPresetSettings,
   type WaterPreset,
@@ -31,14 +38,18 @@ const NOISE_URLS = {
   noise1: new URL('./assets/water/noise1.png', import.meta.url).href,
   noise4: new URL('./assets/water/noise4.png', import.meta.url).href,
   noise5: new URL('./assets/water/noise5.png', import.meta.url).href,
+  normal1: new URL('./assets/water/normal1.png', import.meta.url).href,
+  normal2: new URL('./assets/water/normal2.png', import.meta.url).href,
+  normal3: new URL('./assets/water/normal3.png', import.meta.url).href,
 } as const
 const WATERFALL_PRESET_TEXTURES: Record<WaterPreset, {
   mask: keyof typeof NOISE_URLS
   detail: keyof typeof NOISE_URLS
+  normal: keyof typeof NOISE_URLS
 }> = {
-  'crystal-clear': { mask: 'caustic1', detail: 'noise5' },
-  'vivid-aqua': { mask: 'caustic2', detail: 'noise1' },
-  'tropical-lagoon': { mask: 'caustic1', detail: 'noise4' },
+  'crystal-clear': { mask: 'caustic1', detail: 'noise5', normal: 'normal1' },
+  'vivid-aqua': { mask: 'caustic2', detail: 'noise1', normal: 'normal3' },
+  'tropical-lagoon': { mask: 'caustic1', detail: 'noise4', normal: 'normal2' },
 }
 const waterfallViewportDepth = viewportDepthTexture()
 const waterfallTextureCache = new Map<string, Texture>()
@@ -85,28 +96,6 @@ function loadNoise(url: string) {
   return result
 }
 
-function dropletTexture() {
-  const size = 16
-  const data = new Uint8Array(size * size * 4)
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const offset = (y * size + x) * 4
-      const dx = (x + 0.5) / size * 2 - 1
-      const dy = (y + 0.5) / size * 2 - 1
-      const alpha = Math.max(0, Math.min(1, (1 - Math.sqrt(dx * dx + dy * dy)) * 4))
-      data[offset] = 255
-      data[offset + 1] = 255
-      data[offset + 2] = 255
-      data[offset + 3] = Math.round(alpha * 255)
-    }
-  }
-  const result = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType)
-  result.needsUpdate = true
-  result.minFilter = LinearFilter
-  result.magFilter = LinearFilter
-  return result
-}
-
 /**
  * TSL port of the Turtle Falls material. The mesh UV follows the whole flow
  * path from the water inside the spillway at y=0 to the landing at y=1.
@@ -122,6 +111,7 @@ export class WaterfallWaterEffect {
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
     const maskTexture = texture(loadNoise(NOISE_URLS[selected.mask]))
     const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
+    const normalTexture = texture(loadNoise(NOISE_URLS[selected.normal]))
     this.shallowColor.value.set(settings.shallowWaterColor)
     this.deepColor.value.set(settings.deepWaterColor)
     const coordinates = uv()
@@ -138,19 +128,63 @@ export class WaterfallWaterEffect {
     const flow = coordinates.y.add(time)
     const slowFlow = coordinates.y.add(time.mul(0.7))
     const fastFlow = coordinates.y.add(time.mul(1.5))
+    const normalScale = Math.max(0.5, settings.normalScale / 2.5)
+    const normalA = normalTexture.sample(
+      vec2(coordinates.x.mul(normalScale).add(time.mul(0.22)), coordinates.y.mul(normalScale * 0.48).add(time.mul(-0.5))),
+    ).rgb
+    const normalB = normalTexture.sample(
+      vec2(coordinates.x.mul(normalScale * 1.7).sub(time.mul(0.14)), coordinates.y.mul(normalScale * 0.72).add(time.mul(-0.82))),
+    ).rgb
+    const flowNormal = normalize(vec3(
+      normalA.r.add(normalB.r).sub(1).mul(settings.normalStrength * 0.42),
+      1,
+      normalA.g.add(normalB.g).sub(1).mul(settings.normalStrength * 0.42),
+    ))
 
     const primaryScale = Math.max(1.35, settings.causticsScale * 0.72)
     const secondaryScale = Math.max(2.1, settings.causticsScale * 1.08)
-    const maskA = maskTexture.sample(vec2(distortedX, slowFlow).mul(primaryScale)).g.min(0.03)
+    const maskA = maskTexture.sample(vec2(distortedX, slowFlow).mul(primaryScale)).g.min(0.3)
     const maskB = maskTexture.sample(
       vec2(distortedX, flow).mul(secondaryScale).add(vec2(1.7)),
     ).g.min(0.3)
-    const pattern = maskA.add(maskB)
+    const broadFlow = detailNoise.sample(
+      vec2(distortedX.mul(0.72), flow.mul(0.58)).mul(1.35 * detailScale),
+    ).r
+    const streakNoise = maskTexture.sample(
+      vec2(distortedX.mul(3.8), fastFlow.mul(1.55)).mul(1.15 * detailScale),
+    ).r
+    const streaks = smoothstep(0.58, 0.92, streakNoise)
+    const filaments = smoothstep(
+      0.62,
+      0.96,
+      detailNoise.sample(vec2(distortedX.mul(8.5), flow.mul(0.82))).g,
+    )
+    const pattern = maskA.add(maskB).add(broadFlow.mul(0.22))
 
     // The authored curve changes its normal from up to forward. This is the
     // same signal the reference uses to grow turbulent foam over the lip.
     const noise = detailNoise.sample(vec2(distortedX.mul(1.5 * detailScale), fastFlow.mul(0.2)))
     const upward = smoothstep(0.1, 1, normalLocal.y)
+    const edgeDistance = coordinates.x.min(coordinates.x.oneMinus())
+    const edgeBreakup = smoothstep(0.02, 0.16, edgeDistance)
+    const bottomZone = smoothstep(0.72, 1, coordinates.y)
+    const bottomNoise = detailNoise.sample(
+      vec2(distortedX.mul(4.6), fastFlow.mul(0.34).add(time.mul(0.2))),
+    ).r
+    const raggedThreshold = float(0.9).add(bottomNoise.sub(0.5).mul(0.16))
+    const raggedBody = smoothstep(
+      raggedThreshold.sub(0.025),
+      raggedThreshold.add(0.025),
+      coordinates.y,
+    ).oneMinus()
+    const lowerFilaments = smoothstep(0.7, 0.93, streakNoise)
+      .mul(bottomZone)
+      .mul(edgeBreakup)
+    const silhouette = mix(
+      edgeBreakup,
+      raggedBody.mul(edgeBreakup).max(lowerFilaments),
+      bottomZone,
+    )
     const foamInput = noise.g.add(normalLocal.y).sub(0.1)
     const foamStart = smoothstep(0.3, 0.4, foamInput)
     const foamEnd = smoothstep(foamInput, foamInput.add(0.1), float(0.99))
@@ -158,10 +192,11 @@ export class WaterfallWaterEffect {
 
     const material = new MeshBasicNodeMaterial({
       color: settings.shallowWaterColor,
-      transparent: false,
-      depthWrite: true,
+      transparent: true,
+      depthWrite: false,
       side: DoubleSide,
       toneMapped: false,
+      alphaTest: 0.08,
     })
 
     const sceneEye = perspectiveDepthToViewZ(
@@ -180,16 +215,114 @@ export class WaterfallWaterEffect {
     )
 
     const clarity = Math.max(0.3, Math.min(3, settings.clarity))
-    const darkWater = this.deepColor.mul(0.26 + 0.08 / clarity)
-    const litWater = mix(darkWater, this.shallowColor.mul(0.78), depth.min(upward))
+    const vertical = upward.oneMinus()
+    const poolLikeBlend = upward.mul(0.58).add(depth.mul(0.42)).min(1)
+    const darkWater = this.deepColor.mul(0.3 + 0.1 / clarity)
+    const litWater = mix(darkWater, this.shallowColor.mul(0.92), poolLikeBlend)
+    const eye = normalize(cameraPosition.sub(positionWorld))
+    const facing = dot(flowNormal, eye).max(0)
+    const refractOffset = flowNormal.xz
+      .mul(settings.refractionStrength * 0.018)
+      .mul(1 + settings.reflectionDistortion * 0.35)
+    const refractedScene = viewportSharedTexture(screenUV.add(refractOffset).clamp(0, 1)).rgb
+    const reflectedDirection = reflect(eye.negate(), flowNormal)
+    const sky = mix(color('#d8eef9'), color('#1260a6'), smoothstep(-0.1, 0.8, reflectedDirection.y))
+    const reflectedScene = viewportSharedTexture(screenUV.add(refractOffset.mul(1.7)).clamp(0, 1)).rgb
+    const reflection = mix(sky, reflectedScene, 0.42)
+    const fresnel = pow(float(1).sub(facing).max(0.001), Math.max(1, settings.reflectionFresnel))
+      .mul(Math.min(1.2, settings.reflectionStrength))
+    const poolSurface = mix(litWater, refractedScene, Math.min(0.35, settings.refractionStrength * 0.28))
+    const reflectiveWater = mix(poolSurface, reflection, fresnel.min(0.42))
     const patternGain = 0.72 + Math.min(4, settings.causticsStrength) * 0.08
     const foamGain = 0.78 + settings.shorelineStrength * 0.18 + settings.normalStrength * 0.07
+    const crest = smoothstep(0.48, 0.94, upward)
+      .mul(smoothstep(0.46, 0.94, broadFlow))
+    const verticalHighlight = streaks.mul(vertical).mul(0.78)
+    const brokenEdges = filaments.mul(edgeBreakup.oneMinus()).mul(vertical).mul(0.62)
     const brightness = pattern.mul(patternGain)
+      .add(verticalHighlight)
+      .add(brokenEdges)
+      .add(crest.mul(0.34))
       .add(fallFoam.mul(foamGain))
       .add(brokenContact.max(0.5).sub(0.5))
-    const foamColor = mix(this.shallowColor, color('#f2fdff'), 0.82)
-    material.colorNode = litWater.add(foamColor.mul(vec3(brightness)))
+    const foamColor = mix(this.shallowColor, color('#f2fdff'), 0.86)
+    const sparkle = smoothstep(0.9, 0.99, streakNoise).mul(vertical).mul(settings.specularStrength * 0.18)
+    material.colorNode = reflectiveWater.add(foamColor.mul(vec3(brightness.add(sparkle))))
+    material.opacityNode = float(Math.min(0.92, 0.62 + settings.clarity * 0.09))
+      .add(crest.mul(0.08))
+      .add(verticalHighlight.mul(0.06))
+      .mul(silhouette)
     this.material = material
+  }
+
+  update(delta: number) {
+    this.time.value += Math.min(delta, 0.05)
+  }
+
+  dispose() {
+    this.material.dispose()
+  }
+}
+
+/** Crisp animated strands layered over the refractive waterfall body. */
+export class WaterfallLineEffect {
+  readonly material: MeshBasicNodeMaterial
+  private readonly time = uniform(0)
+
+  constructor(styleInput: Partial<WaterfallWaterStyle>, flowStrength = 1) {
+    const settings = resolveWaterfallStyle(styleInput)
+    const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
+    const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
+    const coordinates = uv()
+    const speed = Math.max(0.2, Math.min(2, flowStrength))
+    const randomField = detailNoise.sample(
+      vec2(coordinates.x.mul(3.1), coordinates.y.mul(0.24).sub(this.time.mul(0.045 * speed))),
+    ).r
+    const warpedX = coordinates.x
+      .add(randomField.sub(0.5).mul(0.026))
+      .add(sin(coordinates.y.mul(19).sub(this.time.mul(0.85 * speed))).mul(0.006))
+    const stripeA = sin(warpedX.mul(74).add(randomField.mul(7.2)))
+      .mul(0.5).add(0.5)
+    const stripeB = sin(warpedX.mul(113).add(randomField.mul(-10.5)).add(1.7))
+      .mul(0.5).add(0.5)
+    const randomGate = smoothstep(
+      0.46,
+      0.72,
+      detailNoise.sample(vec2(warpedX.mul(5.7), coordinates.y.mul(0.3).add(2.4))).g,
+    )
+    const thinLines = smoothstep(0.84, 0.98, stripeA)
+      .max(smoothstep(0.91, 0.992, stripeB).mul(0.58))
+      .mul(randomGate.mul(0.78).add(0.22))
+    const downwardPulse = sin(
+      coordinates.y.mul(54)
+        .sub(this.time.mul(13 * speed))
+        .add(warpedX.mul(19)),
+    ).mul(0.5).add(0.5)
+    const brokenLength = smoothstep(0.08, 0.82, downwardPulse).mul(0.62).add(0.24)
+    const verticalSurface = smoothstep(0.14, 0.72, normalLocal.y.abs().oneMinus())
+    const edgeDistance = coordinates.x.min(coordinates.x.oneMinus())
+    const edgeFade = smoothstep(0.01, 0.055, edgeDistance)
+    const lowerStrength = smoothstep(0.2, 1, coordinates.y).mul(0.3).add(0.7)
+
+    this.material = new MeshBasicNodeMaterial({
+      color: settings.shallowWaterColor,
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      toneMapped: false,
+      alphaTest: 0.02,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    })
+    this.material.colorNode = mix(color(settings.shallowWaterColor), color('#f4ffff'), 0.78)
+    this.material.opacityNode = thinLines
+      .mul(brokenLength)
+      .mul(verticalSurface)
+      .mul(edgeFade)
+      .mul(lowerStrength)
+      .mul(0.46)
   }
 
   update(delta: number) {
@@ -219,67 +352,6 @@ export class WaterfallImpactEffect {
   update(_delta: number) {}
 
   dispose() {
-    this.material.dispose()
-  }
-}
-
-/** Small, low-cost animated spray particles for the impact zone. */
-export class WaterfallMistEffect {
-  readonly points: Points
-  readonly material: PointsMaterial
-  private readonly base: Array<[number, number, number, number]> = []
-  private time = 0
-
-  constructor(width: number, z: number, waterColor = '#d9ffff') {
-    const count = Math.max(32, Math.min(72, Math.round(width * 44)))
-    const positions = new Float32Array(count * 3)
-    for (let index = 0; index < count; index += 1) {
-      const seed = index * 1.731
-      const x = Math.sin(seed * 2.1) * width * 0.42
-      const y = 0.035 + (Math.sin(seed * 3.7) * 0.5 + 0.5) * 0.28
-      const depth = z + (Math.cos(seed * 1.4) * 0.5 + 0.5) * 0.2
-      this.base.push([x, y, depth, 0.78 + (Math.sin(seed) * 0.5 + 0.5) * 1.05])
-      positions[index * 3] = x
-      positions[index * 3 + 1] = y
-      positions[index * 3 + 2] = depth
-    }
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
-    this.material = new PointsMaterial({
-      color: waterColor,
-      map: dropletTexture(),
-      size: 0.042,
-      transparent: true,
-      opacity: 0.56,
-      depthWrite: false,
-      blending: AdditiveBlending,
-    })
-    this.points = new Points(geometry, this.material)
-    this.points.name = 'waterfall-mist'
-    this.points.renderOrder = 3
-  }
-
-  update(delta: number) {
-    this.time += Math.min(delta, 0.05)
-    const positions = this.points.geometry.getAttribute('position')
-    for (let index = 0; index < this.base.length; index += 1) {
-      const [x, y, z, speed] = this.base[index]!
-      const phase = (this.time * speed + index * 0.61803398875) % 1
-      const lift = 0.34 + (Math.sin(index * 2.47) * 0.5 + 0.5) * 0.24
-      const drift = phase * (0.07 + (Math.cos(index * 1.91) * 0.5 + 0.5) * 0.08)
-      positions.setXYZ(
-        index,
-        x + Math.sin(index * 1.37) * drift,
-        y + lift * phase - 0.31 * phase * phase,
-        z + Math.cos(index * 1.13) * drift,
-      )
-    }
-    positions.needsUpdate = true
-  }
-
-  dispose() {
-    this.points.geometry.dispose()
-    this.material.map?.dispose()
     this.material.dispose()
   }
 }

@@ -60,6 +60,7 @@ export default function PoolWaterfallTool() {
         position: next.position,
         rotation: next.rotation,
         poolId: next.poolId,
+        autoSizeOnPool: true,
         wallIndex: next.wallIndex,
         wallT: next.wallT,
         edgeCurve: next.edgeCurve,
@@ -68,6 +69,7 @@ export default function PoolWaterfallTool() {
         waterPreset: next.waterPreset,
         shallowWaterColor: next.shallowWaterColor,
         deepWaterColor: next.deepWaterColor,
+        poolRockSeed: next.poolRockSeed,
         receivingPoolEnabled: false,
       })
       useScene.getState().createNode(waterfall as unknown as AnyNode, levelId)

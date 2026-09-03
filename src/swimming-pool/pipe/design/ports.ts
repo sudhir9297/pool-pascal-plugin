@@ -253,8 +253,15 @@ export function findNearestPoolPipeTarget(
   point: Vec3Like,
   ports: readonly PipePort[],
   networks: readonly PipeNetwork[],
-  options: { portDistance?: number; bodyDistance?: number; ignoreNetworkId?: string } = {},
+  options: {
+    portDistance?: number
+    bodyDistance?: number
+    ignoreNetworkId?: string
+    connectionSnap?: boolean
+  } = {},
 ): PoolPipeSnapTarget | null {
+  if (options.connectionSnap === false) return null
+
   const port = findNearestPipePort(point, ports, options.portDistance ?? 0.35, options.ignoreNetworkId)
   const pipeBody = findNearestPipeBody(point, networks, {
     maxDistance: options.bodyDistance ?? 0.3,

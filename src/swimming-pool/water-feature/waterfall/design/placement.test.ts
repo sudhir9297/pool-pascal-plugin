@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { PoolNode } from '../../../core/schema'
 import { createPoolShapePolygon } from '../../../design/shapes'
 import { PoolWaterfallNode } from '../core/schema'
-import { findNearestWaterfallPlacement, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
+import { findNearestWaterfallPlacement, getMountedWaterfallDimensions, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
 
 describe('pool waterfall placement', () => {
   test('snaps to the pool edge, faces inward, and inherits the water surface', () => {
@@ -103,5 +103,21 @@ describe('pool waterfall placement', () => {
     expect(mounted.waterPreset).toBe('tropical-lagoon')
     expect(mounted.shallowWaterColor).toBe('#28e8fb')
     expect(mounted.deepWaterColor).toBe('#0078ad')
+  })
+
+  test('auto-sizes a modern waterfall to a compact pool-edge footprint', () => {
+    const pool = PoolNode.parse({ id: 'pool_waterfall_small_modern' })
+    const dimensions = getMountedWaterfallDimensions(pool, 0)
+    const mounted = resolveMountedWaterfall(PoolWaterfallNode.parse({
+      poolId: pool.id,
+      waterfallType: 'modern',
+    }), pool)
+
+    expect(dimensions.width).toBeLessThan(2)
+    expect(dimensions.height).toBeLessThan(1.1)
+    expect(dimensions.depth).toBeLessThan(0.9)
+    expect(mounted.width).toBe(dimensions.width)
+    expect(mounted.height).toBe(dimensions.height)
+    expect(mounted.depth).toBe(dimensions.depth)
   })
 })

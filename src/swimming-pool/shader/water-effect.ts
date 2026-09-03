@@ -259,6 +259,9 @@ export class PoolWaterEffect {
   private readonly time: any
   private readonly sunDirection: any
   private readonly absorption: any
+  private readonly impactCenter: any
+  private readonly impactStrength: any
+  private readonly impactAge: any
   private initialized = false
   private accumulator = 0
   private rainAccumulator = 0
@@ -345,6 +348,9 @@ export class PoolWaterEffect {
     this.specularSize = uniform(this.settings.specularSize)
     this.specularHardness = uniform(this.settings.specularHardness)
     this.absorption = uniform(-0.62 / this.settings.clarity)
+    this.impactCenter = uniform(new Vector2(0.5, 0.5))
+    this.impactStrength = uniform(0)
+    this.impactAge = uniform(10)
     this.sunDirection = uniform(new Vector3())
     this.updateSunDirection()
     this.material = this.createWaterMaterial()
@@ -479,6 +485,32 @@ export class PoolWaterEffect {
     ).mul(smoothstep(0.82, 1, shallowMask).oneMinus())
       .mul(this.intersectionStrength)
 
+    // Waterfall impacts live inside the pool material, so the foam follows
+    // the pool surface and can never read as a separate circular decal. The
+    // stretched distance field, moving noise, and two breakup thresholds make
+    // a broad, irregular patch with scattered bubble flecks.
+    const impactDelta = uv().sub(this.impactCenter)
+    const impactNoiseUv = uv().mul(vec2(18, 13)).add(vec2(
+      this.time.mul(0.035),
+      this.time.mul(-0.052),
+    ))
+    const impactNoise = this.distortionTextureNode.sample(impactNoiseUv).r
+    const impactDistance = impactDelta.mul(vec2(0.72, 1.34)).length()
+      .add(impactNoise.sub(0.5).mul(0.045))
+    const impactLife = smoothstep(0, 2.2, this.impactAge).oneMinus()
+      .mul(this.impactStrength)
+    const impactBody = smoothstep(0.27, 0.025, impactDistance)
+    const foamBreakup = smoothstep(0.42, 0.76, impactNoise)
+    const impactFoam = impactBody
+      .mul(foamBreakup.mul(0.78).add(0.22))
+      .mul(impactLife)
+    const bubbleNoise = this.shorelineTextureNode.sample(
+      impactNoiseUv.mul(1.9).add(vec2(this.time.mul(-0.09), this.time.mul(0.12))),
+    ).r
+    const bubbles = smoothstep(0.86, 0.98, bubbleNoise)
+      .mul(smoothstep(0.22, 0.035, impactDistance))
+      .mul(impactLife)
+
     const reflectedDirection = reflect(eye.negate(), surfaceNormal)
     const skyMix = smoothstep(-0.1, 0.8, reflectedDirection.y)
     const sky = mix(color('#d8eef9'), color('#1260a6'), skyMix)
@@ -512,6 +544,8 @@ export class PoolWaterEffect {
     const layered = refracted
       .add(intersectionBand.mul(this.intersectionColor))
       .add(shorelineBand.mul(color('#f2ffff')))
+      .add(impactFoam.mul(color('#dffcff')))
+      .add(bubbles.mul(color('#ffffff')).mul(0.72))
     material.colorNode = mix(layered as any, reflectedScene as any, fresnel as any).add(specular as any) as any
     material.opacityNode = shoreFade
     return material
@@ -564,6 +598,19 @@ export class PoolWaterEffect {
     ])
   }
 
+  addWaterfallImpact(u: number, v: number, strength = 0.055) {
+    const clampedU = Math.max(0, Math.min(1, u))
+    const clampedV = Math.max(0, Math.min(1, v))
+    this.impactCenter.value.set(clampedU, clampedV)
+    this.impactStrength.value = Math.max(0, Math.min(1, strength * 7.5))
+    this.impactAge.value = 0
+    this.addDrop(clampedU, clampedV, undefined, strength)
+    // Two small offset disturbances keep the contact from expanding as one
+    // mathematically perfect ring.
+    this.addDrop(clampedU - 0.018, clampedV + 0.012, this.settings.rippleSize / 1250, strength * 0.42)
+    this.addDrop(clampedU + 0.022, clampedV - 0.009, this.settings.rippleSize / 1400, strength * 0.34)
+  }
+
   splash() {
     this.addDrop(0.2 + Math.random() * 0.6, 0.2 + Math.random() * 0.6, 0.09, 0.22)
   }
@@ -592,6 +639,7 @@ export class PoolWaterEffect {
     renderer.autoClear = true
     try {
       this.time.value += Math.min(delta, 0.05)
+      this.impactAge.value += Math.min(delta, 0.05)
       if (!this.initialized) {
         this.pass(renderer, this.clearMaterial)
         this.pass(renderer, this.clearMaterial)

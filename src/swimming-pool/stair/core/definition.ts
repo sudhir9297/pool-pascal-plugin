@@ -15,6 +15,7 @@ export const poolStairDefinition: NodeDefinition<typeof PoolStairNode> = {
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   parametrics: poolStairParametrics,
   tool: () => import('../editor/tool'),
+  affordanceTools: { move: () => import('../editor/move-tool') },
   toolHints: [{ key: 'Click', label: 'Place stairs on pool wall' }, { key: 'Esc', label: 'Cancel placement' }],
   presentation: { label: 'Pool ladders', description: 'Stainless-steel wall ladders based on the supplied pool references.', icon: { kind: 'iconify', name: 'lucide:steps' }, paletteSection: 'furnish' },
 }

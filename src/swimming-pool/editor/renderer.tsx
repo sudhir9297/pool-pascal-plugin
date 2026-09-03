@@ -52,7 +52,7 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
       }
     })
     const unsubscribeImpacts = subscribePoolWaterImpacts(node.id, (impact) => {
-      waterEffect.addDrop(impact.u, impact.v, undefined, impact.strength)
+      waterEffect.addWaterfallImpact(impact.u, impact.v, impact.strength)
     })
     return () => {
       unsubscribeActions()

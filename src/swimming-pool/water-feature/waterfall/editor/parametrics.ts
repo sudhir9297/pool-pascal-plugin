@@ -14,6 +14,7 @@ export const poolWaterfallParametrics: ParametricDescriptor<PoolWaterfallNode> =
         { key: 'lipThickness', kind: 'number', unit: 'm', min: 0.02, max: 0.3, step: 0.01 },
         { key: 'showFlow', kind: 'boolean' },
         { key: 'flowStrength', kind: 'number', min: 0.2, max: 2, step: 0.05, visibleIf: (node) => node.showFlow },
+        { key: 'autoSizeOnPool', kind: 'boolean', visibleIf: (node) => Boolean(node.poolId && node.waterfallType === 'modern') },
         { key: 'wallIndex', kind: 'number', min: 0, step: 1, visibleIf: (node) => Boolean(node.poolId) },
         { key: 'wallT', kind: 'number', min: 0, max: 1, step: 0.01, visibleIf: (node) => Boolean(node.poolId) },
         { key: 'receivingPoolEnabled', kind: 'boolean', visibleIf: (node) => !node.poolId },

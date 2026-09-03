@@ -28,9 +28,11 @@ describe('waterfall geometry', () => {
     expect(receivingWater?.userData.shallowWaterColor).toBe(node.shallowWaterColor)
     expect(receivingWater?.userData.deepWaterColor).toBe(node.deepWaterColor)
     expect(objects.some((object) => object.name === 'waterfall-natural-cavity')).toBe(true)
+    expect(objects.some((object) => object.name === 'waterfall-natural-channel')).toBe(true)
     expect(objects.some((object) => object.name === 'waterfall-water-sheet')).toBe(true)
-    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(true)
-    expect(objects.some((object) => object.name === 'waterfall-mist')).toBe(true)
+    expect(objects.some((object) => object.name === 'waterfall-flow-lines')).toBe(true)
+    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(false)
+    expect(objects.some((object) => object.name === 'waterfall-mist')).toBe(false)
     expect(objects.some((object) => object.name === 'waterfall-fountain-spray')).toBe(false)
     expect(objects.some((object) => object.name.startsWith('waterfall-fountain-stream-'))).toBe(false)
 
@@ -53,12 +55,28 @@ describe('waterfall geometry', () => {
     }
   })
 
+  test('adapts rock density to waterfall width while keeping layered coverage', () => {
+    const narrow = buildWaterfallGeometry(PoolWaterfallNode.parse({
+      width: 1.2,
+      receivingPoolEnabled: false,
+    }))
+    const wide = buildWaterfallGeometry(PoolWaterfallNode.parse({
+      width: 8,
+      receivingPoolEnabled: false,
+    }))
+    const countRocks = (root: Object3D) => namedObjects(root).filter((object) => object.name.startsWith('waterfall-rock-')).length
+
+    expect(countRocks(narrow)).toBeLessThan(33)
+    expect(countRocks(wide)).toBeGreaterThan(33)
+  })
+
   test('keeps the receiving pool but removes active flow effects when flow is off', () => {
     const geometry = buildWaterfallGeometry(PoolWaterfallNode.parse({ showFlow: false }))
     const names = namedObjects(geometry).map((object) => object.name)
     expect(names).toContain('waterfall-receiving-water')
     expect(names).toContain('waterfall-natural-cavity')
     expect(names).not.toContain('waterfall-water-sheet')
+    expect(names).not.toContain('waterfall-flow-lines')
     expect(names).not.toContain('waterfall-impact-foam')
     expect(names).not.toContain('waterfall-mist')
     expect(names).not.toContain('waterfall-fountain-spray')
@@ -184,8 +202,14 @@ describe('waterfall geometry', () => {
     const rocks = objects.filter((object) => object.name.startsWith('waterfall-rock-'))
     expect(rocks).toHaveLength(25)
     expect(objects.some((object) => object.name === 'waterfall-receiving-water')).toBe(false)
-    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(true)
+    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(false)
     expect(rocks.some((rock) => rock.position.z > 0.12)).toBe(true)
+
+    const sheet = objects.find((object) => object.name === 'waterfall-water-sheet') as Mesh
+    sheet.geometry.computeBoundingBox()
+    const sheetBottom = sheet.position.y + sheet.geometry.boundingBox!.min.y
+    expect(sheetBottom).toBeLessThan(node.targetWaterOffset)
+    expect(sheetBottom).toBeGreaterThan(node.targetWaterOffset - 0.08)
   })
 
   test('renders waterfalls saved before pool-boundary fields were introduced', () => {
@@ -201,7 +225,7 @@ describe('waterfall geometry', () => {
     expect(objects.filter((object) => object.name.startsWith('waterfall-rock-'))).toHaveLength(33)
     expect(waterSheet).toBeDefined()
     expect(Number.isFinite(waterSheet?.position.y)).toBe(true)
-    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(true)
+    expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(false)
   })
 
   test('restores omitted numeric defaults before building legacy receiving-pool rocks', () => {

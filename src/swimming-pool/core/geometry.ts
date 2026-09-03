@@ -681,6 +681,109 @@ function createEndPlatformGeometry(
   return geometry
 }
 
+function createBoundaryBenchGeometry(
+  points: PoolPoint[],
+  floorDepthAtX: (x: number) => number,
+  centerT: number,
+  requestedLength: number,
+  requestedWidth: number,
+  requestedTopDepth: number,
+) {
+  const positions: number[] = []
+  if (points.length < 3) return new BufferGeometry()
+  const winding = signedArea(points) >= 0 ? 1 : -1
+  const lengths = points.map((point, index) => {
+    const next = points[(index + 1) % points.length]!
+    return Math.hypot(next[0] - point[0], next[1] - point[1])
+  })
+  const perimeter = lengths.reduce((sum, length) => sum + length, 0)
+  const width = Math.max(0.05, requestedWidth)
+  const length = Math.min(Math.max(0.5, requestedLength), perimeter * 0.8)
+  const sampleCount = Math.max(4, Math.ceil(length / 0.18))
+  const pointAt = (distance: number): { point: PoolPoint; tangent: PoolPoint } => {
+    let remaining = ((distance % perimeter) + perimeter) % perimeter
+    for (let index = 0; index < points.length; index += 1) {
+      const edgeLength = lengths[index]!
+      if (remaining <= edgeLength || index === points.length - 1) {
+        const start = points[index]!
+        const end = points[(index + 1) % points.length]!
+        const progress = edgeLength <= 0.001 ? 0 : remaining / edgeLength
+        return {
+          point: [start[0] + (end[0] - start[0]) * progress, start[1] + (end[1] - start[1]) * progress],
+          tangent: [(end[0] - start[0]) / Math.max(edgeLength, 0.001), (end[1] - start[1]) / Math.max(edgeLength, 0.001)],
+        }
+      }
+      remaining -= edgeLength
+    }
+    return { point: points[0]!, tangent: [1, 0] }
+  }
+  const samples = Array.from({ length: sampleCount + 1 }, (_, index) => {
+    const sample = pointAt(perimeter * centerT - length / 2 + length * index / sampleCount)
+    const inward: PoolPoint = winding > 0 ? [-sample.tangent[1], sample.tangent[0]] : [sample.tangent[1], -sample.tangent[0]]
+    const inner: PoolPoint = [sample.point[0] + inward[0] * width, sample.point[1] + inward[1] * width]
+    const topDepth = Math.min(requestedTopDepth, floorDepthAtX(inner[0]) * 0.8)
+    return { point: sample.point, inner, topDepth, floorDepth: floorDepthAtX(inner[0]) }
+  })
+  for (let index = 0; index < samples.length - 1; index += 1) {
+    const current = samples[index]!
+    const next = samples[index + 1]!
+    // Flat top strip following the selected boundary.
+    pushQuad(positions,
+      [current.point[0], -current.topDepth, current.point[1]],
+      [next.point[0], -next.topDepth, next.point[1]],
+      [next.inner[0], -next.topDepth, next.inner[1]],
+      [current.inner[0], -current.topDepth, current.inner[1]],
+    )
+    // Vertical front face down to the pool floor.
+    pushQuad(positions,
+      [current.inner[0], -current.topDepth, current.inner[1]],
+      [next.inner[0], -next.topDepth, next.inner[1]],
+      [next.inner[0], -next.floorDepth, next.inner[1]],
+      [current.inner[0], -current.floorDepth, current.inner[1]],
+    )
+  }
+  // Close both short ends of the bench. Without these caps, the boundary
+  // strip and front face leave an exposed triangular side gap on curved and
+  // freeform pools.
+  for (const sample of [samples[0]!, samples[samples.length - 1]!]) {
+    const boundaryFloorDepth = floorDepthAtX(sample.point[0])
+    pushQuad(positions,
+      [sample.point[0], -sample.topDepth, sample.point[1]],
+      [sample.inner[0], -sample.topDepth, sample.inner[1]],
+      [sample.inner[0], -sample.floorDepth, sample.inner[1]],
+      [sample.point[0], -boundaryFloorDepth, sample.point[1]],
+    )
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  addPlanarUvAttribute(geometry)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function boundaryPositionForLegacyWall(points: PoolPoint[], wall: PoolNode['benchWall']) {
+  const perimeter = points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length]!
+    return sum + Math.hypot(next[0] - point[0], next[1] - point[1])
+  }, 0)
+  let distance = 0
+  let bestT = 0
+  let bestScore = Number.POSITIVE_INFINITY
+  for (let index = 0; index < points.length; index += 1) {
+    const start = points[index]!
+    const end = points[(index + 1) % points.length]!
+    const edgeLength = Math.hypot(end[0] - start[0], end[1] - start[1])
+    const midpoint: PoolPoint = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2]
+    const score = wall === 'min-x' ? midpoint[0]
+      : wall === 'max-x' ? -midpoint[0]
+        : wall === 'min-z' ? midpoint[1]
+          : -midpoint[1]
+    if (score < bestScore) { bestScore = score; bestT = (distance + edgeLength / 2) / perimeter }
+    distance += edgeLength
+  }
+  return bestT
+}
+
 function createPerimeterBenchGeometry(
   points: PoolPoint[],
   floorDepthAtX: (x: number) => number,
@@ -708,8 +811,8 @@ function createPerimeterBenchGeometry(
     const insetEnd = insetPoints[nextIndex]!
     const midpointX = (boundaryStart[0] + boundaryEnd[0]) / 2
     const topDepth = Math.min(requestedTopDepth, floorDepthAtX(midpointX) * 0.8)
-    const startDepth = Math.min(topDepth, floorDepthAtX(insetStart[0]))
-    const endDepth = Math.min(topDepth, floorDepthAtX(insetEnd[0]))
+    const startDepth = Math.max(topDepth, floorDepthAtX(insetStart[0]))
+    const endDepth = Math.max(topDepth, floorDepthAtX(insetEnd[0]))
 
     pushQuad(
       positions,
@@ -724,6 +827,20 @@ function createPerimeterBenchGeometry(
       [insetEnd[0], -topDepth, insetEnd[1]],
       [insetEnd[0], -endDepth, insetEnd[1]],
       [insetStart[0], -startDepth, insetStart[1]],
+    )
+
+    // Close the outside of the perimeter bench as well. Without this fascia
+    // the bench top is only a single visible plane and reads as a floating
+    // slab. The boundary edge is coincident with the basin wall, so the lower
+    // edge follows the real floor profile instead of using a fixed thickness.
+    const boundaryStartDepth = Math.max(topDepth, floorDepthAtX(boundaryStart[0]))
+    const boundaryEndDepth = Math.max(topDepth, floorDepthAtX(boundaryEnd[0]))
+    pushQuad(
+      positions,
+      [boundaryEnd[0], -topDepth, boundaryEnd[1]],
+      [boundaryStart[0], -topDepth, boundaryStart[1]],
+      [boundaryStart[0], -boundaryStartDepth, boundaryStart[1]],
+      [boundaryEnd[0], -boundaryEndDepth, boundaryEnd[1]],
     )
   }
 
@@ -1010,26 +1127,27 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     const perimeter = node.benchStyle === 'perimeter'
     const width = Math.min(node.benchWidth, Math.min(node.length, node.width) * 0.3)
     const startX = depth.maximumX - width
+    const benchAssembly = new Group()
+    const boundaryT = Object.prototype.hasOwnProperty.call(nodeInput, 'benchBoundaryT')
+      ? node.benchBoundaryT
+      : boundaryPositionForLegacyWall(inner, node.benchWall)
     const bench = new Mesh(
       perimeter
         ? createPerimeterBenchGeometry(inner, depth.depthAtX, width, node.benchWaterDepth)
-        : createEndPlatformGeometry(inner, depth.depthAtX, startX, depth.maximumX, node.benchWaterDepth, startX),
+        : createBoundaryBenchGeometry(inner, depth.depthAtX, boundaryT, node.benchLength, width, node.benchWaterDepth),
       shellMaterial,
     )
     bench.name = 'pool-bench'
-    group.add(bench)
+    benchAssembly.add(bench)
+    group.add(benchAssembly)
     if (node.copingStyle === 'rock') {
       if (perimeter) {
         for (let index = 0; index < inner.length; index += 1) {
           addSubmergedFeatureEdge(inner[index]!, inner[(index + 1) % inner.length]!, node.benchWaterDepth, node.copingSeed + 202 + index)
         }
       } else {
-        const benchIntervals = getCrossSectionIntervals(inner, startX)
-        for (const [minimumZ, maximumZ] of benchIntervals) {
-          addSubmergedFeatureEdge([startX, minimumZ], [startX, maximumZ], node.benchWaterDepth, node.copingSeed + 202)
-          addSubmergedFeatureEdge([startX, minimumZ], [depth.maximumX, minimumZ], node.benchWaterDepth, node.copingSeed + 203)
-          addSubmergedFeatureEdge([startX, maximumZ], [depth.maximumX, maximumZ], node.benchWaterDepth, node.copingSeed + 204)
-        }
+        // The end bench follows the selected boundary; its coping is generated
+        // by the same continuous perimeter mode when a natural edge is needed.
       }
     }
   }

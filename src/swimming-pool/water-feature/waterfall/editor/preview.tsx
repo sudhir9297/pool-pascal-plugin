@@ -6,8 +6,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import { resolvePoolPolygon, type PoolNode } from '../../../core/schema'
 import { triggerPoolWaterImpact } from '../../../shader/water-actions'
+import { subscribeWaterfallAnimation } from '../../../shader/waterfall-animation'
 import type {
-  WaterfallMistEffect,
+  WaterfallLineEffect,
   WaterfallPoolEffect,
   WaterfallWaterEffect,
 } from '../../../shader/waterfall-effect'
@@ -17,7 +18,7 @@ import { resolveMountedWaterfall } from '../design/placement'
 
 type WaterfallEffect =
   | WaterfallWaterEffect
-  | WaterfallMistEffect
+  | WaterfallLineEffect
   | WaterfallPoolEffect
 
 export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode }) {
@@ -41,17 +42,8 @@ export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode
     })
     return result
   }, [geometry])
-  // Do not use `useFrame` here. Plugins can be transpiled from a separate
-  // package tree in development, which can load a second R3F context and make
-  // an otherwise valid hook fail with "Hooks can only be used within Canvas".
-  // A local RAF keeps the effect animation self-contained and also gives React
-  // a render invalidation without coupling this plugin to the host's R3F copy.
   useEffect(() => {
-    let frame = 0
-    let previous = performance.now()
-    const tick = (now: number) => {
-      const delta = Math.min(0.1, Math.max(0, (now - previous) / 1000))
-      previous = now
+    return subscribeWaterfallAnimation((delta) => {
       for (const effect of effects) effect.update(delta)
       if (pool && mounted.poolId && mounted.showFlow) {
         impactClock.current += delta
@@ -80,11 +72,8 @@ export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode
         }
       }
       redraw((value) => (value + 1) % 1000000)
-      frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [effects])
+    })
+  }, [effects, mounted, pool])
   useEffect(() => () => {
     for (const effect of effects) effect.dispose()
     geometry.traverse((child) => {

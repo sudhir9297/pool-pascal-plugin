@@ -4,20 +4,20 @@ import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, 
 import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Group, Material, Mesh } from 'three'
+import type { Group } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import { findNearestPoolWall, type SkimmerPlacement } from '../../skimmer/design/placement'
 import type { PoolNode } from '../../core/schema'
 import { poolStairDefinition } from '../core/definition'
 import { PoolStairNode } from '../core/schema'
-import { buildPoolStairGeometry } from '../core/geometry'
+import { findNearestPoolStairAttachment, poolStairAttachmentPatch, type PoolStairAttachment } from '../design/placement'
+import PoolStairGhost from './ghost'
 import { getPoolStairPlacementSettings, usePoolStairStore } from './store'
 
 export default function PoolStairTool() {
   const cursorRef = useRef<Group>(null)
   const levelId = useViewer((state) => state.selection.levelId)
   const setSelection = useViewer((state) => state.setSelection)
-  const [placement, setPlacement] = useState<SkimmerPlacement | null>(null)
+  const [placement, setPlacement] = useState<PoolStairAttachment | null>(null)
   const variant = usePoolStairStore((state) => state.variant)
   const stepCount = usePoolStairStore((state) => state.stepCount)
   const width = usePoolStairStore((state) => state.width)
@@ -35,13 +35,10 @@ export default function PoolStairTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const point = snapPointToGrid([local[0], local[2]], step)
-      const pools = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
-      const next = findNearestPoolWall(point, pools)
-      if (next) {
-        const pool = pools.find((candidate) => candidate.id === next.poolId)
-        next.position = [next.position[0], (pool?.position[1] ?? 0) + (pool?.finishedDeckElevation ?? 0), next.position[2]]
-      }
-      return next
+      const pools = Object.values(useScene.getState().nodes).filter((node) => (
+        (node.type as string) === 'pool:pool' && node.parentId === levelId
+      )) as unknown as PoolNode[]
+      return findNearestPoolStairAttachment([point[0], local[1], point[1]], pools)
     }
     const resolve = (event: GridEvent) => {
       const next = getPlacement(event)
@@ -52,8 +49,14 @@ export default function PoolStairTool() {
       const next = getPlacement(event)
       if (!next) return
       const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:stair').length
-      const stair = PoolStairNode.parse({ ...poolStairDefinition.defaults(), ...getPoolStairPlacementSettings(), id: undefined, name: `Pool Stairs ${count + 1}`, parentId: levelId, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
-      useScene.getState().createNode(stair as unknown as AnyNode, levelId)
+      const stair = PoolStairNode.parse({
+        ...poolStairDefinition.defaults(),
+        ...getPoolStairPlacementSettings(),
+        ...poolStairAttachmentPatch(next),
+        id: undefined,
+        name: `Pool Stairs ${count + 1}`,
+      })
+      useScene.getState().createNode(stair as unknown as AnyNode, next.poolId as never)
       setSelection({ selectedIds: [stair.id] }); useEditor.getState().setTool(null); useEditor.getState().setMode('select'); triggerSFX('sfx:structure-build')
     }
     const onCancel = () => { markToolCancelConsumed(); setPlacement(null); useEditor.getState().setTool(null); useEditor.getState().setMode('select') }
@@ -61,33 +64,4 @@ export default function PoolStairTool() {
     return () => { emitter.off('grid:move', resolve); emitter.off('grid:click', onClick); emitter.off('tool:cancel', onCancel) }
   }, [levelId, setSelection])
   return <group><CursorSphere color={placement ? '#22c55e' : '#f97316'} ref={cursorRef} />{placement && <PoolStairGhost node={ghostNode} placement={placement} />}</group>
-}
-
-function PoolStairGhost({ node, placement }: { node: PoolStairNode; placement: SkimmerPlacement }) {
-  const geometry = useMemo(() => {
-    const group = buildPoolStairGeometry(node)
-    group.traverse((child) => {
-      const mesh = child as Mesh
-      if (!mesh.isMesh) return
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      for (const material of materials as Material[]) {
-        material.transparent = true
-        material.opacity = 0.42
-        material.depthWrite = false
-      }
-    })
-    return group
-  }, [node])
-  useEffect(() => () => {
-    const materials = new Set<Material>()
-    geometry.traverse((child) => {
-      const mesh = child as Mesh
-      if (!mesh.isMesh) return
-      mesh.geometry.dispose()
-      const values = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      for (const material of values as Material[]) materials.add(material)
-    })
-    for (const material of materials) material.dispose()
-  }, [geometry])
-  return <primitive object={geometry} position={placement.position} rotation={placement.rotation} />
 }

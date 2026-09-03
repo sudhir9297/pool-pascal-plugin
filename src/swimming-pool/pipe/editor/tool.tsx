@@ -12,6 +12,7 @@ import {
 import {
   CursorSphere,
   isGridSnapActive,
+  isMagneticSnapActive,
   markToolCancelConsumed,
   triggerSFX,
   useInteractionScope,
@@ -181,7 +182,10 @@ export default function PoolPipeTool() {
         [x, constrained?.[1] ?? local[1], z],
         normalizedPorts,
         pipes,
-        { ignoreNetworkId: usePipeEditStore.getState().extension?.networkId },
+        {
+          ignoreNetworkId: usePipeEditStore.getState().extension?.networkId,
+          connectionSnap: isMagneticSnapActive(),
+        },
       )
       const snappedPoint = pipeTarget?.position ?? [x, constrained?.[1] ?? local[1], z]
       pipeJoinRef.current = pipeTarget?.pipeConnection ?? null

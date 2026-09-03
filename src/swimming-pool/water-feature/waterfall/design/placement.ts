@@ -15,6 +15,26 @@ export type WaterfallPlacement = {
   waterPreset: WaterPreset
   shallowWaterColor: string
   deepWaterColor: string
+  poolRockSeed: number
+}
+
+function poolWallLength(pool: PoolNode, wallIndex: number) {
+  const polygon = resolvePoolPolygon(pool)
+  const index = ((wallIndex % polygon.length) + polygon.length) % polygon.length
+  const start = polygon[index]
+  const end = polygon[(index + 1) % polygon.length]
+  return start && end ? Math.hypot(end[0] - start[0], end[1] - start[1]) : 0
+}
+
+/** Small, proportional defaults for a waterfall mounted on a pool wall. */
+export function getMountedWaterfallDimensions(pool: PoolNode, wallIndex: number) {
+  const wallLength = poolWallLength(pool, wallIndex)
+  const width = Math.max(0.8, Math.min(1.8, wallLength * 0.24))
+  return {
+    width,
+    height: Math.max(0.55, Math.min(1.05, width * 0.58)),
+    depth: Math.max(0.45, Math.min(0.85, width * 0.46)),
+  }
 }
 
 function signedArea(points: readonly (readonly [number, number])[]) {
@@ -103,14 +123,19 @@ export function placementOnPoolBoundary(pool: PoolNode, wallIndex: number, wallT
     waterPreset: pool.waterPreset,
     shallowWaterColor: pool.shallowWaterColor,
     deepWaterColor: pool.deepWaterColor,
+    poolRockSeed: pool.copingSeed,
   }
 }
 
 export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode | null | undefined): PoolWaterfallNode {
   if (!pool || node.poolId !== pool.id) return node
-  const placement = placementOnPoolBoundary(pool, node.wallIndex, node.wallT, node.width)
+  const dimensions = node.autoSizeOnPool && node.waterfallType === 'modern'
+    ? getMountedWaterfallDimensions(pool, node.wallIndex)
+    : null
+  const placement = placementOnPoolBoundary(pool, node.wallIndex, node.wallT, dimensions?.width ?? node.width)
   return placement ? {
     ...node,
+    ...(dimensions ?? {}),
     position: placement.position,
     rotation: placement.rotation,
     poolId: placement.poolId,
@@ -122,6 +147,7 @@ export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode 
     waterPreset: placement.waterPreset,
     shallowWaterColor: placement.shallowWaterColor,
     deepWaterColor: placement.deepWaterColor,
+    poolRockSeed: placement.poolRockSeed,
     receivingPoolEnabled: false,
   } : node
 }

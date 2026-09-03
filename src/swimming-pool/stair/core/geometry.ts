@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three'
 import { getPoolStairPreset } from '../data/catalog'
+import type { PoolStairMounting } from '../design/mounting'
 import type { PoolStairNode } from './schema'
 
 function addBox(group: Group, name: string, size: [number, number, number], position: [number, number, number], material: MeshStandardMaterial) {
@@ -34,8 +35,8 @@ function addStraightTube(group: Group, from: Vector3, to: Vector3, diameter: num
   group.add(mesh)
 }
 
-function addRail(group: Group, name: string, node: PoolStairNode, x: number, material: MeshStandardMaterial) {
-  const points = railPath(node, x)
+function addRail(group: Group, name: string, node: PoolStairNode, mounting: PoolStairMounting, x: number, material: MeshStandardMaterial) {
+  const points = railPath(node, mounting, x)
   if (node.variant !== 'square') {
     addTube(group, name, points, node.tubeDiameter, material)
     return
@@ -55,11 +56,10 @@ function addRail(group: Group, name: string, node: PoolStairNode, x: number, mat
   group.add(rail)
 }
 
-function railPath(node: PoolStairNode, x: number): Vector3[] {
-  const preset = getPoolStairPreset(node.variant)
-  const h = preset.railHeight
-  const outer = -preset.deckReach
-  const inner = preset.innerOffset
+function railPath(node: PoolStairNode, mounting: PoolStairMounting, x: number): Vector3[] {
+  const h = mounting.railHeight
+  const outer = -mounting.deckReach
+  const inner = mounting.innerOffset
   const bottom = -node.depth
 
   if (node.variant === 'extended') return [
@@ -103,7 +103,14 @@ function addDeckAnchor(group: Group, name: string, x: number, z: number, materia
 }
 
 /** Builds the four stainless-steel wall ladders shown in the supplied photos. */
-export function buildPoolStairGeometry(node: PoolStairNode): Group {
+export function buildPoolStairGeometry(
+  node: PoolStairNode,
+  mounting: PoolStairMounting = {
+    deckReach: getPoolStairPreset(node.variant).deckReach,
+    innerOffset: getPoolStairPreset(node.variant).innerOffset,
+    railHeight: getPoolStairPreset(node.variant).railHeight,
+  },
+): Group {
   const group = new Group()
   group.name = `pool-stair-${node.variant}`
   const preset = getPoolStairPreset(node.variant)
@@ -113,13 +120,13 @@ export function buildPoolStairGeometry(node: PoolStairNode): Group {
   const rubber = new MeshStandardMaterial({ color: '#1f2937', roughness: 0.78 })
   const railX = node.width / 2 + node.tubeDiameter / 2
 
-  addRail(group, 'pool-stair-left-rail', node, -railX, steel)
-  addRail(group, 'pool-stair-right-rail', node, railX, steel)
+  addRail(group, 'pool-stair-left-rail', node, mounting, -railX, steel)
+  addRail(group, 'pool-stair-right-rail', node, mounting, railX, steel)
 
   const topStepY = -0.28
   const bottomStepY = -node.depth + 0.18
   const spacing = (topStepY - bottomStepY) / Math.max(1, node.stepCount - 1)
-  const treadZ = preset.innerOffset + node.treadDepth / 2
+  const treadZ = mounting.innerOffset + node.treadDepth / 2
   const treadThickness = node.variant === 'compact' ? 0.055 : 0.045
   for (let index = 0; index < node.stepCount; index += 1) {
     const y = topStepY - spacing * index
@@ -128,20 +135,20 @@ export function buildPoolStairGeometry(node: PoolStairNode): Group {
       group,
       `pool-stair-tread-${index + 1}-grip-${groove}`,
       [node.width * 0.82, 0.007, 0.009],
-      [0, y + treadThickness / 2 + 0.004, preset.innerOffset + node.treadDepth * groove / 4],
+      [0, y + treadThickness / 2 + 0.004, mounting.innerOffset + node.treadDepth * groove / 4],
       grip,
     )
   }
 
   for (const x of [-railX, railX]) {
-    addDeckAnchor(group, 'pool-stair-outer-anchor', x, -preset.deckReach, steel)
-    if (preset.fourDeckAnchors) addDeckAnchor(group, 'pool-stair-inner-anchor', x, preset.innerOffset, steel)
+    addDeckAnchor(group, 'pool-stair-outer-anchor', x, -mounting.deckReach, steel)
+    if (preset.fourDeckAnchors) addDeckAnchor(group, 'pool-stair-inner-anchor', x, mounting.innerOffset, steel)
     if (!preset.wallBumpers) continue
     const bumperY = -node.depth + 0.14
     addTube(
       group,
       'pool-stair-wall-standoff',
-      [new Vector3(x, bumperY, preset.innerOffset), new Vector3(x, bumperY, (preset.innerOffset + 0.055) / 2), new Vector3(x, bumperY, 0.055)],
+      [new Vector3(x, bumperY, mounting.innerOffset), new Vector3(x, bumperY, (mounting.innerOffset + 0.055) / 2), new Vector3(x, bumperY, 0.055)],
       node.tubeDiameter * 0.82,
       steel,
     )

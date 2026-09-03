@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector2, Vector3, type Group, type Material, type Mesh, type Ray } from 'three'
 import { buildPipeGeometry } from '../core/geometry'
 import { PoolPipeNode } from '../core/schema'
-import { attachPipeNode, mergePipeNetworksAtEndpoints, movePipeEndpointTo, syncAttachedPipeEndpoints } from '../../design/pipe-network'
+import { attachPipeNode, deletePipeEdge, mergePipeNetworksAtEndpoints, movePipeEndpointTo, syncAttachedPipeEndpoints, type PipeNetwork } from '../../design/pipe-network'
 import { collectPoolPipePorts, findNearestPipePort } from '../design/ports'
 import { usePipeEditStore } from './store'
 
@@ -37,6 +37,9 @@ export default function PoolPipePreview({ node }: { node: PoolPipeNode }) {
   const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
   const sceneNodes = useScene((state) => state.nodes)
   const inputDragging = useViewer((state) => state.inputDragging)
+  const setSelection = useViewer((state) => state.setSelection)
+  const subSelection = usePipeEditStore((state) => state.subSelection)
+  const setSubSelection = usePipeEditStore((state) => state.setSubSelection)
   const pipeToolActive = useEditor((state) => state.mode === 'build' && state.tool === 'pool:pipe-network')
   useRegistry(node.id, node.type, rootRef)
 
@@ -121,6 +124,29 @@ export default function PoolPipePreview({ node }: { node: PoolPipeNode }) {
     }
   }, [pipe, pipeToolActive])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return
+      const selection = usePipeEditStore.getState().subSelection
+      if (selection?.networkId !== node.id || selection.element !== 'edge') return
+      const current = useScene.getState().nodes[node.id as never] as unknown as PoolPipeNode | undefined
+      if (!current || !current.edges.some((edge) => edge.id === selection.elementId)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const updated = deletePipeEdge(current as unknown as PipeNetwork, selection.elementId)
+      if (updated.edges.length === 0) useScene.getState().deleteNode(node.id as never)
+      else useScene.getState().updateNode(node.id as never, {
+        nodes: updated.nodes,
+        edges: updated.edges,
+        attachments: updated.attachments,
+      } as never)
+      setSubSelection(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [node.id, setSubSelection])
+
   return (
     <group
       position={node.position}
@@ -129,6 +155,59 @@ export default function PoolPipePreview({ node }: { node: PoolPipeNode }) {
       {...(pipeToolActive ? {} : handlers)}
     >
       <group ref={visualRef} />
+      {!pipeToolActive && (
+        <PipeEdgeSelectionOverlay
+          node={node}
+          selectedEdgeId={subSelection?.networkId === node.id && subSelection.element === 'edge' ? subSelection.elementId : null}
+          onSelect={(edgeId) => {
+            setSubSelection({ networkId: node.id, element: 'edge', elementId: edgeId })
+            setSelection({ selectedIds: [] })
+          }}
+        />
+      )}
+    </group>
+  )
+}
+
+function PipeEdgeSelectionOverlay({
+  node,
+  selectedEdgeId,
+  onSelect,
+}: {
+  node: PoolPipeNode
+  selectedEdgeId: string | null
+  onSelect: (edgeId: string) => void
+}) {
+  return (
+    <group>
+      {node.edges.map((edge) => {
+        const from = node.nodes.find((candidate) => candidate.id === edge.from)
+        const to = node.nodes.find((candidate) => candidate.id === edge.to)
+        if (!from || !to || edge.style !== 'rigid') return null
+        const start = new Vector3(...from.position)
+        const direction = new Vector3(...to.position).sub(start)
+        const length = direction.length()
+        if (length <= Number.EPSILON) return null
+        const selected = selectedEdgeId === edge.id
+        return (
+          <mesh
+            key={`pipe-edge-selection:${node.id}:${edge.id}`}
+            position={start.clone().addScaledVector(direction, 0.5)}
+            quaternion={new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction.normalize())}
+            renderOrder={selected ? 20 : 5}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              event.nativeEvent.stopPropagation()
+              event.nativeEvent.stopImmediatePropagation()
+              swallowNextClick()
+              onSelect(edge.id)
+            }}
+          >
+            <cylinderGeometry args={[Math.max(node.diameter * 1.8, 0.08), Math.max(node.diameter * 1.8, 0.08), length, 12]} />
+            <meshBasicMaterial color={selected ? '#5f6fff' : '#000000'} transparent opacity={selected ? 0.8 : 0} depthTest={false} depthWrite={false} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }

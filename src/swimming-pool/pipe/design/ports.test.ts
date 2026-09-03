@@ -51,4 +51,11 @@ describe('PVC connection ports and run-body snapping', () => {
     expect(findNearestPipePort([0, 0, 0], ports, 0.2)?.id).toBe('equipment-port')
     expect(findNearestPoolPipeTarget([0, 0, 0], ports, [], { portDistance: 0.2 })?.port?.id).toBe('equipment-port')
   })
+
+  test('can disable automatic connection snapping while drawing', () => {
+    const network = createPipeNetwork({ id: 'snap-disabled', parentId: null, start: [0, 1, 0], end: [4, 1, 0] })
+    const ports = collectPipePorts([network], false)
+
+    expect(findNearestPoolPipeTarget([2, 1, 0.04], ports, [network], { connectionSnap: false })).toBeNull()
+  })
 })
