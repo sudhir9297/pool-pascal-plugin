@@ -105,6 +105,73 @@ type ProfiledPoint = [x: number, z: number, heightAboveFloor: number]
 
 const GEOMETRY_EPSILON = 1e-8
 
+export type PoolGeometryOptions = {
+  removeWallRegions?: PoolPoint[][]
+  removeFloorRegions?: PoolPoint[][]
+  removeWaterRegions?: PoolPoint[][]
+}
+
+function pointInPolygon(point: PoolPoint, polygon: PoolPoint[]) {
+  let inside = false
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index]!
+    const previousPoint = polygon[previous]!
+    const edgeX = currentPoint[0] - previousPoint[0]
+    const edgeZ = currentPoint[1] - previousPoint[1]
+    const pointX = point[0] - previousPoint[0]
+    const pointZ = point[1] - previousPoint[1]
+    const edgeLengthSquared = edgeX * edgeX + edgeZ * edgeZ
+    const cross = edgeX * pointZ - edgeZ * pointX
+    const projection = pointX * edgeX + pointZ * edgeZ
+    if (Math.abs(cross) <= 1e-7 && projection >= -1e-7 && projection <= edgeLengthSquared + 1e-7) return true
+    const crosses = (currentPoint[1] > point[1]) !== (previousPoint[1] > point[1])
+    if (crosses && point[0] < (previousPoint[0] - currentPoint[0]) * (point[1] - currentPoint[1]) / (previousPoint[1] - currentPoint[1]) + currentPoint[0]) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+function pointInAnyPolygon(point: PoolPoint, regions: PoolPoint[][]) {
+  return regions.some((region) => pointInPolygon(point, region))
+}
+
+function segmentOrientation(first: PoolPoint, second: PoolPoint, third: PoolPoint) {
+  return (second[0] - first[0]) * (third[1] - first[1]) -
+    (second[1] - first[1]) * (third[0] - first[0])
+}
+
+function segmentsIntersect(firstStart: PoolPoint, firstEnd: PoolPoint, secondStart: PoolPoint, secondEnd: PoolPoint) {
+  const epsilon = 1e-7
+  const firstTurn = segmentOrientation(firstStart, firstEnd, secondStart)
+  const secondTurn = segmentOrientation(firstStart, firstEnd, secondEnd)
+  const thirdTurn = segmentOrientation(secondStart, secondEnd, firstStart)
+  const fourthTurn = segmentOrientation(secondStart, secondEnd, firstEnd)
+  const onSegment = (start: PoolPoint, point: PoolPoint, end: PoolPoint) =>
+    Math.abs(segmentOrientation(start, point, end)) <= epsilon &&
+    point[0] >= Math.min(start[0], end[0]) - epsilon &&
+    point[0] <= Math.max(start[0], end[0]) + epsilon &&
+    point[1] >= Math.min(start[1], end[1]) - epsilon &&
+    point[1] <= Math.max(start[1], end[1]) + epsilon
+  const crosses = (firstTurn > epsilon && secondTurn < -epsilon || firstTurn < -epsilon && secondTurn > epsilon) &&
+    (thirdTurn > epsilon && fourthTurn < -epsilon || thirdTurn < -epsilon && fourthTurn > epsilon)
+  return crosses ||
+    onSegment(firstStart, secondStart, firstEnd) ||
+    onSegment(firstStart, secondEnd, firstEnd) ||
+    onSegment(secondStart, firstStart, secondEnd) ||
+    onSegment(secondStart, firstEnd, secondEnd)
+}
+
+function segmentTouchesAnyPolygon(start: PoolPoint, end: PoolPoint, regions: PoolPoint[][]) {
+  return regions.some((region) => {
+    if (region.length < 3) return false
+    if (pointInPolygon(start, region) || pointInPolygon(end, region)) return true
+    return region.some((regionStart, index) =>
+      segmentsIntersect(start, end, regionStart, region[(index + 1) % region.length]!),
+    )
+  })
+}
+
 function signedArea(points: PoolPoint[]) {
   return points.reduce((area, point, index) => {
     const next = points[(index + 1) % points.length]
@@ -216,6 +283,73 @@ function splitBoundaryAtCuts(points: PoolPoint[], cuts: number[]) {
   })
 }
 
+function clipPolygonAgainstEdge(
+  points: PoolPoint[],
+  edgeStart: PoolPoint,
+  edgeEnd: PoolPoint,
+  keepLeft: boolean,
+) {
+  const clipped: PoolPoint[] = []
+  const side = (point: PoolPoint) => (
+    edgeEnd[0] - edgeStart[0]
+  ) * (point[1] - edgeStart[1]) - (
+    edgeEnd[1] - edgeStart[1]
+  ) * (point[0] - edgeStart[0])
+  const isInside = (point: PoolPoint) => keepLeft
+    ? side(point) >= -GEOMETRY_EPSILON
+    : side(point) <= GEOMETRY_EPSILON
+
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index]!
+    const next = points[(index + 1) % points.length]!
+    const currentInside = isInside(current)
+    const nextInside = isInside(next)
+    if (currentInside !== nextInside) {
+      const currentSide = side(current)
+      const nextSide = side(next)
+      const denominator = currentSide - nextSide
+      const progress = Math.abs(denominator) > GEOMETRY_EPSILON
+        ? currentSide / denominator
+        : 0
+      clipped.push([
+        current[0] + (next[0] - current[0]) * progress,
+        current[1] + (next[1] - current[1]) * progress,
+      ])
+    }
+    if (nextInside) clipped.push(next)
+  }
+  return clipped
+}
+
+/** Returns disjoint pieces of a polygon after removing convex overlap regions. */
+function subtractConvexRegions(subject: PoolPoint[], regions: PoolPoint[][]) {
+  let fragments = [subject]
+  for (const sourceRegion of regions) {
+    const region = signedArea(sourceRegion) >= 0 ? sourceRegion : [...sourceRegion].reverse()
+    let insideFragments = fragments
+    const outsideFragments: PoolPoint[][] = []
+    for (let index = 0; index < region.length; index += 1) {
+      const edgeStart = region[index]!
+      const edgeEnd = region[(index + 1) % region.length]!
+      const nextInsideFragments: PoolPoint[][] = []
+      for (const fragment of insideFragments) {
+        const outside = clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, false)
+        if (outside.length >= 3 && Math.abs(signedArea(outside)) > GEOMETRY_EPSILON) {
+          outsideFragments.push(outside)
+        }
+        const inside = clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, true)
+        if (inside.length >= 3 && Math.abs(signedArea(inside)) > GEOMETRY_EPSILON) {
+          nextInsideFragments.push(inside)
+        }
+      }
+      insideFragments = nextInsideFragments
+      if (insideFragments.length === 0) break
+    }
+    fragments = outsideFragments
+  }
+  return fragments
+}
+
 function pushTriangle(positions: number[], first: Point3, second: Point3, third: Point3) {
   positions.push(...first, ...second, ...third)
 }
@@ -259,6 +393,7 @@ function createPoolFloorGeometry(
   depthAtX: (x: number) => number,
   floorThickness: number,
   cuts: number[],
+  removeFloorRegions: PoolPoint[][] = [],
 ) {
   const positions: number[] = []
   const contour = points.map(([x, z]) => new Vector2(x, z))
@@ -280,8 +415,13 @@ function createPoolFloorGeometry(
           PoolPoint,
           PoolPoint,
         ]
-        pushFloorFace(positions, face, depthAtX, 0, true)
-        pushFloorFace(positions, face, depthAtX, floorThickness, false)
+        for (const remaining of subtractConvexRegions(face, removeFloorRegions)) {
+          for (let faceIndex = 1; faceIndex < remaining.length - 1; faceIndex += 1) {
+            const clippedFace = [remaining[0]!, remaining[faceIndex]!, remaining[faceIndex + 1]!] as [PoolPoint, PoolPoint, PoolPoint]
+            pushFloorFace(positions, clippedFace, depthAtX, 0, true)
+            pushFloorFace(positions, clippedFace, depthAtX, floorThickness, false)
+          }
+        }
       }
     }
   }
@@ -311,6 +451,7 @@ function createPoolWallGeometry(
   cuts: number[],
   coveRadius: number,
   coveInner: PoolPoint[],
+  removeWallRegions: PoolPoint[][] = [],
 ) {
   const positions: number[] = []
 
@@ -331,6 +472,7 @@ function createPoolWallGeometry(
         -depthAtX(next[0]) + bottomOffset,
         next[1],
       ]
+      if (segmentTouchesAnyPolygon(current, next, removeWallRegions)) continue
       if (reverse) pushQuad(positions, topCurrent, bottomCurrent, bottomNext, topNext)
       else pushQuad(positions, topCurrent, topNext, bottomNext, bottomCurrent)
     }
@@ -372,6 +514,7 @@ function createPoolWallGeometry(
 
     for (let index = 0; index < inner.length; index += 1) {
       const nextIndex = (index + 1) % inner.length
+      if (segmentTouchesAnyPolygon(inner[index]!, inner[nextIndex]!, removeWallRegions)) continue
       for (let segment = 0; segment < radialSegments; segment += 1) {
         const startAngle = segment / radialSegments * Math.PI / 2
         const endAngle = (segment + 1) / radialSegments * Math.PI / 2
@@ -387,6 +530,10 @@ function createPoolWallGeometry(
 
   for (let index = 0; index < inner.length; index += 1) {
     const nextIndex = (index + 1) % inner.length
+    // The outer shell face is also part of the pool boundary. Leaving this
+    // face intact made a second intersecting pool render as a solid wall
+    // through the shared opening even after the inner wall was removed.
+    if (segmentTouchesAnyPolygon(inner[index]!, inner[nextIndex]!, removeWallRegions)) continue
     const innerCurrent: Point3 = [inner[index]![0], 0, inner[index]![1]]
     const innerNext: Point3 = [inner[nextIndex]![0], 0, inner[nextIndex]![1]]
     const outerCurrent: Point3 = [outer[index]![0], 0, outer[index]![1]]
@@ -534,6 +681,75 @@ function createEndPlatformGeometry(
   return geometry
 }
 
+function createPerimeterBenchGeometry(
+  points: PoolPoint[],
+  floorDepthAtX: (x: number) => number,
+  requestedWidth: number,
+  requestedTopDepth: number,
+) {
+  const positions: number[] = []
+  if (points.length < 3) return new BufferGeometry()
+  const winding = signedArea(points) >= 0 ? 1 : -1
+  const width = Math.max(0.05, requestedWidth)
+  const insetPoints = points.map((point, index) => {
+    const next = points[(index + 1) % points.length]!
+    const edgeLength = Math.hypot(next[0] - point[0], next[1] - point[1])
+    if (edgeLength <= GEOMETRY_EPSILON) return [...point] as PoolPoint
+    const tangent: PoolPoint = [(next[0] - point[0]) / edgeLength, (next[1] - point[1]) / edgeLength]
+    const inward: PoolPoint = winding > 0 ? [-tangent[1], tangent[0]] : [tangent[1], -tangent[0]]
+    return [point[0] + inward[0] * width, point[1] + inward[1] * width] as PoolPoint
+  })
+
+  for (let index = 0; index < points.length; index += 1) {
+    const nextIndex = (index + 1) % points.length
+    const boundaryStart = points[index]!
+    const boundaryEnd = points[nextIndex]!
+    const insetStart = insetPoints[index]!
+    const insetEnd = insetPoints[nextIndex]!
+    const midpointX = (boundaryStart[0] + boundaryEnd[0]) / 2
+    const topDepth = Math.min(requestedTopDepth, floorDepthAtX(midpointX) * 0.8)
+    const startDepth = Math.min(topDepth, floorDepthAtX(insetStart[0]))
+    const endDepth = Math.min(topDepth, floorDepthAtX(insetEnd[0]))
+
+    pushQuad(
+      positions,
+      [boundaryStart[0], -topDepth, boundaryStart[1]],
+      [boundaryEnd[0], -topDepth, boundaryEnd[1]],
+      [insetEnd[0], -topDepth, insetEnd[1]],
+      [insetStart[0], -topDepth, insetStart[1]],
+    )
+    pushQuad(
+      positions,
+      [insetStart[0], -topDepth, insetStart[1]],
+      [insetEnd[0], -topDepth, insetEnd[1]],
+      [insetEnd[0], -endDepth, insetEnd[1]],
+      [insetStart[0], -startDepth, insetStart[1]],
+    )
+  }
+
+  // Close the small mitred gaps where two offset edge strips meet. This is
+  // intentionally a flat corner fill, which also works for freeform outlines.
+  for (let index = 0; index < points.length; index += 1) {
+    const previousIndex = (index - 1 + points.length) % points.length
+    const point = points[index]!
+    const currentInset = insetPoints[index]!
+    const previousInset = insetPoints[previousIndex]!
+    const topDepth = Math.min(requestedTopDepth, floorDepthAtX(point[0]) * 0.8)
+    pushTriangle(
+      positions,
+      [point[0], -topDepth, point[1]],
+      [currentInset[0], -topDepth, currentInset[1]],
+      [previousInset[0], -topDepth, previousInset[1]],
+    )
+  }
+
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  addPlanarUvAttribute(geometry)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 function createBeachEntryGeometry(
   points: PoolPoint[],
   floorDepthAtX: (x: number) => number,
@@ -557,7 +773,7 @@ function createBeachEntryGeometry(
   return geometry
 }
 
-function createWaterGeometry(points: PoolPoint[]) {
+function createWaterGeometry(points: PoolPoint[], removeWaterRegions: PoolPoint[][] = []) {
   const xs = points.map(([x]) => x)
   const zs = points.map(([, z]) => z)
   const minX = Math.min(...xs)
@@ -566,10 +782,30 @@ function createWaterGeometry(points: PoolPoint[]) {
   const maxZ = Math.max(...zs)
   const span = Math.max(maxX - minX, maxZ - minZ)
   const maxEdge = Math.max(0.06, span / 96)
-  const geometry = new TessellateModifier(maxEdge, 8).modify(
+  const sourceGeometry = new TessellateModifier(maxEdge, 8).modify(
     new ShapeGeometry(traceShape(points)),
   )
-  geometry.rotateX(-Math.PI / 2)
+  sourceGeometry.rotateX(-Math.PI / 2)
+  const sourcePositions = sourceGeometry.getAttribute('position')
+  const geometry = removeWaterRegions.length > 0 ? new BufferGeometry() : sourceGeometry
+  if (removeWaterRegions.length > 0) {
+    const kept: number[] = []
+    for (let index = 0; index < sourcePositions.count; index += 3) {
+      const triangle: [PoolPoint, PoolPoint, PoolPoint] = [0, 1, 2].map((vertex) => [
+        sourcePositions.getX(index + vertex),
+        sourcePositions.getZ(index + vertex),
+      ]) as [PoolPoint, PoolPoint, PoolPoint]
+      for (const remaining of subtractConvexRegions(triangle, removeWaterRegions)) {
+        for (let faceIndex = 1; faceIndex < remaining.length - 1; faceIndex += 1) {
+          for (const vertex of [remaining[0]!, remaining[faceIndex]!, remaining[faceIndex + 1]!]) {
+            kept.push(vertex[0], sourcePositions.getY(index), vertex[1])
+          }
+        }
+      }
+    }
+    geometry.setAttribute('position', new Float32BufferAttribute(kept, 3))
+    sourceGeometry.dispose()
+  }
   const positions = geometry.getAttribute('position')
   const uvs = new Float32Array(positions.count * 2)
   const width = Math.max(0.001, maxX - minX)
@@ -592,20 +828,48 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
   const sourceU = isFloor.select(positionLocal.x, wallU)
   const sourceV = isFloor.select(positionLocal.z, positionLocal.y)
 
-  // 25 cm square ceramic tiles. The small fixed warp keeps the grid from
-  // reading like graph paper while preserving clean grout through corners.
-  const tileScale = finish.scale
-  const tileU = sourceU.mul(tileScale).add(sin(sourceV.mul(2.8)).mul(0.035))
-  const tileV = sourceV.mul(tileScale).add(sin(sourceU.mul(2.4)).mul(0.035))
-  const cellU = tileU.floor()
-  const cellV = tileV.floor()
-  const withinU = tileU.fract()
-  const withinV = tileV.fract()
-  const edgeU = withinU.min(float(1).sub(withinU))
-  const edgeV = withinV.min(float(1).sub(withinV))
-  const tileMask = smoothstep(0.035, 0.07, edgeU.min(edgeV))
-  const variation = sin(cellU.mul(12.9898).add(cellV.mul(78.233))).mul(43758.5453).fract()
-  const ceramic = mix(color(finish.tile[0]), color(finish.tile[1]), variation)
+  const base = color(finish.base)
+  const accent = color(finish.accent)
+  const highlight = color(finish.highlight)
+  // TSL's `mix` returns a vec3 for color nodes, while the generic helper
+  // signature is inferred as vec4 in this version of Three.js. Keep the
+  // intermediate shader node un-narrowed so each finish branch can compose
+  // its color naturally.
+  let surface: any = base
+
+  if (finish.kind === 'mosaic') {
+    // 25 cm square ceramic tiles. The small fixed warp keeps the grid from
+    // reading like graph paper while preserving clean grout through corners.
+    const tileU = sourceU.mul(finish.scale).add(sin(sourceV.mul(2.8)).mul(0.035))
+    const tileV = sourceV.mul(finish.scale).add(sin(sourceU.mul(2.4)).mul(0.035))
+    const cellU = tileU.floor()
+    const cellV = tileV.floor()
+    const withinU = tileU.fract()
+    const withinV = tileV.fract()
+    const edgeU = withinU.min(float(1).sub(withinU))
+    const edgeV = withinV.min(float(1).sub(withinV))
+    const tileMask = smoothstep(0.035, 0.07, edgeU.min(edgeV))
+    const variation = sin(cellU.mul(12.9898).add(cellV.mul(78.233))).mul(43758.5453).fract()
+    const tiles = mix(accent, highlight, variation)
+    surface = mix(color(finish.grout), tiles, tileMask) as unknown as typeof surface
+  } else if (finish.kind !== 'solid') {
+    const grain = sin(sourceU.mul(finish.scale * 1.7))
+      .add(sin(sourceV.mul(finish.scale * 2.1)))
+      .mul(0.25)
+      .add(0.5)
+    const speckle = sin(
+      sourceU.mul(finish.scale * 17.13).add(sourceV.mul(finish.scale * 23.71)),
+    ).mul(43758.5453).fract()
+    const threshold = finish.kind === 'pebble' ? 0.68 : 0.78
+    const size = finish.kind === 'pebble' ? 0.14 : 0.07
+    const aggregate = smoothstep(threshold, threshold + size, speckle)
+    const blended = mix(base, accent, aggregate.mul(finish.contrast))
+    surface = mix(blended, highlight, grain.mul(0.08)) as unknown as typeof surface
+    if (finish.sparkle > 0) {
+      const sparkle = smoothstep(0.93, 0.985, speckle).mul(finish.sparkle)
+      surface = surface.add(highlight.mul(sparkle))
+    }
+  }
   const xs = points.map(([x]) => x)
   const zs = points.map(([, z]) => z)
   const poolUv = positionLocal.xz.sub(vec2(Math.min(...xs), Math.min(...zs)))
@@ -616,12 +880,11 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
     .clamp(0, 1)
   const underwater = smoothstep(0.04, 0.35, positionLocal.y.negate())
   const caustic = effect.causticsAt(poolUv).mul(underwater).mul(0.5)
-  const tiledShell = mix(color(finish.grout), ceramic, tileMask).add(caustic)
-  material.colorNode = tiledShell
+  material.colorNode = surface.add(caustic)
   return material
 }
 
-export function buildPoolGeometry(nodeInput: PoolNode): Group {
+export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOptions = {}): Group {
   // Plugin renderers can receive stored scene data before the registry has
   // materialized defaults added by a newer schema version. Normalize once at
   // this boundary so every downstream dimension is finite.
@@ -672,7 +935,7 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
   }
 
   const floor = new Mesh(
-    createPoolFloorGeometry(inner, depth.depthAtX, node.floorThickness, cuts),
+    createPoolFloorGeometry(inner, depth.depthAtX, node.floorThickness, cuts, options.removeFloorRegions),
     shellMaterial,
   )
   floor.name = 'pool-shell-floor'
@@ -686,6 +949,7 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
       cuts,
       safeCoveRadius,
       outlines.coveInner,
+      options.removeWallRegions,
     ),
     [shellMaterial, outerWallMaterial],
   )
@@ -743,30 +1007,34 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
   }
 
   if (node.benchEnabled) {
-    const width = Math.min(node.benchWidth, (depth.maximumX - depth.minimumX) * 0.3)
+    const perimeter = node.benchStyle === 'perimeter'
+    const width = Math.min(node.benchWidth, Math.min(node.length, node.width) * 0.3)
     const startX = depth.maximumX - width
     const bench = new Mesh(
-      createEndPlatformGeometry(
-        inner,
-        depth.depthAtX,
-        startX,
-        depth.maximumX,
-        node.benchWaterDepth,
-        startX,
-      ),
+      perimeter
+        ? createPerimeterBenchGeometry(inner, depth.depthAtX, width, node.benchWaterDepth)
+        : createEndPlatformGeometry(inner, depth.depthAtX, startX, depth.maximumX, node.benchWaterDepth, startX),
       shellMaterial,
     )
     bench.name = 'pool-bench'
     group.add(bench)
-    const benchIntervals = getCrossSectionIntervals(inner, startX)
-    for (const [minimumZ, maximumZ] of benchIntervals) {
-      addSubmergedFeatureEdge([startX, minimumZ], [startX, maximumZ], node.benchWaterDepth, node.copingSeed + 202)
-      addSubmergedFeatureEdge([startX, minimumZ], [depth.maximumX, minimumZ], node.benchWaterDepth, node.copingSeed + 203)
-      addSubmergedFeatureEdge([startX, maximumZ], [depth.maximumX, maximumZ], node.benchWaterDepth, node.copingSeed + 204)
+    if (node.copingStyle === 'rock') {
+      if (perimeter) {
+        for (let index = 0; index < inner.length; index += 1) {
+          addSubmergedFeatureEdge(inner[index]!, inner[(index + 1) % inner.length]!, node.benchWaterDepth, node.copingSeed + 202 + index)
+        }
+      } else {
+        const benchIntervals = getCrossSectionIntervals(inner, startX)
+        for (const [minimumZ, maximumZ] of benchIntervals) {
+          addSubmergedFeatureEdge([startX, minimumZ], [startX, maximumZ], node.benchWaterDepth, node.copingSeed + 202)
+          addSubmergedFeatureEdge([startX, minimumZ], [depth.maximumX, minimumZ], node.benchWaterDepth, node.copingSeed + 203)
+          addSubmergedFeatureEdge([startX, maximumZ], [depth.maximumX, maximumZ], node.benchWaterDepth, node.copingSeed + 204)
+        }
+      }
     }
   }
 
-  const water = new Mesh(createWaterGeometry(inner), waterEffect.material)
+  const water = new Mesh(createWaterGeometry(inner, options.removeWaterRegions), waterEffect.material)
   water.name = 'pool-water'
   water.position.y = waterElevation - node.finishedDeckElevation
   water.renderOrder = 1
@@ -777,7 +1045,7 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
   group.add(water)
 
   if (node.copingStyle === 'natural-stone' || node.copingStyle === 'rock') {
-    group.add(buildNaturalCopingGeometry(inner, {
+    const coping = buildNaturalCopingGeometry(inner, {
       width: Math.max(node.copingWidth, node.shellThickness + 0.03),
       thickness: node.copingThickness,
       stoneLength: node.copingStoneLength,
@@ -785,8 +1053,13 @@ export function buildPoolGeometry(nodeInput: PoolNode): Group {
       irregularity: node.copingStyle === 'rock' ? Math.max(node.copingIrregularity, 0.75) : node.copingIrregularity,
       seed: node.copingSeed,
       rockLike: node.copingStyle === 'rock',
+      smoothBoundary: node.shape === 'spline'
+        || node.shape === 'kidney'
+        || node.shape === 'lagoon'
+        || node.shape === 'roman',
       color: node.copingColor,
-    }))
+    })
+    group.add(coping)
     copingMaterial.dispose()
   } else {
     const coping = new Mesh(

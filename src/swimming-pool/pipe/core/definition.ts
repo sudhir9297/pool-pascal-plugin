@@ -1,13 +1,15 @@
 import type { NodeDefinition } from '@pascal-app/core'
+import { STANDARD_POOL_PVC_DIAMETER } from './constants'
 import { PoolPipeNode } from './schema'
 
 export const DEFAULT_POOL_PIPE = {
   position: [0, 0, 0] as [number, number, number],
   rotation: [0, 0, 0] as [number, number, number],
   kitId: 'pvc',
-  diameter: 0.05,
+  diameter: STANDARD_POOL_PVC_DIAMETER,
   nodes: [] as Array<PoolPipeNode['nodes'][number]>,
   edges: [] as Array<PoolPipeNode['edges'][number]>,
+  attachments: [] as Array<PoolPipeNode['attachments'][number]>,
 }
 
 export const poolPipeDefinition: NodeDefinition<typeof PoolPipeNode> = {
@@ -48,5 +50,9 @@ export const poolPipeDefinition: NodeDefinition<typeof PoolPipeNode> = {
     description: 'Draw and connect editable PVC pipe runs.',
     icon: { kind: 'iconify', name: 'lucide:workflow' },
     paletteSection: 'furnish',
+    // PVC networks expose their own Pipe-It-style endpoint cubes, plus
+    // handles, and insertion controls. The generic floating action menu can
+    // overlap those controls and re-arm whole-node dragging.
+    actionMenu: false,
   },
 }

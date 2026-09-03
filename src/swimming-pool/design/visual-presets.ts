@@ -19,7 +19,7 @@ export const POOL_VISUAL_PRESETS_SETTINGS: Record<PoolVisualPreset, PoolVisualPr
   modern: {
     copingStyle: 'continuous',
     interiorFinish: 'dark-mosaic',
-    waterPreset: 'clear',
+    waterPreset: 'crystal-clear',
     copingColor: '#d8d8d2',
     shellColor: '#dce5e2',
     copingWidth: 0.25,
@@ -27,7 +27,7 @@ export const POOL_VISUAL_PRESETS_SETTINGS: Record<PoolVisualPreset, PoolVisualPr
   natural: {
     copingStyle: 'rock',
     interiorFinish: 'white-plaster',
-    waterPreset: 'clear',
+    waterPreset: 'crystal-clear',
     copingColor: '#b9b8b1',
     shellColor: '#e5ebe7',
     copingWidth: 0.38,
@@ -35,7 +35,7 @@ export const POOL_VISUAL_PRESETS_SETTINGS: Record<PoolVisualPreset, PoolVisualPr
   resort: {
     copingStyle: 'continuous',
     interiorFinish: 'light-mosaic',
-    waterPreset: 'tropical',
+    waterPreset: 'tropical-lagoon',
     entryFeature: 'tanning-shelf',
     copingColor: '#eee8d9',
     shellColor: '#d9e7e3',
@@ -44,7 +44,7 @@ export const POOL_VISUAL_PRESETS_SETTINGS: Record<PoolVisualPreset, PoolVisualPr
   'lap-pool': {
     copingStyle: 'continuous',
     interiorFinish: 'blue-mosaic',
-    waterPreset: 'clear',
+    waterPreset: 'crystal-clear',
     entryFeature: 'none',
     copingColor: '#e7e7e1',
     shellColor: '#b6d4d4',

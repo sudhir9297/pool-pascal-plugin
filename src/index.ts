@@ -4,6 +4,15 @@ import { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
 import { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 import { poolValveDefinition } from './swimming-pool/valve/core/definition'
 import { poolPumpDefinition } from './swimming-pool/pump/core/definition'
+import { poolFilterDefinition } from './swimming-pool/filter/core/definition'
+import { poolCatchBasinDefinition } from './swimming-pool/water-feature/basin/core/definition'
+import { poolWatercourseDefinition } from './swimming-pool/water-feature/watercourse/core/definition'
+import { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
+import { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
+import { poolDrainDefinition } from './swimming-pool/drain/core/definition'
+import { poolInletDefinition } from './swimming-pool/inlet/core/definition'
+import { poolWaterfallDefinition } from './swimming-pool/water-feature/waterfall/core/definition'
+import { poolStairDefinition } from './swimming-pool/stair/core/definition'
 
 /**
  * The pool plugin manifest — the entire public surface of this package. A host
@@ -20,6 +29,15 @@ export const poolPlugin: Plugin = {
     poolSkimmerDefinition as unknown as AnyNodeDefinition,
     poolValveDefinition as unknown as AnyNodeDefinition,
     poolPumpDefinition as unknown as AnyNodeDefinition,
+    poolFilterDefinition as unknown as AnyNodeDefinition,
+    poolCatchBasinDefinition as unknown as AnyNodeDefinition,
+    poolWatercourseDefinition as unknown as AnyNodeDefinition,
+    poolHeaterDefinition as unknown as AnyNodeDefinition,
+    poolSharedJointDefinition as unknown as AnyNodeDefinition,
+    poolDrainDefinition as unknown as AnyNodeDefinition,
+    poolInletDefinition as unknown as AnyNodeDefinition,
+    poolWaterfallDefinition as unknown as AnyNodeDefinition,
+    poolStairDefinition as unknown as AnyNodeDefinition,
   ],
 }
 
@@ -46,11 +64,48 @@ export { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
 export { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 export { poolValveDefinition } from './swimming-pool/valve/core/definition'
 export { poolPumpDefinition } from './swimming-pool/pump/core/definition'
+export { poolFilterDefinition } from './swimming-pool/filter/core/definition'
+export { poolCatchBasinDefinition } from './swimming-pool/water-feature/basin/core/definition'
+export { poolWatercourseDefinition } from './swimming-pool/water-feature/watercourse/core/definition'
+export { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
+export { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
+export { poolSharedJointParametrics } from './swimming-pool/shared-joint/editor/parametrics'
+export { poolDrainDefinition } from './swimming-pool/drain/core/definition'
+export { poolInletDefinition } from './swimming-pool/inlet/core/definition'
+export { poolWaterfallDefinition } from './swimming-pool/water-feature/waterfall/core/definition'
+export { poolWaterfallParametrics } from './swimming-pool/water-feature/waterfall/editor/parametrics'
+export { findNearestWaterfallPlacement, placementOnPoolBoundary, resolveMountedWaterfall } from './swimming-pool/water-feature/waterfall/design/placement'
+export { poolStairDefinition } from './swimming-pool/stair/core/definition'
 export { PoolNode, resolvePoolPolygon } from './swimming-pool/core/schema'
 export { PoolPipeNode } from './swimming-pool/pipe/core/schema'
 export { PoolSkimmerNode } from './swimming-pool/skimmer/core/schema'
+export { poolSkimmerParametrics } from './swimming-pool/skimmer/editor/parametrics'
 export { PoolValveNode } from './swimming-pool/valve/core/schema'
+export { poolValveParametrics } from './swimming-pool/valve/editor/parametrics'
 export { PoolPumpNode } from './swimming-pool/pump/core/schema'
+export { PoolFilterNode } from './swimming-pool/filter/core/schema'
+export { PoolCatchBasinNode } from './swimming-pool/water-feature/basin/core/schema'
+export { PoolWatercourseNode } from './swimming-pool/water-feature/watercourse/core/schema'
+export { PoolHeaterNode } from './swimming-pool/heater/core/schema'
+export { PoolSharedJointNode } from './swimming-pool/shared-joint/core/schema'
+export { PoolDrainNode } from './swimming-pool/drain/core/schema'
+export { PoolInletNode } from './swimming-pool/inlet/core/schema'
+export { PoolWaterfallNode } from './swimming-pool/water-feature/waterfall/core/schema'
+export { PoolStairNode } from './swimming-pool/stair/core/schema'
+export { poolStairParametrics } from './swimming-pool/stair/editor/parametrics'
+export { usePoolStairStore } from './swimming-pool/stair/editor/store'
+export { POOL_STAIR_VARIANTS, POOL_STAIR_CATALOG, getPoolStairPreset } from './swimming-pool/stair/data/catalog'
+export type { PoolStairVariant, PoolStairPreset } from './swimming-pool/stair/data/catalog'
+export { findNearestInletConnection, findNearestInletWall, getInletPipeConnection, resolveMountedInlet } from './swimming-pool/inlet/design/placement'
+export { poolInletParametrics } from './swimming-pool/inlet/editor/parametrics'
+export { buildDrainGeometry, getDrainPortDirection, getDrainPortPosition } from './swimming-pool/drain/core/geometry'
+export { poolDrainParametrics } from './swimming-pool/drain/editor/parametrics'
+export { findNearestDrainConnection, getDrainPipeConnection } from './swimming-pool/drain/design/placement'
+export { getPoolDrainPlacement } from './swimming-pool/drain/design/pool-placement'
+export { poolHeaterParametrics } from './swimming-pool/heater/editor/parametrics'
+export { poolFilterParametrics } from './swimming-pool/filter/editor/parametrics'
+export { getFilterPortsLocal, getFilterPortPositions } from './swimming-pool/filter/core/geometry'
+export type { FilterPort, FilterPortRole } from './swimming-pool/filter/core/geometry'
 export { POOL_FILTER_CATALOG, getPoolFilterData } from './swimming-pool/filter/data/catalog'
 export type { PoolFilterData, PoolFilterTechnology } from './swimming-pool/filter/data/types'
 export { poolParametrics } from './swimming-pool/editor/parametrics'

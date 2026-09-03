@@ -30,6 +30,7 @@ export const PoolNode = BaseNode.extend({
   entryWaterDepth: z.number().min(0.05).max(1).default(0.25),
   stepCount: z.number().int().min(2).max(6).default(3),
   benchEnabled: z.boolean().default(false),
+  benchStyle: z.enum(['end', 'perimeter']).default('end'),
   benchWidth: z.number().min(0.2).max(1.5).default(0.5),
   benchWaterDepth: z.number().min(0.1).max(1.2).default(0.5),
   copingWidth: z.number().min(0.1).default(0.3),
@@ -45,7 +46,12 @@ export const PoolNode = BaseNode.extend({
   openingClearance: z.number().min(0).default(0.02),
   finishedDeckElevation: z.number().finite().default(0),
   designWaterElevation: z.number().finite().default(-0.12),
-  waterPreset: z.enum(WATER_PRESETS).default('clear'),
+  waterPreset: z.preprocess((value) => {
+    if (value === 'clear') return 'crystal-clear'
+    if (value === 'genshin') return 'vivid-aqua'
+    if (value === 'tropical') return 'tropical-lagoon'
+    return value
+  }, z.enum(WATER_PRESETS).default('crystal-clear')),
   shallowWaterColor: z.string().default('#83eab3'),
   deepWaterColor: z.string().default('#008ab3'),
   surfaceDetail: z.number().min(0.4).max(3).default(1.6),

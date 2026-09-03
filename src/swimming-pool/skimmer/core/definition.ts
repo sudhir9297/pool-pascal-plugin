@@ -1,5 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
 import { PoolSkimmerNode } from './schema'
+import { poolSkimmerParametrics } from '../editor/parametrics'
 
 export const DEFAULT_POOL_SKIMMER = {
   position: [0, 0, 0] as [number, number, number],
@@ -45,6 +46,7 @@ export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
     snappable: {},
   },
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
+  parametrics: poolSkimmerParametrics,
   tool: () => import('../editor/tool'),
   toolHints: [
     { key: 'Click', label: 'Place skimmer on pool wall' },

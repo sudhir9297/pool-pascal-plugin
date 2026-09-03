@@ -47,6 +47,8 @@ import {
   type PoolShape,
 } from '../design/shapes'
 import { usePoolStore } from './store'
+import { findSharedPoolJoint } from '../design/shared-joint'
+import { PoolSharedJointNode } from '../shared-joint/core/schema'
 
 type Point = [number, number]
 
@@ -103,6 +105,27 @@ function commitPoolDrawing(
     supportSlabId,
   })
   scene.createNode(pool as unknown as AnyNode, levelId)
+  const nearbyPool = Object.values(scene.nodes)
+    .filter((node) => (node.type as string) === 'pool:pool')
+    .map((node) => PoolNode.safeParse(node).success ? PoolNode.parse(node) : null)
+    .find((candidate) => candidate && candidate.id !== pool.id && findSharedPoolJoint(candidate, pool))
+  if (nearbyPool) {
+    const joint = findSharedPoolJoint(nearbyPool, pool)
+    if (joint) {
+      const jointId = `pool-shared-joint_${[nearbyPool.id, pool.id].sort().join('_')}`
+      const exists = Object.values(scene.nodes).some((node) => node.id === jointId)
+      if (!exists) {
+        const sharedJoint = PoolSharedJointNode.parse({
+          id: jointId,
+          name: `Shared Pool Joint ${nearbyPool.id} / ${pool.id}`,
+          parentId: levelId,
+          poolIds: [nearbyPool.id, pool.id],
+          ...joint,
+        })
+        scene.createNode(sharedJoint as unknown as AnyNode, levelId)
+      }
+    }
+  }
   triggerSFX('sfx:structure-build')
   return pool.id
 }

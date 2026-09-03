@@ -30,11 +30,11 @@ export default function PoolValveTool() {
     const onClick = (event: GridEvent) => {
       const point = resolve(event)
       const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:valve').length
-      const { variant, rotationQuarterTurns } = useValveEditStore.getState()
+      const { variant, diameter, rotationQuarterTurns } = useValveEditStore.getState()
       const rotationAxis = useEditor.getState().rotationAxis
       const rotation = [0, 0, 0] as [number, number, number]
       rotation[rotationAxis === 'x' ? 0 : rotationAxis === 'y' ? 1 : 2] = rotationQuarterTurns * Math.PI / 2
-      const valve = PoolValveNode.parse({ ...poolValveDefinition.defaults(), id: undefined, name: `PVC ${variant} suction valve ${count + 1}`, variant, position: point, rotation })
+      const valve = PoolValveNode.parse({ ...poolValveDefinition.defaults(), id: undefined, name: `PVC ${variant} suction valve ${count + 1}`, variant, diameter, position: point, rotation })
       useScene.getState().createNode(valve as unknown as AnyNode, levelId)
       setSelection({ selectedIds: [valve.id] })
       useEditor.getState().setTool(null); useEditor.getState().setMode('select'); triggerSFX('sfx:structure-build')

@@ -26,6 +26,7 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
         { key: 'entryWaterDepth', kind: 'number', unit: 'm', min: 0.05, max: 1, step: 0.05, visibleIf: (node) => node.entryFeature === 'steps' || node.entryFeature === 'tanning-shelf' },
         { key: 'stepCount', kind: 'number', min: 2, max: 6, step: 1, visibleIf: (node) => node.entryFeature === 'steps' },
         { key: 'benchEnabled', kind: 'boolean' },
+        { key: 'benchStyle', kind: 'enum', options: ['end', 'perimeter'], display: 'segmented', visibleIf: (node) => node.benchEnabled },
         { key: 'benchWidth', kind: 'number', unit: 'm', min: 0.2, max: 1.5, step: 0.05, visibleIf: (node) => node.benchEnabled },
         { key: 'benchWaterDepth', kind: 'number', unit: 'm', min: 0.1, max: 1.2, step: 0.05, visibleIf: (node) => node.benchEnabled },
         { key: 'coveRadius', kind: 'number', unit: 'm', min: 0, max: 0.5, step: 0.01 },

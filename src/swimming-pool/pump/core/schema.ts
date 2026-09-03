@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const Point3 = z.tuple([z.number(), z.number(), z.number()])
 
-/** A free-standing pool circulation pump. Local -Z is the inlet and +Z is the outlet. */
+/** A free-standing pool circulation pump. Local +Z is the inlet and +Y is the outlet. */
 export const PoolPumpNode = BaseNode.extend({
   id: objectId('pool-pump'),
   type: nodeType('pool:pump'),

@@ -8,7 +8,7 @@ import type { PoolEntryFeature } from '../design/entry-features'
 type PoolSettings = Pick<PoolNode,
   | 'shape' | 'length' | 'width' | 'floorProfile' | 'depth' | 'shallowDepth' | 'deepDepth'
   | 'slopeStart' | 'slopeEnd' | 'coveRadius' | 'entryFeature' | 'entryLength'
-  | 'entryWaterDepth' | 'stepCount' | 'benchEnabled' | 'benchWidth' | 'benchWaterDepth'
+  | 'entryWaterDepth' | 'stepCount' | 'benchEnabled' | 'benchStyle' | 'benchWidth' | 'benchWaterDepth'
   | 'copingWidth' | 'copingThickness' | 'copingStyle' | 'copingStoneLength'
   | 'copingJointWidth' | 'copingIrregularity' | 'copingSeed' | 'copingColor'
   | 'shellThickness' | 'floorThickness' | 'openingClearance' | 'finishedDeckElevation'

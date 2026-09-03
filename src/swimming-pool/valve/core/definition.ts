@@ -1,6 +1,7 @@
 import { useEditor } from '@pascal-app/editor'
 import { useScene, type AnyNode, type NodeDefinition } from '@pascal-app/core'
 import { PoolValveNode } from './schema'
+import { poolValveParametrics } from '../editor/parametrics'
 
 export const DEFAULT_POOL_VALVE = {
   position: [0, 0, 0] as [number, number, number],
@@ -61,6 +62,7 @@ export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
     },
   },
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
+  parametrics: poolValveParametrics,
   tool: () => import('../editor/tool'),
   toolHints: [
     { key: 'Click', label: 'Place suction valve' },

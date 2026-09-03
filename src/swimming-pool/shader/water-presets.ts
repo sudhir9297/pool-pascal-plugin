@@ -1,4 +1,4 @@
-export const WATER_PRESETS = ['clear', 'genshin', 'tropical'] as const
+export const WATER_PRESETS = ['crystal-clear', 'vivid-aqua', 'tropical-lagoon'] as const
 
 export type WaterPreset = (typeof WATER_PRESETS)[number]
 
@@ -40,8 +40,8 @@ export type WaterPresetSettings = {
  * converted to display-space hex for Pascal's color editor.
  */
 export const WATER_PRESET_SETTINGS: Record<WaterPreset, WaterPresetSettings> = {
-  clear: {
-    waterPreset: 'clear',
+  'crystal-clear': {
+    waterPreset: 'crystal-clear',
     shallowWaterColor: '#83eab3',
     deepWaterColor: '#008ab3',
     surfaceDetail: 1.6,
@@ -70,8 +70,8 @@ export const WATER_PRESET_SETTINGS: Record<WaterPreset, WaterPresetSettings> = {
     specularSize: 0.52,
     specularHardness: 0.82,
   },
-  genshin: {
-    waterPreset: 'genshin',
+  'vivid-aqua': {
+    waterPreset: 'vivid-aqua',
     shallowWaterColor: '#00d9a3',
     deepWaterColor: '#00c0d3',
     surfaceDetail: 1.9,
@@ -100,8 +100,8 @@ export const WATER_PRESET_SETTINGS: Record<WaterPreset, WaterPresetSettings> = {
     specularSize: 0.479,
     specularHardness: 1,
   },
-  tropical: {
-    waterPreset: 'tropical',
+  'tropical-lagoon': {
+    waterPreset: 'tropical-lagoon',
     shallowWaterColor: '#2aeafe',
     deepWaterColor: '#0088c2',
     surfaceDetail: 2.15,
@@ -133,9 +133,15 @@ export const WATER_PRESET_SETTINGS: Record<WaterPreset, WaterPresetSettings> = {
 }
 
 export function getWaterPresetSettings(value: unknown): WaterPresetSettings {
+  const legacyAliases: Record<string, WaterPreset> = {
+    clear: 'crystal-clear',
+    genshin: 'vivid-aqua',
+    tropical: 'tropical-lagoon',
+  }
+  const normalized = typeof value === 'string' ? legacyAliases[value] ?? value : undefined
   return WATER_PRESET_SETTINGS[
-    typeof value === 'string' && WATER_PRESETS.includes(value as WaterPreset)
-      ? value as WaterPreset
-      : 'clear'
+    typeof normalized === 'string' && WATER_PRESETS.includes(normalized as WaterPreset)
+      ? normalized as WaterPreset
+      : 'crystal-clear'
   ]
 }

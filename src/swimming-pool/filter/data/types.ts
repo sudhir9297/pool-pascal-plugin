@@ -14,6 +14,13 @@ export type PoolFilterData = {
     height: number
     depth: number
   }
+  /** Dimensions that drive the procedural tank, excluding the valve and base. */
+  tank: {
+    diameter: number
+    bodyHeight: number
+  }
+  /** Nominal PVC socket diameter in metres. */
+  connectionDiameter: number
   /** Nominal circulation capacity in cubic metres per hour. */
   flowRate: {
     min: number
@@ -21,7 +28,6 @@ export type PoolFilterData = {
   }
   /** Filter area in square metres, when supplied by the manufacturer. */
   filtrationArea?: number
-  /** Manufacturer and catalog-specific values. */
+  /** Manufacturer and catalog-specific values that do not drive geometry. */
   metadata?: Record<string, string | number | boolean>
 }
-

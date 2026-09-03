@@ -9,6 +9,7 @@ import type { Group } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
 import { buildPoolGeometry } from '../core/geometry'
 import type { PoolNode } from '../core/schema'
+import { getPoolConnectionRegions } from '../design/shared-joint'
 import { subscribePoolWaterActions } from '../shader/water-actions'
 import type { PoolWaterEffect } from '../shader/water-effect'
 
@@ -22,9 +23,14 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     () => (liveOverride ? ({ ...storeNode, ...liveOverride } as PoolNode) : storeNode),
     [storeNode, liveOverride],
   )
+  const sceneNodes = useScene((state) => state.nodes)
   const pool = useMemo(
-    () => buildPoolGeometry(node),
-    [node],
+    () => buildPoolGeometry(node, {
+      removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
+      removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),
+      removeWaterRegions: getPoolConnectionRegions(node, sceneNodes),
+    }),
+    [node, sceneNodes],
   )
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.
@@ -52,8 +58,8 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     if ((gl as unknown as { isWebGPURenderer?: boolean }).isWebGPURenderer) {
       waterEffect.update(gl as unknown as WebGPURenderer, delta)
     }
-    // Pascal renders on demand. Schedule the next water frame explicitly so
-    // time-based normals, caustics, reflections, rain, and breeze keep moving.
+    // Keep demand-driven hosts rendering while animated uniforms and the
+    // height-field simulation advance.
     invalidate()
   })
 

@@ -21,8 +21,10 @@ It supports:
   shoreline, rain, breeze, and sun settings.
 - placeable plumbing items with a procedural pump model showing inlet and
   outlet unions for pipe connections.
+- a registered pool drain node ready for geometry and editor integration;
+- a low-poly rock waterfall with an animated curtain, pool impact mist, and modern, rock-cascade, and spillover variants.
 
-No hot tubs, fountains, or waterfalls are registered by this package.
+The rock cascade is available from the Pools side menu for interactive testing.
 
 ## Development
 
@@ -54,8 +56,10 @@ src/
     core/      schema, node definition, and geometry
     pipe/      editable PVC pipe networks
     pump/      circulation pump schema, geometry, and editor integration
+    drain/     floor-mounted pool drain schema and node definition
     skimmer/   wall-mounted skimmer schema, geometry, and placement
     valve/     suction valve schema, geometry, and placement
+    water-feature/waterfall/  rock formation, plunge pool, animated water, and editor controls
     design/    outlines, depth, coping, entries, and opening sync
     editor/    panel, tool, preview, renderer, and parametrics
     shader/    water effect, presets, actions, and texture assets

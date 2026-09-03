@@ -3,6 +3,12 @@ import type { PoolPipeNode } from '../core/schema'
 import { findNearestSkimmerConnection } from '../../skimmer/design/placement'
 import type { PoolSkimmerNode } from '../../skimmer/core/schema'
 import type { PipePoint } from '../../design/pipe-network'
+import type { PoolValveNode } from '../../valve/core/schema'
+import { findNearestValveConnection, getValveSlotKey } from '../../valve/design/placement'
+import type { PoolDrainNode } from '../../drain/core/schema'
+import { findNearestDrainConnection } from '../../drain/design/placement'
+import type { PoolInletNode } from '../../inlet/core/schema'
+import { findNearestInletConnection } from '../../inlet/design/placement'
 
 function pointInPolygon(x: number, z: number, polygon: readonly (readonly [number, number])[]) {
   let inside = false
@@ -70,21 +76,46 @@ export function routePipeOutsidePools(start: PipePoint, end: PipePoint, pools: r
   return route
 }
 
-export function validatePipeSocketUse(points: readonly PipePoint[], skimmers: readonly PoolSkimmerNode[], existingPipes: readonly PoolPipeNode[], ignoreNetworkId?: string) {
+export function validatePipeSocketUse(points: readonly PipePoint[], skimmers: readonly PoolSkimmerNode[], existingPipes: readonly PoolPipeNode[], ignoreNetworkId?: string, valves: readonly PoolValveNode[] = [], drains: readonly PoolDrainNode[] = [], inlets: readonly PoolInletNode[] = []) {
   const used = new Set<string>()
   for (const pipe of existingPipes) {
     if (pipe.id === ignoreNetworkId) continue
     for (const node of pipe.nodes) {
       const connection = findNearestSkimmerConnection(node.position, skimmers, 0.08)
       if (connection) used.add(connection.position.join(':'))
+      const valveConnection = findNearestValveConnection(node.position, valves, 0.08)
+      if (valveConnection) used.add(getValveSlotKey(valveConnection.valveId, valveConnection.portIndex))
+      const drainConnection = findNearestDrainConnection(node.position, drains, 0.08)
+      if (drainConnection) used.add(`drain:${drainConnection.drainId}`)
+      const inletConnection = findNearestInletConnection(node.position, inlets, 0.08)
+      if (inletConnection) used.add(`inlet:${inletConnection.inletId}`)
     }
   }
   for (const point of points) {
     const connection = findNearestSkimmerConnection(point, skimmers, 0.08)
-    if (!connection) continue
-    const key = connection.position.join(':')
-    if (used.has(key)) return { valid: false as const, reason: 'That skimmer suction port is already connected.' }
-    used.add(key)
+    if (connection) {
+      const key = connection.position.join(':')
+      if (used.has(key)) return { valid: false as const, reason: 'That skimmer suction port is already connected.' }
+      used.add(key)
+    }
+    const valveConnection = findNearestValveConnection(point, valves, 0.08)
+    if (valveConnection) {
+      const valveKey = getValveSlotKey(valveConnection.valveId, valveConnection.portIndex)
+      if (used.has(valveKey)) return { valid: false as const, reason: 'That valve port is already connected.' }
+      used.add(valveKey)
+    }
+    const drainConnection = findNearestDrainConnection(point, drains, 0.08)
+    if (drainConnection) {
+      const drainKey = `drain:${drainConnection.drainId}`
+      if (used.has(drainKey)) return { valid: false as const, reason: 'That pool drain is already connected.' }
+      used.add(drainKey)
+    }
+    const inletConnection = findNearestInletConnection(point, inlets, 0.08)
+    if (inletConnection) {
+      const inletKey = `inlet:${inletConnection.inletId}`
+      if (used.has(inletKey)) return { valid: false as const, reason: 'That pool return inlet is already connected.' }
+      used.add(inletKey)
+    }
   }
   return { valid: true as const }
 }

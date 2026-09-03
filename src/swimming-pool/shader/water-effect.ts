@@ -57,7 +57,7 @@ import {
 } from './water-presets'
 
 const DEFAULTS = {
-  ...WATER_PRESET_SETTINGS.clear,
+  ...WATER_PRESET_SETTINGS['crystal-clear'],
   sunElevation: 52,
   sunAzimuth: 135,
   waterColor: '#38bdf8',
@@ -99,9 +99,9 @@ const PRESET_TEXTURES: Record<WaterPreset, {
   distortion: keyof typeof ASSET_URLS
   shoreline: keyof typeof ASSET_URLS
 }> = {
-  clear: { normal: 'normal1', caustic: 'caustic1', distortion: 'noise2', shoreline: 'white' },
-  genshin: { normal: 'normal3', caustic: 'caustic2', distortion: 'noise1', shoreline: 'noise1' },
-  tropical: { normal: 'normal2', caustic: 'caustic1', distortion: 'noise4', shoreline: 'noise5' },
+  'crystal-clear': { normal: 'normal1', caustic: 'caustic1', distortion: 'noise2', shoreline: 'white' },
+  'vivid-aqua': { normal: 'normal3', caustic: 'caustic2', distortion: 'noise1', shoreline: 'noise1' },
+  'tropical-lagoon': { normal: 'normal2', caustic: 'caustic1', distortion: 'noise4', shoreline: 'noise5' },
 }
 
 const textureCache = new Map<string, Texture>()
@@ -119,6 +119,10 @@ function fallbackTexture(): Texture {
   ])
   const result = new DataTexture(data, 2, 2, RGBAFormat, UnsignedByteType)
   result.needsUpdate = true
+  // A DataTexture has no generated mip chain. Using a mipmapped min filter
+  // makes the fallback incomplete on WebGL and turns every sample black.
+  result.minFilter = LinearFilter
+  result.magFilter = LinearFilter
   return result
 }
 
@@ -429,19 +433,24 @@ export class PoolWaterEffect {
     const fragmentEye = positionView.z.negate()
     const depthDelta = sceneEye.sub(fragmentEye).max(0)
     const shallowMask = exp(depthDelta.negate().div(0.3)).clamp(0, 1)
-    const shoreFade = smoothstep(0, 0.35, shallowMask.oneMinus())
+    // `shallowMask` is high when the floor is close to the surface. The old
+    // expression faded alpha in exactly that case, so tanning shelves and
+    // pool edges appeared to have no water. Fade only the zero-thickness
+    // pixels at the silhouette and keep a small floor-independent baseline
+    // for renderers whose depth copy is unavailable.
+    const shoreFade = smoothstep(0.005, 0.18, depthDelta).mul(0.78).add(0.22)
 
     const refractionOffset = mapped.xy
       .mul(this.refractionStrength)
       .mul(this.reflectionDistortion.mul(0.025))
-    const offsetUv = screenUV.add(refractionOffset)
+    const offsetUv = screenUV.add(refractionOffset).clamp(0, 1)
     const offsetDepth = perspectiveDepthToViewZ(
       viewportDepth.sample(offsetUv),
       cameraNear,
       cameraFar,
     ).negate()
     const keepOffset = step(fragmentEye.sub(offsetDepth), float(0))
-    const refractedUv = screenUV.add(refractionOffset.mul(keepOffset))
+    const refractedUv = screenUV.add(refractionOffset.mul(keepOffset)).clamp(0, 1)
     const sceneColor = viewportSharedTexture(refractedUv).rgb
 
     const baseColor = mix(this.deepColor, this.shallowColor, shallowMask)
@@ -483,7 +492,7 @@ export class PoolWaterEffect {
     const reflectedUv = screenUV.add(vec2(
       reflectionOffset.x.negate(),
       reflectionOffset.y,
-    ))
+    )).clamp(0, 1)
     const nearbyScene = viewportSharedTexture(reflectedUv).rgb
     const reflectedScene = mix(sky, nearbyScene, 0.38)
 

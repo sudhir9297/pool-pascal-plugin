@@ -1,0 +1,67 @@
+import type { NodeDefinition } from '@pascal-app/core'
+import { WATER_PRESET_SETTINGS } from '../../../shader/water-presets'
+import { poolWaterfallParametrics } from '../editor/parametrics'
+import { PoolWaterfallNode } from './schema'
+
+export const DEFAULT_POOL_WATERFALL = {
+  position: [0, 0, 0] as [number, number, number],
+  rotation: [0, 0, 0] as [number, number, number],
+  poolId: null,
+  wallIndex: 0,
+  wallT: 0.5,
+  edgeCurve: [[-1, 0], [0, 0], [1, 0]] as Array<[number, number]>,
+  targetWaterOffset: 0,
+  waterfallType: 'rock-cascade' as const,
+  width: 3.6,
+  height: 2.1,
+  depth: 1.35,
+  lipThickness: 0.08,
+  sheetDepth: 0.06,
+  rockSeed: 7311,
+  structureColor: '#6f7b78',
+  rockColor: '#7f817d',
+  waterPreset: WATER_PRESET_SETTINGS['crystal-clear'].waterPreset,
+  shallowWaterColor: WATER_PRESET_SETTINGS['crystal-clear'].shallowWaterColor,
+  deepWaterColor: WATER_PRESET_SETTINGS['crystal-clear'].deepWaterColor,
+  waterColor: '#38bdf8',
+  poolBedColor: '#625c50',
+  receivingPoolEnabled: true,
+  receivingPoolWidth: 4.8,
+  receivingPoolDepth: 3.2,
+  flowStrength: 1,
+  fountainEnabled: true,
+  fountainHeight: 0.55,
+  fountainRadius: 0.035,
+  fountainSpread: 0.72,
+  fountainJetCount: 5,
+  showFlow: true,
+}
+
+export const poolWaterfallDefinition: NodeDefinition<typeof PoolWaterfallNode> = {
+  kind: 'pool:waterfall',
+  schemaVersion: 2,
+  schema: PoolWaterfallNode,
+  category: 'furnish',
+  distributionRole: 'run',
+  snapProfile: 'item',
+  defaults: () => ({ object: 'node', parentId: null, visible: true, metadata: {}, ...DEFAULT_POOL_WATERFALL }),
+  capabilities: {
+    movable: { axes: ['x', 'y', 'z'], gridSnap: true },
+    rotatable: { axes: ['y'] },
+    selectable: { hitVolume: 'bbox' },
+    duplicable: true,
+    deletable: true,
+    groupable: true,
+    snappable: {},
+  },
+  renderer: { kind: 'parametric', module: () => import('../editor/preview') },
+  tool: () => import('../editor/tool'),
+  toolHints: [{ key: 'Move', label: 'Aim at a pool edge' }, { key: 'Click', label: 'Mount waterfall' }, { key: 'Esc', label: 'Cancel placement' }],
+  parametrics: poolWaterfallParametrics,
+  presentation: {
+    label: 'Waterfall',
+    description: 'Pool-edge waterfall whose rock formation follows the pool boundary and pours inward.',
+    icon: { kind: 'iconify', name: 'lucide:landmark' },
+    paletteSection: 'furnish',
+  },
+}

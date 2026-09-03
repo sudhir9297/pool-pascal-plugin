@@ -1,7 +1,10 @@
 import { getValvePortPositions } from '../core/geometry'
 import type { PoolValveNode } from '../core/schema'
+import type { PoolPipeNode } from '../../pipe/core/schema'
 
 export type ValveConnection = {
+  valveId: string
+  portIndex: number
   position: [number, number, number]
   direction: [number, number, number]
 }
@@ -14,12 +17,14 @@ export function findNearestValveConnection(
   point: readonly [number, number, number],
   valves: readonly PoolValveNode[],
   maxDistance = 0.35,
+  occupiedSlots?: ReadonlySet<string>,
 ): ValveConnection | null {
   let best: ValveConnection | null = null
   let bestDistance = maxDistance
   for (const valve of valves) {
     const ports = getValvePortPositions(valve)
-    for (const port of ports) {
+    for (const [portIndex, port] of ports.entries()) {
+      if (occupiedSlots?.has(getValveSlotKey(valve.id, portIndex))) continue
       const distance = Math.hypot(point[0] - port.x, point[2] - port.z)
       if (distance >= bestDistance) continue
       const direction: [number, number, number] = [
@@ -30,6 +35,8 @@ export function findNearestValveConnection(
       const length = Math.hypot(direction[0], direction[1], direction[2])
       if (length <= Number.EPSILON) continue
       best = {
+        valveId: valve.id,
+        portIndex,
         position: [roundCoordinate(port.x), roundCoordinate(port.y), roundCoordinate(port.z)],
         direction: [direction[0] / length, direction[1] / length, direction[2] / length],
       }
@@ -37,4 +44,24 @@ export function findNearestValveConnection(
     }
   }
   return best
+}
+
+export function getValveSlotKey(valveId: string, portIndex: number): string {
+  return `${valveId}:port:${portIndex}`
+}
+
+export function getOccupiedValveSlots(
+  valves: readonly PoolValveNode[],
+  pipes: readonly PoolPipeNode[],
+  ignoreNetworkId?: string,
+): Set<string> {
+  const occupied = new Set<string>()
+  for (const pipe of pipes) {
+    if (pipe.id === ignoreNetworkId) continue
+    for (const point of pipe.nodes) {
+      const connection = findNearestValveConnection(point.position, valves, 0.08)
+      if (connection) occupied.add(getValveSlotKey(connection.valveId, connection.portIndex))
+    }
+  }
+  return occupied
 }

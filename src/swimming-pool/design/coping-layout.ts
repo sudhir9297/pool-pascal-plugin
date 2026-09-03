@@ -8,6 +8,7 @@ export type NaturalCopingLayoutOptions = {
   irregularity: number
   seed: number
   rockLike?: boolean
+  smoothBoundary?: boolean
 }
 
 export type NaturalCopingStoneLayout = {
@@ -74,6 +75,66 @@ function sampleBoundary(
 export function naturalCopingStoneCount(points: PoolPoint[], stoneLength: number) {
   const { perimeter } = boundaryLengths(points)
   return Math.max(3, Math.round(perimeter / Math.max(0.2, stoneLength)))
+}
+
+function layoutSmoothRockCopingStones(
+  points: PoolPoint[],
+  options: NaturalCopingLayoutOptions,
+  lengths: number[],
+  perimeter: number,
+) {
+  const random = seededRandom(options.seed)
+  // The outline points are only a sampled path. Use a coarser global pitch so
+  // dense curve sampling cannot create a crowd of tiny rocks.
+  const pitch = Math.max(0.4, options.stoneLength * 1.35)
+  const count = Math.max(3, Math.round(perimeter / pitch))
+  const stationLength = perimeter / count
+  const joint = Math.max(0.005, Math.min(0.02, options.jointWidth))
+  const stones: NaturalCopingStoneLayout[] = []
+  const makeColorOffset = (): [number, number, number] => [
+    (random() - 0.5) * 0.015,
+    (random() - 0.5) * 0.08,
+    (random() - 0.5) * 0.12,
+  ]
+
+  for (let index = 0; index < count; index += 1) {
+    // Fill each station almost completely. The small joint keeps neighboring
+    // beveled volumes from visually merging without making large holes.
+    const length = Math.max(0.12, stationLength - joint)
+    const start = sampleBoundary(points, lengths, perimeter, index * stationLength)
+    const end = sampleBoundary(points, lengths, perimeter, (index + 1) * stationLength)
+    const center = sampleBoundary(points, lengths, perimeter, (index + 0.5) * stationLength)
+    const tangentLength = Math.hypot(
+      start.tangent[0] + end.tangent[0],
+      start.tangent[1] + end.tangent[1],
+    )
+    const tangent: PoolPoint = tangentLength > 0.001
+      ? [
+          (start.tangent[0] + end.tangent[0]) / tangentLength,
+          (start.tangent[1] + end.tangent[1]) / tangentLength,
+        ]
+      : center.tangent
+    const width = Math.max(
+      0.1,
+      options.width * (1 + (random() - 0.5) * options.irregularity * 0.28),
+    )
+    const height = Math.max(
+      0.02,
+      options.thickness * (1 + (random() - 0.5) * options.irregularity * 0.3),
+    )
+    stones.push({
+      position: [center.point[0], 0, center.point[1]],
+      corners: [center.point, center.point, center.point, center.point],
+      length,
+      width,
+      height,
+      colorOffset: makeColorOffset(),
+      rockSeed: Math.floor(random() * 2147483647),
+      rockRotation: (random() - 0.5) * 0.025,
+      tangent,
+    })
+  }
+  return stones
 }
 
 function layoutRockCopingStones(
@@ -186,7 +247,9 @@ export function layoutNaturalCopingStones(
   const { lengths, perimeter } = boundaryLengths(points)
   if (points.length < 3 || perimeter <= 0) return []
   const count = naturalCopingStoneCount(points, options.stoneLength)
-  if (options.rockLike) return layoutRockCopingStones(points, options, lengths)
+  if (options.rockLike) return options.smoothBoundary
+    ? layoutSmoothRockCopingStones(points, options, lengths, perimeter)
+    : layoutRockCopingStones(points, options, lengths)
   const stationLength = perimeter / count
   const random = seededRandom(options.seed)
   const irregularity = Math.max(0, Math.min(1, options.irregularity))
@@ -280,7 +343,7 @@ export function layoutNaturalCopingStones(
       [0, 0] as PoolPoint,
     )
     return {
-      position: cornerPoint && cornerTangents
+      position: !options.smoothBoundary && cornerPoint && cornerTangents
         ? [cornerPoint[0], 0, cornerPoint[1]]
         : [center[0], 0, center[1]],
       corners,
@@ -295,8 +358,8 @@ export function layoutNaturalCopingStones(
       rockSeed: Math.floor(random() * 2147483647),
       rockRotation: (random() - 0.5) * (options.rockLike ? 0 : 0.08),
       tangent,
-      cornerPoint,
-      cornerTangents,
+      cornerPoint: options.smoothBoundary ? undefined : cornerPoint,
+      cornerTangents: options.smoothBoundary ? undefined : cornerTangents,
     }
   })
 }

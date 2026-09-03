@@ -2,8 +2,7 @@
 
 import { type AnyNodeId, sceneRegistry } from '@pascal-app/core'
 import { useViewer } from '@pascal-app/viewer'
-import { useFrame } from '@react-three/fiber'
-import { type ReactNode, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import type { Group } from 'three'
 
 export function copyPoolLevelWorldTransform(target: Group, level: Group | null | undefined) {
@@ -22,12 +21,19 @@ export function PoolLevelPreviewGroup({ children }: { children: ReactNode }) {
   const levelId = useViewer((state) => state.selection.levelId)
   const ref = useRef<Group>(null)
 
-  useFrame(() => {
-    const group = ref.current
-    if (!group) return
-    const level = levelId ? sceneRegistry.nodes.get(levelId as AnyNodeId) : null
-    copyPoolLevelWorldTransform(group, level as Group | null | undefined)
-  })
+  useEffect(() => {
+    let frame = 0
+    const sync = () => {
+      const group = ref.current
+      if (group) {
+        const level = levelId ? sceneRegistry.nodes.get(levelId as AnyNodeId) : null
+        copyPoolLevelWorldTransform(group, level as Group | null | undefined)
+      }
+      frame = requestAnimationFrame(sync)
+    }
+    frame = requestAnimationFrame(sync)
+    return () => cancelAnimationFrame(frame)
+  }, [levelId])
 
   return <group ref={ref}>{children}</group>
 }

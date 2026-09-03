@@ -7,6 +7,7 @@ import {
   polygonContainsPolygon,
 } from '@pascal-app/core'
 import { type PoolNode, resolvePoolPolygon } from '../core/schema'
+import { PoolSharedJointNode } from '../shared-joint/core/schema'
 import { buildPoolOutlines, outsetPoolPolygon } from './outlines'
 
 export { outsetPoolPolygon as outsetPolygon } from './outlines'
@@ -28,7 +29,7 @@ export type PoolGroundOpeningChanges = {
   delete: AnyNodeId[]
 }
 
-type PoolSceneNode = AnyNode | PoolNode
+type PoolSceneNode = AnyNode | PoolNode | PoolSharedJointNode
 
 const COORDINATE_PRECISION = 1e9
 const GEOMETRY_TOLERANCE = 1e-7
@@ -47,12 +48,24 @@ function poolGroundOpeningId(poolId: string): AnyNodeId {
   return `slab_pool-ground-${suffix}` as AnyNodeId
 }
 
+function connectionGroundOpeningId(connectionId: string): AnyNodeId {
+  return `slab_pool-connection-ground-${connectionId.replace(/[^a-zA-Z0-9_-]/g, '_')}` as AnyNodeId
+}
+
 function poolGroundOpeningOwner(node: PoolSceneNode): string | null {
   if (node.type !== 'slab' || node.recessed !== true) return null
   const metadata = node.metadata
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
   const owner = (metadata as Record<string, unknown>)[GROUND_OPENING_METADATA_KEY]
   return typeof owner === 'string' ? owner : null
+}
+
+function connectionGroundOpeningOwner(node: PoolSceneNode): string | null {
+  if (node.type !== 'slab' || node.recessed !== true) return null
+  const metadata = node.metadata
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const owner = (metadata as Record<string, unknown>)[GROUND_OPENING_METADATA_KEY]
+  return typeof owner === 'string' && owner.startsWith('pool-connection:') ? owner.slice('pool-connection:'.length) : null
 }
 
 function isPoolGroundOpeningSlab(node: PoolSceneNode): node is SlabNode {
@@ -370,6 +383,40 @@ function buildPoolGroundOpeningSlab(
   })
 }
 
+function getConnectionOpeningPolygon(connection: PoolSharedJointNode): PolygonPoint2D[] {
+  const halfLength = connection.length / 2 + 0.04
+  const halfWidth = connection.width / 2 + 0.04
+  const rotation = connection.rotation[1] ?? 0
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+  const local: PolygonPoint2D[] = [[-halfLength, -halfWidth], [halfLength, -halfWidth], [halfLength, halfWidth], [-halfLength, halfWidth]]
+  return local.map(([x, z]) => [
+    roundCoordinate(connection.position[0] + x * cos + z * sin),
+    roundCoordinate(connection.position[2] - x * sin + z * cos),
+  ])
+}
+
+function buildConnectionGroundOpeningSlab(
+  connection: PoolSharedJointNode,
+  nodes: Record<string, PoolSceneNode>,
+  id = connectionGroundOpeningId(connection.id),
+): SlabNode {
+  const polygon = transformPolygonToSiteCoordinates(getConnectionOpeningPolygon(connection), connection.parentId, nodes)
+  return SlabNodeSchema.parse({
+    id,
+    name: `Ground opening for ${connection.name ?? connection.id}`,
+    parentId: connection.parentId,
+    visible: connection.visible !== false,
+    metadata: { [GROUND_OPENING_METADATA_KEY]: `pool-connection:${connection.id}` },
+    polygon,
+    holes: [outsetPoolPolygon(polygon, GROUND_OPENING_HOLE_MARGIN)],
+    holeMetadata: [{ source: 'manual' }],
+    elevation: -0.02,
+    recessed: true,
+    recessedRimElevation: 0,
+  })
+}
+
 function groundOpeningSlabsEqual(left: SlabNode, right: SlabNode) {
   return left.parentId === right.parentId &&
     left.visible === right.visible &&
@@ -391,14 +438,22 @@ export function syncPoolGroundOpenings(
   const pools = Object.values(nodes)
     .filter((node): node is PoolNode => node.type === 'pool:pool')
     .sort((left, right) => left.id.localeCompare(right.id))
+  const connections = Object.values(nodes)
+    .flatMap((node) => {
+      const parsed = PoolSharedJointNode.safeParse(node)
+      return parsed.success ? [parsed.data] : []
+    })
+    .sort((left, right) => left.id.localeCompare(right.id))
   const helpersByOwner = new Map<string, SlabNode[]>()
 
   for (const node of Object.values(nodes)) {
     const owner = poolGroundOpeningOwner(node)
-    if (!owner) continue
-    const helpers = helpersByOwner.get(owner)
+    const connectionOwner = connectionGroundOpeningOwner(node)
+    const ownerKey = owner ?? connectionOwner
+    if (!ownerKey) continue
+    const helpers = helpersByOwner.get(ownerKey)
     if (helpers) helpers.push(node as SlabNode)
-    else helpersByOwner.set(owner, [node as SlabNode])
+    else helpersByOwner.set(ownerKey, [node as SlabNode])
   }
 
   const create: SlabNode[] = []
@@ -445,6 +500,41 @@ export function syncPoolGroundOpenings(
     }
   }
 
+  for (const connection of connections) {
+    const owner = `pool-connection:${connection.id}`
+    const helpers = (helpersByOwner.get(connection.id) ?? helpersByOwner.get(owner) ?? [])
+      .sort((left, right) => left.id.localeCompare(right.id))
+    const existing = helpers[0]
+    if (!existing) {
+      const baseId = connectionGroundOpeningId(connection.id)
+      let desiredId = baseId
+      let suffix = 2
+      while (nodes[desiredId] || create.some((node) => node.id === desiredId)) {
+        desiredId = `${baseId}-${suffix}` as AnyNodeId
+        suffix += 1
+      }
+      create.push(buildConnectionGroundOpeningSlab(connection, nodes, desiredId))
+      continue
+    }
+    helpersByOwner.delete(connection.id)
+    helpersByOwner.delete(owner)
+    staleHelpers.push(...helpers.slice(1))
+    const desired = buildConnectionGroundOpeningSlab(connection, nodes, existing.id as AnyNodeId)
+    if (!groundOpeningSlabsEqual(existing, desired)) {
+      update.push({ id: existing.id as AnyNodeId, data: {
+        name: desired.name,
+        parentId: desired.parentId,
+        visible: desired.visible,
+        polygon: desired.polygon,
+        holes: desired.holes,
+        holeMetadata: desired.holeMetadata,
+        elevation: desired.elevation,
+        recessed: desired.recessed,
+        recessedRimElevation: desired.recessedRimElevation,
+      } })
+    }
+  }
+
   return {
     create,
     update,
@@ -465,6 +555,10 @@ export function syncPoolSlabOpenings(
   const slabs = Object.values(nodes).filter(
     (node): node is SlabNode => node.type === 'slab' && !isPoolGroundOpeningSlab(node),
   )
+  const connections = Object.values(nodes).flatMap((node) => {
+    const parsed = PoolSharedJointNode.safeParse(node)
+    return parsed.success && parsed.data.visible !== false ? [parsed.data] : []
+  })
   const updates: PoolOpeningUpdate[] = []
 
   const resolveSupportSlabId = (pool: PoolNode, opening: PolygonPoint2D[]) => {
@@ -504,18 +598,30 @@ export function syncPoolSlabOpenings(
       .filter((_, index) => !managedHoleIndices.has(index))
     const poolHoles = pools
       .map((pool) => ({
-        pool,
+        ownerId: pool.id,
         polygon: getPoolOpeningPolygon(pool),
       }))
-      .filter(({ pool, polygon }) => resolveSupportSlabId(pool, polygon) === slab.id)
+      .filter(({ ownerId, polygon }) => {
+        const pool = pools.find((candidate) => candidate.id === ownerId)
+        return pool ? resolveSupportSlabId(pool, polygon) === slab.id : false
+      })
       .filter(({ polygon }) => polygonContainsPolygon(slab.polygon, polygon))
-    const nextHoles = [...preserved.map(({ polygon }) => polygon), ...poolHoles.map(({ polygon }) => polygon)]
+    const connectionHoles = connections
+      .map((connection) => ({
+        connection,
+        ownerId: connection.id,
+        polygon: getConnectionOpeningPolygon(connection),
+      }))
+      .filter(({ connection }) => connection.parentId === slab.parentId)
+      .filter(({ polygon }) => polygonContainsPolygon(slab.polygon, polygon))
+    const managedHoles = [...poolHoles, ...connectionHoles]
+    const nextHoles = [...preserved.map(({ polygon }) => polygon), ...managedHoles.map(({ polygon }) => polygon)]
     const nextMetadata = [
       ...preserved.map(({ metadata }) => ({ ...metadata })),
-      ...poolHoles.map((): ExistingHoleMetadata => ({ source: 'manual' })),
+      ...managedHoles.map((): ExistingHoleMetadata => ({ source: 'manual' })),
     ]
-    const nextManaged = poolHoles.map(({ pool, polygon }, index) => ({
-      poolId: pool.id,
+    const nextManaged = managedHoles.map(({ ownerId, polygon }, index) => ({
+      poolId: ownerId,
       polygon,
       holeIndex: preserved.length + index,
     }))

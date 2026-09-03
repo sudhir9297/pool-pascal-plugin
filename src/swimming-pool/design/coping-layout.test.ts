@@ -29,4 +29,37 @@ describe('rock coping layout', () => {
     )
     expect(layout.some((stone) => !stone.cornerPoint)).toBe(true)
   })
+
+  test('lays smooth freeform boundaries without artificial corner pieces', () => {
+    const points: [number, number][] = Array.from({ length: 24 }, (_, index) => {
+      const angle = index / 24 * Math.PI * 2
+      return [Math.cos(angle) * 5, Math.sin(angle) * 2.5]
+    })
+    const layout = layoutNaturalCopingStones(points, {
+      width: 0.6,
+      thickness: 0.2,
+      stoneLength: 1,
+      jointWidth: 0.02,
+      irregularity: 0.75,
+      seed: 7,
+      rockLike: true,
+      smoothBoundary: true,
+    })
+
+    expect(layout.length).toBeGreaterThan(10)
+    expect(layout.length).toBeLessThan(points.length)
+    expect(layout.every((stone) => !stone.cornerPoint)).toBe(true)
+    expect(layout.every((stone) => stone.length > 0.9)).toBe(true)
+
+    const naturalStoneLayout = layoutNaturalCopingStones(points, {
+      width: 0.6,
+      thickness: 0.2,
+      stoneLength: 1,
+      jointWidth: 0.02,
+      irregularity: 0.75,
+      seed: 7,
+      smoothBoundary: true,
+    })
+    expect(naturalStoneLayout.every((stone) => !stone.cornerPoint)).toBe(true)
+  })
 })

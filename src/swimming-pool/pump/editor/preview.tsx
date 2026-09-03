@@ -5,7 +5,7 @@ import { useRegistry, type AnyNode } from '@pascal-app/core'
 import { useEditor } from '@pascal-app/editor'
 import { useMemo, useRef } from 'react'
 import { Quaternion, Vector3, type Group } from 'three'
-import { buildPumpGeometry, getPumpPortLocalPositions, getPumpPortPositions } from '../core/geometry'
+import { buildPumpGeometry, getPumpPortLocalPositions, getPumpPortPositions, PUMP_PORT_DIRECTIONS } from '../core/geometry'
 import type { PoolPumpNode } from '../core/schema'
 import { usePipeEditStore } from '../../pipe/editor/store'
 
@@ -14,10 +14,10 @@ export default function PoolPumpPreview({ node }: { node: PoolPumpNode }) {
   const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
   useRegistry(node.id, node.type, rootRef)
   const geometry = useMemo(() => buildPumpGeometry(node), [node])
-  const ports = useMemo(() => getPumpPortLocalPositions(node).map((position) => {
-    const direction = position.clone().sub(new Vector3(0, 0.09, 0)).normalize()
-    return { position, quaternion: new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), direction) }
-  }), [node.bodyDepth])
+  const ports = useMemo(() => getPumpPortLocalPositions(node).map((position, index) => {
+    const direction = PUMP_PORT_DIRECTIONS[index]!
+    return { position, quaternion: new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction) }
+  }), [node.bodyDepth, node.bodyHeight, node.diameter])
   return <group position={node.position} rotation={node.rotation} ref={rootRef} {...handlers}>
     <primitive object={geometry} />
     {ports.map(({ position, quaternion }, index) => <mesh key={index} position={position} quaternion={quaternion} onPointerDown={(event) => {
