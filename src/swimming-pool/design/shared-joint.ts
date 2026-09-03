@@ -2,6 +2,7 @@ import type { AnyNode } from '@pascal-app/core'
 import { ShapeUtils, Vector2 } from 'three'
 import { PoolNode, type PoolPoint, resolvePoolPolygon } from '../core/schema'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
+import { PoolSpilloverNode } from '../spillover/core/schema'
 
 type WorldSegment = { start: PoolPoint; end: PoolPoint; tangent: PoolPoint }
 const INTERSECTION_EPSILON = 1e-6
@@ -139,12 +140,15 @@ export function getPoolConnectionPoints(
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
   return Object.values(nodes)
-    .filter((node) => (node.type as string) === 'pool:shared-joint')
+    .filter((node) => ['pool:shared-joint', 'pool:spillover'].includes(String(node.type)))
     .flatMap((node) => {
-      const connection = PoolSharedJointNode.safeParse(node)
-      if (!connection.success || !connection.data.poolIds.includes(pool.id)) return []
-      const dx = connection.data.position[0] - pool.position[0]
-      const dz = connection.data.position[2] - pool.position[2]
+      const parsed = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.safeParse(node) : PoolSharedJointNode.safeParse(node)
+      if (!parsed.success) return []
+      const connection = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.parse(node) : PoolSharedJointNode.parse(node)
+      const ids = 'sourcePoolId' in connection ? [connection.sourcePoolId, connection.targetPoolId] : connection.poolIds
+      if (!ids.includes(pool.id)) return []
+      const dx = connection.position[0] - pool.position[0]
+      const dz = connection.position[2] - pool.position[2]
       return [[dx * cos - dz * sin, dx * sin + dz * cos]]
     })
 }
@@ -158,11 +162,14 @@ export function getPoolConnectionRegions(
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
   return Object.values(nodes)
-    .filter((node) => (node.type as string) === 'pool:shared-joint')
+    .filter((node) => ['pool:shared-joint', 'pool:spillover'].includes(String(node.type)))
     .flatMap((node) => {
-      const connection = PoolSharedJointNode.safeParse(node)
-      if (!connection.success || !connection.data.poolIds.includes(pool.id)) return []
-      return connection.data.intersection.map((region) => region.map(([x, z]) => {
+      const parsed = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.safeParse(node) : PoolSharedJointNode.safeParse(node)
+      if (!parsed.success) return []
+      const connection = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.parse(node) : PoolSharedJointNode.parse(node)
+      const ids = 'sourcePoolId' in connection ? [connection.sourcePoolId, connection.targetPoolId] : connection.poolIds
+      if (!ids.includes(pool.id)) return []
+      return connection.intersection.map((region) => region.map(([x, z]) => {
         const dx = x - pool.position[0]
         const dz = z - pool.position[2]
         return [dx * cos - dz * sin, dx * sin + dz * cos] as PoolPoint

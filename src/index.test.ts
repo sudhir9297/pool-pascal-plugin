@@ -5,7 +5,7 @@ describe('Swimming pool plugin manifest', () => {
   test('exports the stable plugin identity and node kinds', () => {
     expect(poolPlugin.id).toBe('pascal:pool')
     expect(poolPlugin.apiVersion).toBe(1)
-    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:pipe-network', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:catch-basin', 'pool:watercourse', 'pool:heater', 'pool:shared-joint', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
+    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:pipe-network', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:catch-basin', 'pool:watercourse', 'pool:heater', 'pool:shared-joint', 'pool:spillover', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
   })
 
   test('associates the Pool panel with the plugin', () => {

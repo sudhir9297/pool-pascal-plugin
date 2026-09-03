@@ -18,7 +18,6 @@ import {
   createLowPolyRockMesh,
   type LowPolyRockProfile,
 } from '../../../design/low-poly-rock'
-import { getPoolRockColor } from '../../../design/rock-colors'
 import { DEFAULT_POOL_WATERFALL } from './definition'
 import type { PoolWaterfallNode } from './schema'
 
@@ -128,6 +127,7 @@ function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
   if (node.showFlow) {
     addWaterSheet(group, flowWidth, topY - node.targetWaterOffset, topY, fallZ, node)
     const landingZ = getSpillwayLandingZ(fallZ, node.sheetDepth)
+    addImpactFoam(group, node, flowWidth, landingZ)
     addMist(group, node.width * 0.55, node.targetWaterOffset, landingZ + 0.04, node.shallowWaterColor)
   }
   return group
@@ -151,10 +151,14 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   const topY = node.height * (node.waterfallType === 'spillover' ? 0.66 : 0.82)
   const fallZ = node.depth * 0.24
   const fallWidth = node.width * 0.3
-  addSpillwayBox(group, node, fallWidth, topY, fallZ)
+  // Natural cascades use a recessed void framed by the rocks. The engineered
+  // rounded spillway belongs only to the modern variant; showing it here made
+  // the rock formation read as a box with stones attached to it.
+  addNaturalCavity(group, node, fallWidth, topY, fallZ)
   if (node.showFlow) {
     addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node)
     const impactZ = getSpillwayLandingZ(fallZ, node.sheetDepth)
+    addImpactFoam(group, node, fallWidth, impactZ)
     addMist(group, fallWidth, node.targetWaterOffset, impactZ + 0.04, node.shallowWaterColor)
   }
   return group
@@ -163,7 +167,7 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
 function addRock(group: Group, node: PoolWaterfallNode, rock: RockPlacement, index: number) {
   const seed = node.rockSeed + index * 7919
   const wetness = Math.max(0, 1 - rock.y / 0.25) * 0.7
-  const color = waterfallRockColor(node.rockSeed, index, wetness)
+  const color = waterfallRockColor(node.rockColor, node.rockSeed, index, wetness)
   const mesh = createLowPolyRockMesh(
     rock.width * node.width * ROCK_PACKING_WIDTH,
     rock.height * node.height,
@@ -195,7 +199,7 @@ function addPondEdgeRocks(group: Group, node: PoolWaterfallNode, startIndex: num
       height * node.height,
       depth * node.receivingPoolDepth,
       seed,
-      waterfallRockColor(node.rockSeed, index, 0.7),
+      waterfallRockColor(node.rockColor, node.rockSeed, index, 0.7),
       profile,
       0.82,
     )
@@ -206,9 +210,37 @@ function addPondEdgeRocks(group: Group, node: PoolWaterfallNode, startIndex: num
   }
 }
 
-function waterfallRockColor(seed: number, index: number, wetness: number) {
-  const color = getPoolRockColor(seed, index)
-  return `#${color.offsetHSL(0, -wetness * 0.025, -wetness * 0.08).getHexString()}`
+function waterfallRockColor(baseColor: string, seed: number, index: number, wetness: number) {
+  // Keep the user-selected rock color authoritative while retaining subtle,
+  // deterministic facet-to-facet variation from the seed.
+  const color = new Color(baseColor)
+  const variation = Math.sin((seed + index * 7919) * 0.017) * 0.018
+  color.offsetHSL(variation, -wetness * 0.025, variation - wetness * 0.08)
+  return `#${color.getHexString()}`
+}
+
+function addNaturalCavity(
+  group: Group,
+  node: PoolWaterfallNode,
+  waterWidth: number,
+  waterY: number,
+  lipZ: number,
+) {
+  const approach = getSpillwayApproach(node.depth)
+  const cavity = new Mesh(
+    new RoundedBoxGeometry(
+      waterWidth * 1.18,
+      Math.max(0.32, node.height * 0.28),
+      Math.max(0.08, node.lipThickness * 1.8),
+      2,
+      Math.max(0.015, node.lipThickness * 0.35),
+    ),
+    new MeshStandardMaterial({ color: '#050c10', roughness: 0.98, metalness: 0 }),
+  )
+  cavity.name = 'waterfall-natural-cavity'
+  cavity.position.set(0, waterY - node.height * 0.14, lipZ - approach - node.lipThickness * 0.25)
+  cavity.receiveShadow = true
+  group.add(cavity)
 }
 
 function addReceivingPool(group: Group, node: PoolWaterfallNode) {
@@ -247,6 +279,7 @@ function addWaterSheet(group: Group, width: number, height: number, topY: number
     getSpillwayApproach(node.depth),
     getSpillwayCurveRadius(node.sheetDepth),
     node.sheetDepth,
+    node.edgeCurve,
   )
   const water = new Mesh(geometry, effect.material)
   water.position.set(0, topY + 0.012, z)
@@ -257,6 +290,25 @@ function addWaterSheet(group: Group, width: number, height: number, topY: number
   water.userData.shallowWaterColor = node.shallowWaterColor
   water.userData.deepWaterColor = node.deepWaterColor
   group.add(water)
+}
+
+function addImpactFoam(group: Group, node: PoolWaterfallNode, width: number, z: number) {
+  const foam = new Mesh(
+    new CircleGeometry(1, 48),
+    new MeshStandardMaterial({
+      color: node.shallowWaterColor,
+      roughness: 0.35,
+      transparent: true,
+      opacity: 0.36,
+      depthWrite: false,
+    }),
+  )
+  foam.name = 'waterfall-impact-foam'
+  foam.rotation.x = -Math.PI / 2
+  foam.position.set(0, node.targetWaterOffset + 0.018, z)
+  foam.scale.set(Math.max(0.12, width * 0.42), Math.max(0.08, node.sheetDepth * 3.2), 1)
+  foam.renderOrder = 4
+  group.add(foam)
 }
 
 function addSpillwayBox(
@@ -406,6 +458,7 @@ function createSpillwayGeometry(
   approach: number,
   curveRadius: number,
   sheetDepth: number,
+  edgeCurve: readonly (readonly [number, number])[] = FLAT_EDGE_CURVE,
 ) {
   const xSegments = 40
   const pathSegments = 96
@@ -444,6 +497,10 @@ function createSpillwayGeometry(
     for (let xIndex = 0; xIndex <= xSegments; xIndex += 1) {
       const u = xIndex / xSegments
       const x = (u - 0.5) * Math.max(0.08, width)
+      // Carry the pool-edge bend through the water sheet as well as the rock
+      // layout. This keeps a mounted fall from looking like a straight ribbon
+      // floating in front of a formation that turns around a corner.
+      const edgeOffset = sampleEdgeCurve(edgeCurve, x).z
       const across = u - 0.5
       const corrugation = (
         Math.sin(across * Math.PI * 10)
@@ -457,7 +514,7 @@ function createSpillwayGeometry(
       positions.push(
         x,
         pathY + normalY * corrugation + raggedBottom,
-        pathZ + normalZ * corrugation,
+        pathZ + edgeOffset + normalZ * corrugation,
       )
       uvs.push(u, progress)
     }
@@ -493,6 +550,11 @@ function getSpillwayCurveRadius(sheetDepth: number) {
 
 function getSpillwayLandingZ(lipZ: number, sheetDepth: number) {
   return lipZ + getSpillwayCurveRadius(sheetDepth) + sheetDepth * 1.6
+}
+
+export function getWaterfallImpactLocalPoint(node: PoolWaterfallNode): [number, number] {
+  const lipZ = node.waterfallType === 'modern' ? node.depth / 2 + node.sheetDepth : node.depth * 0.24
+  return [0, getSpillwayLandingZ(lipZ, node.sheetDepth)]
 }
 
 function addMist(group: Group, width: number, y: number, z: number, waterColor: string) {

@@ -32,7 +32,8 @@ export default function PoolWaterfallTool() {
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const point = snapPointToGrid([local[0], local[2]], step)
       const pools = Object.values(useScene.getState().nodes)
-        .filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pool') as unknown as PoolNode[]
+        .filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pool')
+        .filter((node) => (node as unknown as { parentId?: string | null }).parentId === levelId) as unknown as PoolNode[]
       return findNearestWaterfallPlacement(point, pools, DEFAULT_POOL_WATERFALL.width)
     }
     const onMove = (event: GridEvent) => {
@@ -88,6 +89,7 @@ export default function PoolWaterfallTool() {
       emitter.off('grid:move', onMove)
       emitter.off('grid:click', place)
       emitter.off('tool:cancel', cancel)
+      setPlacement(null)
     }
   }, [levelId, setSelection])
 

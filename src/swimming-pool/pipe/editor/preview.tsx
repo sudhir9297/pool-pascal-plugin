@@ -296,6 +296,28 @@ function PipePivotGizmo({
   const endpoint = network.nodes.find((candidate) => candidate.id === endpointId)
   if (!endpoint) return null
 
+  const connectedEdge = network.edges.find((edge) => edge.from === endpointId || edge.to === endpointId)
+  const neighborId = connectedEdge
+    ? connectedEdge.from === endpointId ? connectedEdge.to : connectedEdge.from
+    : null
+  const neighbor = neighborId ? network.nodes.find((candidate) => candidate.id === neighborId) : null
+  const outward = neighbor
+    ? new Vector3(
+        endpoint.position[0] - neighbor.position[0],
+        endpoint.position[1] - neighbor.position[1],
+        endpoint.position[2] - neighbor.position[2],
+      ).normalize()
+    : new Vector3(1, 0, 0)
+  const dominantAxis = Math.abs(outward.x) >= Math.abs(outward.y) && Math.abs(outward.x) >= Math.abs(outward.z)
+    ? 'x'
+    : Math.abs(outward.y) >= Math.abs(outward.z) ? 'y' : 'z'
+  const axisSign = (value: number): 1 | -1 => value < 0 ? -1 : 1
+  const outwardSign: 1 | -1 = dominantAxis === 'x'
+    ? axisSign(outward.x)
+    : dominantAxis === 'y'
+      ? axisSign(outward.y)
+      : axisSign(outward.z)
+
   return (
     <group scale={0.72}>
       <mesh frustumCulled={false} renderOrder={1300} raycast={() => null}>
@@ -304,9 +326,9 @@ function PipePivotGizmo({
       </mesh>
       {/* The cylinder is authored along +Y; this rotation makes the red
           arrow point along +X, matching the drag axis below. */}
-      <PipeGizmoAxis color="#ff2060" axis="x" rotation={[0, 0, Math.PI / 2]} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
-      <PipeGizmoAxis color="#20df80" axis="y" endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
-      <PipeGizmoAxis color="#2080ff" axis="z" rotation={[Math.PI / 2, 0, 0]} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
+      <PipeGizmoAxis color="#ff2060" axis="x" directionSign={dominantAxis === 'x' ? outwardSign : 1} rotation={[0, 0, Math.PI / 2]} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
+      <PipeGizmoAxis color="#20df80" axis="y" directionSign={dominantAxis === 'y' ? outwardSign : 1} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
+      <PipeGizmoAxis color="#2080ff" axis="z" directionSign={dominantAxis === 'z' ? outwardSign : 1} rotation={[Math.PI / 2, 0, 0]} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef} />
     </group>
   )
 }
@@ -314,6 +336,7 @@ function PipePivotGizmo({
 function PipeGizmoAxis({
   color,
   axis,
+  directionSign = 1,
   endpoint,
   endpointId,
   network,
@@ -322,6 +345,7 @@ function PipeGizmoAxis({
 }: {
   color: string
   axis: 'x' | 'y' | 'z'
+  directionSign?: 1 | -1
   endpoint: PoolPipeNode['nodes'][number]
   endpointId: string
   network: PoolPipeNode
@@ -329,8 +353,8 @@ function PipeGizmoAxis({
   rotation?: [number, number, number]
 }) {
   return (
-    <PipeAxisHandle axis={axis} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef}>
-      <group rotation={rotation}>
+    <PipeAxisHandle axis={axis} directionSign={directionSign} endpoint={endpoint} endpointId={endpointId} network={network} rootRef={rootRef}>
+      <group rotation={rotation} scale={[1, directionSign, 1]}>
       <mesh position={[0, 0.2, 0]} frustumCulled={false} renderOrder={1300}>
         <cylinderGeometry args={[0.018, 0.018, 0.38, 8]} />
         <meshBasicMaterial color={color} depthTest={false} depthWrite={false} />
@@ -356,6 +380,7 @@ function closestAxisParameterToRay(origin: Vector3, axis: Vector3, ray: Ray) {
 
 function PipeAxisHandle({
   axis,
+  directionSign = 1,
   endpoint,
   endpointId,
   network,
@@ -363,6 +388,7 @@ function PipeAxisHandle({
   children,
 }: {
   axis: 'x' | 'y' | 'z'
+  directionSign?: 1 | -1
   endpoint: PoolPipeNode['nodes'][number]
   endpointId: string
   network: PoolPipeNode
@@ -380,7 +406,7 @@ function PipeAxisHandle({
   const cleanupDrag = useRef<(() => void) | null>(null)
   const finishDragRef = useRef<((commit: boolean) => void) | null>(null)
   const { camera, gl, raycaster } = useThree()
-  const axisVector = axis === 'x' ? new Vector3(1, 0, 0) : axis === 'y' ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1)
+  const axisVector = (axis === 'x' ? new Vector3(1, 0, 0) : axis === 'y' ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1)).multiplyScalar(directionSign)
 
   useEffect(() => () => {
     cleanupDrag.current?.()

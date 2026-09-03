@@ -12,6 +12,7 @@ import {
   syncPoolSlabOpenings,
 } from '../design/opening-sync'
 import { syncSharedPoolJoints } from '../design/shared-joint'
+import { syncPoolSpillovers } from '../spillover/design/sync'
 
 function isOpeningRelevantNode(node: AnyNode | undefined) {
   const type = node?.type as string | undefined
@@ -20,7 +21,7 @@ function isOpeningRelevantNode(node: AnyNode | undefined) {
 
 function isConnectionRelevantNode(node: AnyNode | undefined) {
   const type = node?.type as string | undefined
-  return type === 'pool:pool' || type === 'pool:shared-joint'
+  return type === 'pool:pool' || type === 'pool:shared-joint' || type === 'pool:spillover'
 }
 
 function hasOpeningRelevantChange(
@@ -61,6 +62,7 @@ export function initializePoolOpeningSync() {
     const slabUpdates = syncPoolSlabOpenings(nodes)
     const groundChanges = syncPoolGroundOpenings(nodes)
     const connectionChanges = syncSharedPoolJoints(nodes)
+    const spilloverChanges = syncPoolSpillovers(nodes)
     if (
       slabUpdates.length === 0 &&
       groundChanges.create.length === 0 &&
@@ -69,6 +71,8 @@ export function initializePoolOpeningSync() {
       connectionChanges.create.length === 0 &&
       connectionChanges.update.length === 0 &&
       connectionChanges.delete.length === 0
+      && spilloverChanges.update.length === 0
+      && spilloverChanges.delete.length === 0
     ) return
 
     syncing = true
@@ -82,8 +86,8 @@ export function initializePoolOpeningSync() {
           node: node as unknown as AnyNode,
           parentId: node.parentId ?? undefined,
         }))) as unknown as never,
-        update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update] as never,
-        delete: [...groundChanges.delete, ...connectionChanges.delete] as never,
+        update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update, ...spilloverChanges.update] as never,
+        delete: [...groundChanges.delete, ...connectionChanges.delete, ...spilloverChanges.delete] as never,
       })
     } finally {
       resumeSceneHistory(useScene)

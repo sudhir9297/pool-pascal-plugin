@@ -24,6 +24,7 @@ export default function PoolPanel() {
   const catchBasinCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:catch-basin').length)
   const watercourseCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:watercourse').length)
   const waterfallCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:waterfall').length)
+  const spilloverCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:spillover').length)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Alt' || event.repeat || event.metaKey || event.ctrlKey || event.shiftKey) return
@@ -93,6 +94,14 @@ export default function PoolPanel() {
         >
           <span className="block font-medium">Waterfall</span>
           <span className="text-sidebar-foreground/60">{waterfallCount} placed · low-poly rock cascade</span>
+        </button>
+        <button
+          className="rounded border border-sidebar-border px-3 py-2 text-left text-xs hover:border-primary"
+          onClick={() => { useEditor.getState().setTool('pool:spillover'); useEditor.getState().setMode('build') }}
+          type="button"
+        >
+          <span className="block font-medium">Pool spillover</span>
+          <span className="text-sidebar-foreground/60">{spilloverCount} placed · click higher pool, then lower pool</span>
         </button>
       </section>
       <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">

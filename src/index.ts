@@ -9,6 +9,7 @@ import { poolCatchBasinDefinition } from './swimming-pool/water-feature/basin/co
 import { poolWatercourseDefinition } from './swimming-pool/water-feature/watercourse/core/definition'
 import { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
 import { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
+import { poolSpilloverDefinition } from './swimming-pool/spillover/core/definition'
 import { poolDrainDefinition } from './swimming-pool/drain/core/definition'
 import { poolInletDefinition } from './swimming-pool/inlet/core/definition'
 import { poolWaterfallDefinition } from './swimming-pool/water-feature/waterfall/core/definition'
@@ -34,6 +35,7 @@ export const poolPlugin: Plugin = {
     poolWatercourseDefinition as unknown as AnyNodeDefinition,
     poolHeaterDefinition as unknown as AnyNodeDefinition,
     poolSharedJointDefinition as unknown as AnyNodeDefinition,
+    poolSpilloverDefinition as unknown as AnyNodeDefinition,
     poolDrainDefinition as unknown as AnyNodeDefinition,
     poolInletDefinition as unknown as AnyNodeDefinition,
     poolWaterfallDefinition as unknown as AnyNodeDefinition,
@@ -70,6 +72,10 @@ export { poolWatercourseDefinition } from './swimming-pool/water-feature/waterco
 export { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
 export { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
 export { poolSharedJointParametrics } from './swimming-pool/shared-joint/editor/parametrics'
+export { poolSpilloverDefinition } from './swimming-pool/spillover/core/definition'
+export { poolSpilloverParametrics } from './swimming-pool/spillover/editor/parametrics'
+export { resolvePoolSpillover } from './swimming-pool/spillover/design/placement'
+export { syncPoolSpillovers } from './swimming-pool/spillover/design/sync'
 export { poolDrainDefinition } from './swimming-pool/drain/core/definition'
 export { poolInletDefinition } from './swimming-pool/inlet/core/definition'
 export { poolWaterfallDefinition } from './swimming-pool/water-feature/waterfall/core/definition'
@@ -88,6 +94,7 @@ export { PoolCatchBasinNode } from './swimming-pool/water-feature/basin/core/sch
 export { PoolWatercourseNode } from './swimming-pool/water-feature/watercourse/core/schema'
 export { PoolHeaterNode } from './swimming-pool/heater/core/schema'
 export { PoolSharedJointNode } from './swimming-pool/shared-joint/core/schema'
+export { PoolSpilloverNode } from './swimming-pool/spillover/core/schema'
 export { PoolDrainNode } from './swimming-pool/drain/core/schema'
 export { PoolInletNode } from './swimming-pool/inlet/core/schema'
 export { PoolWaterfallNode } from './swimming-pool/water-feature/waterfall/core/schema'
