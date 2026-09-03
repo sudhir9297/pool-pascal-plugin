@@ -26,7 +26,18 @@ import {
   viewportDepthTexture,
   viewportSharedTexture,
 } from 'three/tsl'
-import { AdditiveBlending, TextureLoader, type Texture } from 'three'
+import {
+  AdditiveBlending,
+  Color,
+  DoubleSide as ThreeDoubleSide,
+  DynamicDrawUsage,
+  InstancedMesh,
+  MeshPhysicalMaterial,
+  Object3D,
+  SphereGeometry,
+  TextureLoader,
+  type Texture,
+} from 'three'
 import {
   getWaterPresetSettings,
   type WaterPreset,
@@ -327,6 +338,129 @@ export class WaterfallLineEffect {
 
   update(delta: number) {
     this.time.value += Math.min(delta, 0.05)
+  }
+
+  dispose() {
+    this.material.dispose()
+  }
+}
+
+export type WaterfallBubbleFamily = 'foam' | 'aeration' | 'microstream'
+
+type BubbleParticle = {
+  x: number
+  surfaceY: number
+  z: number
+  radius: number
+  phase: number
+  driftX: number
+  driftZ: number
+  shapeX: number
+  shapeY: number
+  shapeZ: number
+  wobble: number
+  frequency: number
+  speedJitter: number
+  tint: number
+}
+
+/** Batched surface bubbles with a dense impact layer and fine aeration. */
+export class WaterfallBubbleCloudEffect {
+  readonly material: MeshPhysicalMaterial
+  readonly mesh: InstancedMesh
+  private readonly particles: BubbleParticle[] = []
+  private readonly transform = new Object3D()
+  private readonly family: WaterfallBubbleFamily
+  private readonly speed: number
+  private time = 0
+
+  constructor(
+    styleInput: Partial<WaterfallWaterStyle>,
+    flowStrength: number,
+    family: WaterfallBubbleFamily,
+    capacity: number,
+  ) {
+    const settings = resolveWaterfallStyle(styleInput)
+    this.family = family
+    this.speed = 0.32 + Math.max(0.2, Math.min(2, flowStrength)) * 0.16
+    const isFoam = family === 'foam'
+    const isStream = family === 'microstream'
+    this.material = new MeshPhysicalMaterial({
+      color: '#ffffff',
+      roughness: isFoam ? 0.09 : 0.045,
+      metalness: 0,
+      transparent: true,
+      opacity: isFoam ? 0.3 : isStream ? 0.22 : 0.14,
+      depthWrite: false,
+      side: ThreeDoubleSide,
+      transmission: isFoam ? 0.76 : 0.82,
+      thickness: isFoam ? 0.018 : 0.01,
+      ior: 1.08,
+      clearcoat: 1,
+      clearcoatRoughness: isFoam ? 0.055 : 0.025,
+      specularIntensity: 1,
+      attenuationColor: new Color(settings.shallowWaterColor).lerp(new Color('#ffffff'), 0.35),
+      attenuationDistance: 0.35,
+    })
+    const segments = isFoam ? 10 : isStream ? 7 : 8
+    const rings = isFoam ? 8 : 6
+    this.mesh = new InstancedMesh(new SphereGeometry(1, segments, rings), this.material, capacity)
+    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage)
+    this.mesh.count = 0
+    this.mesh.frustumCulled = false
+  }
+
+  addParticle(particle: BubbleParticle) {
+    if (this.particles.length >= this.mesh.instanceMatrix.count) return
+    const index = this.particles.length
+    this.particles.push(particle)
+    const poolTint = new Color('#72dce8')
+    const white = new Color('#ffffff')
+    const tintStrength = this.family === 'foam' ? 0.58 : this.family === 'microstream' ? 0.34 : 0.2
+    this.mesh.setColorAt(index, poolTint.lerp(white, Math.min(1, tintStrength + particle.tint * 0.18)))
+    this.mesh.count = this.particles.length
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+  }
+
+  update(delta: number) {
+    this.time += Math.min(delta, 0.05)
+    for (const [index, particle] of this.particles.entries()) {
+      const familySpeed = this.family === 'foam' ? 0.74 : this.family === 'microstream' ? 1.28 : 1
+      const life = (this.time * this.speed * familySpeed * particle.speedJitter + particle.phase) % 1
+      const envelopePower = this.family === 'foam' ? 0.48 : this.family === 'microstream' ? 0.92 : 0.72
+      const envelope = Math.pow(Math.sin(life * Math.PI), envelopePower)
+      const churn = 0.92 + Math.sin(this.time * 2.7 + particle.phase * 17) * 0.08
+      const scale = Math.max(0.001, particle.radius * envelope * churn)
+      const wobble = Math.sin(this.time * particle.frequency + particle.phase * 23)
+        * particle.wobble * Math.sin(life * Math.PI)
+      const asymmetricX = 0.9 + Math.sin(life * Math.PI) * 0.18
+      const asymmetricY = 0.92 + Math.sin(life * Math.PI * 2 + particle.phase * 7) * 0.08
+      const verticalScale = scale * particle.shapeY * asymmetricY
+      const surfaceOffset = this.family === 'foam'
+        ? verticalScale * 0.72
+        : this.family === 'aeration'
+          ? verticalScale * 0.12
+          : verticalScale * -0.12
+      const bob = Math.sin(this.time * 1.8 + particle.phase * 13) * verticalScale * 0.06
+      this.transform.position.set(
+        particle.x + particle.driftX * life + wobble,
+        particle.surfaceY + surfaceOffset + bob,
+        particle.z + particle.driftZ * life + wobble * 0.38,
+      )
+      this.transform.scale.set(
+        scale * particle.shapeX * asymmetricX,
+        verticalScale,
+        scale * particle.shapeZ,
+      )
+      this.transform.rotation.set(
+        wobble * 0.8,
+        this.time * (0.12 + particle.phase * 0.18),
+        Math.sin(this.time * 0.7 + particle.phase * 9) * 0.07,
+      )
+      this.transform.updateMatrix()
+      this.mesh.setMatrixAt(index, this.transform.matrix)
+    }
+    this.mesh.instanceMatrix.needsUpdate = true
   }
 
   dispose() {

@@ -18,7 +18,11 @@ describe('PVC pipe geometry', () => {
     const meshes = group.children.filter((child) => child instanceof Mesh)
 
     expect(meshes).toHaveLength(1)
-    expect(meshes[0]?.userData).toMatchObject({ pipeEdgeId: 'e0' })
+    expect(meshes[0]?.userData).toMatchObject({
+      pipeEdgeId: 'e0',
+      pipeEdgeStart: [0, 0, 0],
+      pipeEdgeEnd: [3, 0, 0],
+    })
   })
 
   test('keeps visible fitting bodies at bends while leaving endpoints clear', () => {

@@ -252,7 +252,10 @@ export default function PoolPipeTool() {
           )
         })
         pipePreviewControllers.get(extension.networkId)?.reset()
-        setSelection({ selectedIds: [network.id] })
+        setSelection({ selectedIds: [] })
+        usePipeEditStore.getState().setSubSelection(
+          updated.edges.at(-1) ? { networkId: network.id, element: 'edge', elementId: updated.edges.at(-1)!.id } : null,
+        )
         usePipeEditStore.getState().clearExtension()
         startConnectionKindRef.current = null
         useEditor.getState().setTool(null)
@@ -315,7 +318,10 @@ export default function PoolPipeTool() {
           }
           scene.updateNode(joinNetwork.data.id as never, { nodes: merged.nodes, edges: merged.edges } as unknown as Partial<AnyNode>)
         })
-        setSelection({ selectedIds: [joinNetwork.data.id] })
+        setSelection({ selectedIds: [] })
+        usePipeEditStore.getState().setSubSelection(
+          merged.edges.at(-1) ? { networkId: joinNetwork.data.id, element: 'edge', elementId: merged.edges.at(-1)!.id } : null,
+        )
         useEditor.getState().setTool(null)
         useEditor.getState().setMode('select')
         triggerSFX('sfx:structure-build')
@@ -334,7 +340,10 @@ export default function PoolPipeTool() {
         scene.createNode(preparePipeNetworkForCommit(pipe) as unknown as AnyNode, currentLevelId)
       })
       clearTransientPipePreview()
-      setSelection({ selectedIds: [pipe.id] })
+      setSelection({ selectedIds: [] })
+      usePipeEditStore.getState().setSubSelection(
+        pipe.edges.at(-1) ? { networkId: pipe.id, element: 'edge', elementId: pipe.edges.at(-1)!.id } : null,
+      )
       triggerSFX('sfx:structure-build')
       if (usePipeEditStore.getState().continuousDrawing) {
         setDraft([drawn.at(-1)!])

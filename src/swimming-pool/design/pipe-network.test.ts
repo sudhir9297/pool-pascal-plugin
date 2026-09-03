@@ -211,15 +211,31 @@ describe('pipe network graph', () => {
     expect(addPipeIntersectionFittings(vertical, [horizontal]).nodes.some((node) => node.kind === 'cross')).toBe(true)
   })
 
-  test('resolves every network crossing symmetrically at one shared location', () => {
+  test('splits both crossing networks while creating one canonical cross fitting', () => {
     const horizontal = createPipeNetwork({ id: 'topology-horizontal', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] })
     const vertical = createPipeNetwork({ id: 'topology-vertical', parentId: null, start: [0, 0, -2], end: [0, 0, 2] })
     const [resolvedHorizontal, resolvedVertical] = addPipeIntersectionFittingsToNetworks([horizontal, vertical])
 
     expect(resolvedHorizontal?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
-    expect(resolvedVertical?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
+    expect(resolvedVertical?.nodes.find((node) => node.position[0] === 0 && node.position[2] === 0)?.kind).toBe('straight')
     expect(resolvedHorizontal?.edges).toHaveLength(2)
     expect(resolvedVertical?.edges).toHaveLength(2)
+  })
+
+  test('resolves crossings in world space for transformed networks', () => {
+    const horizontal = createPipeNetwork({ id: 'world-horizontal', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] })
+    const vertical = {
+      ...createPipeNetwork({ id: 'world-vertical', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] }),
+      position: [10, 0, 5] as [number, number, number],
+      rotation: [0, Math.PI / 2, 0] as [number, number, number],
+    }
+    const movedHorizontal = { ...horizontal, position: [10, 0, 5] as [number, number, number] }
+    const [resolvedHorizontal, resolvedVertical] = addPipeIntersectionFittingsToNetworks([movedHorizontal, vertical])
+
+    expect(resolvedHorizontal?.edges).toHaveLength(2)
+    expect(resolvedVertical?.edges).toHaveLength(2)
+    expect(resolvedHorizontal?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
+    expect(resolvedVertical?.nodes.find((node) => node.position.every((value) => Math.abs(value) < 1e-6))?.kind).toBe('straight')
   })
 
   test('snaps to a pipe and joins a new run as a tee', () => {
@@ -278,7 +294,7 @@ describe('pipe network graph', () => {
     const moved = movePipeNodeAcrossNetworks([horizontal!, vertical!], horizontal!.id, junction.id, [0, 1, 0])
 
     expect(moved[0]?.nodes.find((node) => node.id === junction.id)?.position).toEqual([0, 1, 0])
-    expect(moved[1]?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 1, 0])
+    expect(moved[1]?.nodes.find((node) => node.position[0] === 0 && node.position[2] === 0)?.position).toEqual([0, 1, 0])
   })
 
   test('slides an edge by moving both endpoints together', () => {

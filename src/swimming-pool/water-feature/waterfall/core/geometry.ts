@@ -11,10 +11,12 @@ import {
 } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {
+  WaterfallBubbleCloudEffect,
   WaterfallLineEffect,
   WaterfallPoolEffect,
   WaterfallWaterEffect,
 } from '../../../shader/waterfall-effect'
+import type { WaterfallBubbleFamily } from '../../../shader/waterfall-effect'
 import {
   createLowPolyRockMesh,
   type LowPolyRockProfile,
@@ -450,6 +452,81 @@ function addWaterSheet(group: Group, width: number, height: number, topY: number
   lines.renderOrder = 4
   lines.userData.waterfallEffect = lineEffect
   group.add(lines)
+
+  addBubbleCloud(group, width, node)
+}
+
+function bubbleRandom(seed: number, index: number, salt: number) {
+  const value = Math.sin(seed * 0.017 + index * 91.173 + salt * 47.853) * 43758.5453
+  return value - Math.floor(value)
+}
+
+function addBubbleCloud(group: Group, width: number, node: PoolWaterfallNode) {
+  const depth = Math.max(0.3, width * 0.28)
+  const layerCounts: Record<WaterfallBubbleFamily, number> = {
+    foam: Math.max(9, Math.min(16, Math.round(9 + width * 3))),
+    aeration: Math.max(72, Math.min(140, Math.round(76 + width * 25))),
+    microstream: Math.max(18, Math.min(34, Math.round(18 + width * 7))),
+  }
+  let seedOffset = 0
+  for (const family of ['foam', 'aeration', 'microstream'] as const) {
+    const count = layerCounts[family]
+    const effect = new WaterfallBubbleCloudEffect(node, node.flowStrength, family, count)
+    effect.mesh.name = `waterfall-bubble-cloud-${family}`
+    effect.mesh.userData.bubbleFamily = family
+    effect.mesh.userData.waterfallEffect = effect
+    effect.mesh.renderOrder = family === 'foam' ? 8 : family === 'microstream' ? 7 : 6
+    effect.mesh.castShadow = false
+    effect.mesh.receiveShadow = false
+
+    for (let index = 0; index < count; index += 1) {
+      const seedIndex = seedOffset + index
+      const spread = family === 'foam' ? 0.78 : family === 'aeration' ? 1.12 : 0.66
+      const xRandomA = bubbleRandom(node.rockSeed, seedIndex, 1)
+      const xRandomB = bubbleRandom(node.rockSeed, seedIndex, 14)
+      const x = ((xRandomA + xRandomB) * 0.5 - 0.5) * width * spread
+      const across = x / Math.max(0.001, width * 0.5)
+      const impact = getWaterfallImpactLocalPoint(node, across)
+      const randomRadius = bubbleRandom(node.rockSeed, seedIndex, 2)
+      const radius = family === 'foam'
+        ? 0.04 + randomRadius * randomRadius * Math.min(0.065, width * 0.05)
+        : family === 'aeration'
+          ? 0.008 + randomRadius * 0.023
+          : 0.011 + randomRadius * 0.018
+      const zSpread = family === 'microstream' ? depth * 0.32 : family === 'foam' ? depth * 0.38 : depth
+      const zBias = family === 'foam' ? 0.5 : family === 'microstream' ? 0.3 : 0.18
+      const z = impact[1] + (bubbleRandom(node.rockSeed, seedIndex, 3) - zBias) * zSpread
+      const familyPhase = family === 'foam' ? 0 : family === 'aeration' ? 0.28 : 0.46
+      effect.addParticle({
+        x,
+        surfaceY: node.targetWaterOffset - 0.003
+          + (bubbleRandom(node.rockSeed, seedIndex, 15) - 0.5) * (family === 'foam' ? 0.018 : 0.008),
+        z,
+        radius,
+        phase: (familyPhase + bubbleRandom(node.rockSeed, seedIndex, 4)) % 1,
+        driftX: (bubbleRandom(node.rockSeed, seedIndex, 16) - 0.5)
+          * (family === 'aeration' ? 0.14 : 0.09),
+        driftZ: (family === 'aeration' ? 0.045 : 0.018) + bubbleRandom(node.rockSeed, seedIndex, 6) * 0.085,
+        shapeX: family === 'foam'
+          ? 0.92 + bubbleRandom(node.rockSeed, seedIndex, 7) * 0.24
+          : 0.84 + bubbleRandom(node.rockSeed, seedIndex, 7) * 0.32,
+        shapeY: family === 'foam'
+          ? 0.88 + bubbleRandom(node.rockSeed, seedIndex, 8) * 0.28
+          : family === 'microstream'
+            ? 1.55 + bubbleRandom(node.rockSeed, seedIndex, 8) * 1.35
+            : 0.88 + bubbleRandom(node.rockSeed, seedIndex, 8) * 0.24,
+        shapeZ: family === 'foam'
+          ? 0.92 + bubbleRandom(node.rockSeed, seedIndex, 9) * 0.24
+          : 0.86 + bubbleRandom(node.rockSeed, seedIndex, 9) * 0.3,
+        wobble: (family === 'aeration' ? 0.012 : 0.006) + bubbleRandom(node.rockSeed, seedIndex, 10) * 0.018,
+        frequency: 1.7 + bubbleRandom(node.rockSeed, seedIndex, 11) * 2.7,
+        speedJitter: 0.72 + bubbleRandom(node.rockSeed, seedIndex, 12) * 0.62,
+        tint: bubbleRandom(node.rockSeed, seedIndex, 13),
+      })
+    }
+    seedOffset += count
+    group.add(effect.mesh)
+  }
 }
 
 function addSpillwayBox(
@@ -694,9 +771,13 @@ function getSpillwayLandingZ(lipZ: number, sheetDepth: number) {
   return lipZ + getSpillwayCurveRadius(sheetDepth) + sheetDepth * 1.6
 }
 
-export function getWaterfallImpactLocalPoint(node: PoolWaterfallNode): [number, number] {
+export function getWaterfallImpactLocalPoint(node: PoolWaterfallNode, across = 0): [number, number] {
   const lipZ = node.waterfallType === 'modern' ? node.depth / 2 + node.sheetDepth : node.depth * 0.24
-  return [0, getSpillwayLandingZ(lipZ, node.sheetDepth)]
+  const flowWidth = node.waterfallType === 'modern'
+    ? Math.max(0.24, node.width - 0.08)
+    : node.width * 0.3
+  const x = Math.max(-1, Math.min(1, across)) * flowWidth * 0.5
+  return [x, getSpillwayLandingZ(lipZ, node.sheetDepth) + sampleEdgeCurve(node.edgeCurve, x).z]
 }
 
 function sampleEdgeCurve(curve: readonly (readonly [number, number])[] | null | undefined, x: number) {

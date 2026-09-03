@@ -1,8 +1,17 @@
 import { describe, expect, test } from 'bun:test'
-import { Box3, type Mesh, type Object3D } from 'three'
+import {
+  Box3,
+  Matrix4,
+  Quaternion,
+  Vector3,
+  type InstancedMesh,
+  type Mesh,
+  type MeshPhysicalMaterial,
+  type Object3D,
+} from 'three'
 import { LOW_POLY_ROCK_PROFILES } from '../../../design/low-poly-rock'
 import { DEFAULT_POOL_WATERFALL } from './definition'
-import { buildWaterfallGeometry } from './geometry'
+import { buildWaterfallGeometry, getWaterfallImpactLocalPoint } from './geometry'
 import { PoolWaterfallNode } from './schema'
 
 function namedObjects(root: Object3D) {
@@ -19,6 +28,7 @@ describe('waterfall geometry', () => {
     const geometry = buildWaterfallGeometry(node)
     const objects = namedObjects(geometry)
     const rocks = objects.filter((object) => object.name.startsWith('waterfall-rock-'))
+    const bubbles = objects.filter((object) => object.name.startsWith('waterfall-bubble-cloud-')) as InstancedMesh[]
     const profiles = new Set(rocks.map((rock) => rock.userData.rockProfile))
     const receivingWater = objects.find((object) => object.name === 'waterfall-receiving-water')
 
@@ -31,6 +41,16 @@ describe('waterfall geometry', () => {
     expect(objects.some((object) => object.name === 'waterfall-natural-channel')).toBe(true)
     expect(objects.some((object) => object.name === 'waterfall-water-sheet')).toBe(true)
     expect(objects.some((object) => object.name === 'waterfall-flow-lines')).toBe(true)
+    expect(bubbles).toHaveLength(3)
+    expect(new Set(bubbles.map((bubble) => bubble.userData.bubbleFamily)))
+      .toEqual(new Set(['foam', 'aeration', 'microstream']))
+    expect(bubbles.reduce((sum, bubble) => sum + bubble.count, 0)).toBeGreaterThan(100)
+    expect(bubbles.every((bubble) => bubble.instanceColor !== null)).toBe(true)
+    expect(bubbles.every((bubble) => bubble.geometry.getAttribute('normal').count > 40)).toBe(true)
+    expect(bubbles.every((bubble) => (bubble.material as MeshPhysicalMaterial).transmission > 0)).toBe(true)
+    const foam = bubbles.find((bubble) => bubble.userData.bubbleFamily === 'foam')!
+    expect((foam.material as MeshPhysicalMaterial).transmission).toBeGreaterThan(0.7)
+    expect((foam.material as MeshPhysicalMaterial).opacity).toBeLessThan(0.4)
     expect(objects.some((object) => object.name === 'waterfall-impact-foam')).toBe(false)
     expect(objects.some((object) => object.name === 'waterfall-mist')).toBe(false)
     expect(objects.some((object) => object.name === 'waterfall-fountain-spray')).toBe(false)
@@ -77,6 +97,7 @@ describe('waterfall geometry', () => {
     expect(names).toContain('waterfall-natural-cavity')
     expect(names).not.toContain('waterfall-water-sheet')
     expect(names).not.toContain('waterfall-flow-lines')
+    expect(names.some((name) => name.startsWith('waterfall-bubble-cloud-'))).toBe(false)
     expect(names).not.toContain('waterfall-impact-foam')
     expect(names).not.toContain('waterfall-mist')
     expect(names).not.toContain('waterfall-fountain-spray')
@@ -89,6 +110,7 @@ describe('waterfall geometry', () => {
       const names = namedObjects(geometry).map((object) => object.name)
       expect(names).toContain('waterfall-receiving-water')
       expect(names).toContain('waterfall-water-sheet')
+      expect(names.some((name) => name.startsWith('waterfall-bubble-cloud-'))).toBe(true)
       if (waterfallType === 'modern') {
         expect(names).toContain('waterfall-modern-wall')
         expect(names).toContain('waterfall-spillway-box')
@@ -210,6 +232,78 @@ describe('waterfall geometry', () => {
     const sheetBottom = sheet.position.y + sheet.geometry.boundingBox!.min.y
     expect(sheetBottom).toBeLessThan(node.targetWaterOffset)
     expect(sheetBottom).toBeGreaterThan(node.targetWaterOffset - 0.08)
+    const bubbles = objects.filter((object) => object.name.startsWith('waterfall-bubble-cloud-')) as InstancedMesh[]
+    for (const bubbleLayer of bubbles) bubbleLayer.userData.waterfallEffect.update(0.1)
+    const positions: Vector3[] = []
+    const scales: Vector3[] = []
+    const matrix = new Matrix4()
+    const quaternion = new Quaternion()
+    for (const bubbleLayer of bubbles) {
+      for (let index = 0; index < bubbleLayer.count; index += 1) {
+        const position = new Vector3()
+        const scale = new Vector3()
+        bubbleLayer.getMatrixAt(index, matrix)
+        matrix.decompose(position, quaternion, scale)
+        positions.push(position)
+        scales.push(scale)
+      }
+    }
+    expect(positions.length).toBeGreaterThan(100)
+    expect(new Set(scales.map((scale) => scale.x.toFixed(3))).size).toBeGreaterThan(20)
+    const foamLayer = bubbles.find((bubble) => bubble.name === 'waterfall-bubble-cloud-foam')!
+    expect(foamLayer.count).toBeGreaterThanOrEqual(9)
+    expect(foamLayer.count).toBeLessThanOrEqual(16)
+    const foamScales: Vector3[] = []
+    for (let index = 0; index < foamLayer.count; index += 1) {
+      const foamPosition = new Vector3()
+      const foamScale = new Vector3()
+      foamLayer.getMatrixAt(index, matrix)
+      matrix.decompose(foamPosition, quaternion, foamScale)
+      foamScales.push(foamScale)
+    }
+    expect(foamScales.filter((scale) => {
+      const smallest = Math.min(scale.x, scale.y, scale.z)
+      const largest = Math.max(scale.x, scale.y, scale.z)
+      return largest / Math.max(0.001, smallest) < 1.5
+    }).length).toBeGreaterThan(foamScales.length * 0.8)
+    expect(Math.max(...positions.map((position) => position.x))
+      - Math.min(...positions.map((position) => position.x)))
+      .toBeGreaterThan(node.width * 0.2)
+    const tops = positions.map((position, index) => position.y + scales[index]!.y)
+    expect(tops.filter((top) => top > node.targetWaterOffset).length)
+      .toBeGreaterThan(positions.length * 0.9)
+    expect(positions.every((position, index) => {
+      const top = position.y + scales[index]!.y
+      const bottom = position.y - scales[index]!.y
+      return top < node.targetWaterOffset + 0.18
+        && bottom > node.targetWaterOffset - 0.1
+    })).toBe(true)
+  })
+
+  test('samples waterfall impacts across the real curved contact edge', () => {
+    const node = PoolWaterfallNode.parse({
+      width: 4,
+      waterfallType: 'rock-cascade',
+      edgeCurve: [[-1, 0.34], [0, 0], [1, 0.22]],
+    })
+    const left = getWaterfallImpactLocalPoint(node, -1)
+    const center = getWaterfallImpactLocalPoint(node, 0)
+    const right = getWaterfallImpactLocalPoint(node, 1)
+
+    expect(left[0]).toBeCloseTo(-0.6)
+    expect(center[0]).toBe(0)
+    expect(right[0]).toBeCloseTo(0.6)
+    expect(left[1]).toBeGreaterThan(center[1])
+    expect(right[1]).toBeGreaterThan(center[1])
+    expect(left[1]).not.toBeCloseTo(right[1])
+  })
+
+  test('uses the full modern spillway width for its impact band', () => {
+    const node = PoolWaterfallNode.parse({ width: 1.2, waterfallType: 'modern' })
+    const left = getWaterfallImpactLocalPoint(node, -1)
+    const right = getWaterfallImpactLocalPoint(node, 1)
+
+    expect(right[0] - left[0]).toBeCloseTo(1.12)
   })
 
   test('renders waterfalls saved before pool-boundary fields were introduced', () => {

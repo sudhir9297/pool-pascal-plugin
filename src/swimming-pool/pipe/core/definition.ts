@@ -37,9 +37,6 @@ export const poolPipeDefinition: NodeDefinition<typeof PoolPipeNode> = {
   },
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   tool: () => import('../editor/tool'),
-  affordanceTools: {
-    selection: () => import('../editor/selection'),
-  },
   toolHints: [
     { key: 'First click', label: 'Set pipe start' },
     { key: 'Second click', label: 'Place pipe end' },

@@ -1,5 +1,6 @@
 import { STANDARD_POOL_PVC_DIAMETER } from '../pipe/core/constants'
 import { findPipeCrossing } from '../pipe/design/ports'
+import { Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
 export type PipePoint = [number, number, number]
 
@@ -343,11 +344,40 @@ function findEdgeAtPoint(network: PipeNetwork, point: PipePoint) {
   return best?.distance !== undefined && best.distance <= 0.08 ? best.edgeId : null
 }
 
-function insertIntersection(network: PipeNetwork, point: PipePoint): PipeNetwork {
+function networkTransform(network: PipeNetwork) {
+  return new Matrix4().compose(
+    new Vector3(...network.position),
+    new Quaternion().setFromEuler(new Euler(...network.rotation)),
+    new Vector3(1, 1, 1),
+  )
+}
+
+function worldSpaceNetwork(network: PipeNetwork): PipeNetwork {
+  const transform = networkTransform(network)
+  return {
+    ...network,
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    nodes: network.nodes.map((node) => {
+      const point = new Vector3(...node.position).applyMatrix4(transform)
+      return { ...node, position: [point.x, point.y, point.z] }
+    }),
+    edges: network.edges.map((edge) => ({ ...edge })),
+  }
+}
+
+function pointInNetworkSpace(network: PipeNetwork, point: PipePoint): PipePoint {
+  const local = new Vector3(...point).applyMatrix4(networkTransform(network).invert())
+  return [local.x, local.y, local.z]
+}
+
+function insertIntersection(network: PipeNetwork, point: PipePoint, markAsCross = true): PipeNetwork {
   const existing = network.nodes.find((node) => Math.hypot(node.position[0] - point[0], node.position[2] - point[2]) <= 0.08)
   if (existing) return {
     ...network,
-    nodes: network.nodes.map((node) => node.id === existing.id ? { ...node, kind: 'cross' } : { ...node }),
+    nodes: network.nodes.map((node) => node.id === existing.id
+      ? { ...node, kind: markAsCross ? 'cross' : derivePipeFittingKind(network, node.id) }
+      : { ...node }),
   }
   const edgeId = findEdgeAtPoint(network, point)
   if (!edgeId) return network
@@ -355,7 +385,7 @@ function insertIntersection(network: PipeNetwork, point: PipePoint): PipeNetwork
   const insertedId = inserted.nodes.at(-1)?.id
   return {
     ...inserted,
-    nodes: inserted.nodes.map((node) => node.id === insertedId ? { ...node, kind: 'cross' } : { ...node }),
+    nodes: inserted.nodes.map((node) => node.id === insertedId && markAsCross ? { ...node, kind: 'cross' } : { ...node }),
   }
 }
 
@@ -419,12 +449,14 @@ export function connectPipeNetworkAtPoint(
 export function addPipeIntersectionFittings(network: PipeNetwork, otherNetworks: readonly PipeNetwork[]): PipeNetwork {
   let next = network
   for (const other of otherNetworks) {
-    for (const edge of network.edges) {
-      const leftStart = network.nodes.find((node) => node.id === edge.from)?.position
-      const leftEnd = network.nodes.find((node) => node.id === edge.to)?.position
+    const leftWorld = worldSpaceNetwork(next)
+    const rightWorld = worldSpaceNetwork(other)
+    for (const edge of leftWorld.edges) {
+      const leftStart = leftWorld.nodes.find((node) => node.id === edge.from)?.position
+      const leftEnd = leftWorld.nodes.find((node) => node.id === edge.to)?.position
       if (!leftStart || !leftEnd) continue
-      const crossing = findPipeCrossing(leftStart, leftEnd, [other], { endMargin: 0.08 })
-      if (crossing) next = insertIntersection(next, crossing.position)
+      const crossing = findPipeCrossing(leftStart, leftEnd, [rightWorld], { endMargin: 0.08 })
+      if (crossing) next = insertIntersection(next, pointInNetworkSpace(next, crossing.position))
     }
   }
   return next
@@ -449,14 +481,19 @@ export function addPipeIntersectionFittingsToNetworks(
     for (let rightIndex = leftIndex + 1; rightIndex < resolved.length; rightIndex += 1) {
       const left = resolved[leftIndex]!
       const right = resolved[rightIndex]!
-      for (const edge of left.edges) {
-        const start = left.nodes.find((node) => node.id === edge.from)?.position
-        const end = left.nodes.find((node) => node.id === edge.to)?.position
+      const leftWorld = worldSpaceNetwork(left)
+      const rightWorld = worldSpaceNetwork(right)
+      for (const edge of leftWorld.edges) {
+        const start = leftWorld.nodes.find((node) => node.id === edge.from)?.position
+        const end = leftWorld.nodes.find((node) => node.id === edge.to)?.position
         if (!start || !end) continue
-        const crossing = findPipeCrossing(start, end, [right], { endMargin: 0.08 })
+        const crossing = findPipeCrossing(start, end, [rightWorld], { endMargin: 0.08 })
         if (!crossing) continue
-        resolved[leftIndex] = insertIntersection(resolved[leftIndex]!, crossing.position)
-        resolved[rightIndex] = insertIntersection(resolved[rightIndex]!, crossing.position)
+        // One network owns the physical cross fitting. The other network is
+        // still split at the exact same point, but must not render another
+        // fitting body on top of the canonical one.
+        resolved[leftIndex] = insertIntersection(resolved[leftIndex]!, pointInNetworkSpace(left, crossing.position), true)
+        resolved[rightIndex] = insertIntersection(resolved[rightIndex]!, pointInNetworkSpace(right, crossing.position), false)
       }
     }
   }
@@ -719,7 +756,7 @@ export function movePipeNodeAcrossNetworks(
   return networks.map((network) => {
     const movedIds = network.id === activeNetworkId
       ? new Set([nodeId])
-      : new Set(network.nodes.filter((node) => node.kind === 'cross' && isNearAnchor(node)).map((node) => node.id))
+      : new Set(network.nodes.filter((node) => isNearAnchor(node)).map((node) => node.id))
     if (movedIds.size === 0) return { ...network, nodes: network.nodes.map((node) => ({ ...node })) }
     const next: PipeNetwork = {
       ...network,

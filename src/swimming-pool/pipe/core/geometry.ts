@@ -60,7 +60,11 @@ export function buildPipeGeometry(network: PoolPipeNode): Group {
     )
     mesh.position.copy(midpoint)
     mesh.quaternion.copy(orientation)
-    mesh.userData = { pipeEdgeId: edge.id }
+    mesh.userData = {
+      pipeEdgeId: edge.id,
+      pipeEdgeStart: [...start],
+      pipeEdgeEnd: [...end],
+    }
     group.add(mesh)
   }
 

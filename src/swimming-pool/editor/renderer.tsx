@@ -10,7 +10,7 @@ import type { WebGPURenderer } from 'three/webgpu'
 import { buildPoolGeometry } from '../core/geometry'
 import type { PoolNode } from '../core/schema'
 import { getPoolConnectionRegions } from '../design/shared-joint'
-import { subscribePoolWaterActions, subscribePoolWaterImpacts } from '../shader/water-actions'
+import { subscribePoolWaterActions } from '../shader/water-actions'
 import type { PoolWaterEffect } from '../shader/water-effect'
 
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
@@ -51,12 +51,8 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
         waterEffect.setSettings({ ...node, rain: 0.75, breeze: 0.85, viscosity: 0.12, surfaceDetail: 2.4 })
       }
     })
-    const unsubscribeImpacts = subscribePoolWaterImpacts(node.id, (impact) => {
-      waterEffect.addWaterfallImpact(impact.u, impact.v, impact.strength)
-    })
     return () => {
       unsubscribeActions()
-      unsubscribeImpacts()
     }
   }, [node, waterEffect])
 
