@@ -1,17 +1,32 @@
 'use client'
 
-import { useRegistry, type AnyNode } from '@pascal-app/core'
+import { useRegistry, useScene, type AnyNode } from '@pascal-app/core'
 import { useNodeEvents } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef } from 'react'
-import type { Group, Material, Mesh } from 'three'
+import { Group } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
+import { PoolNode } from '../../core/schema'
 import { buildPoolSpilloverGeometry } from '../core/geometry'
 import type { PoolSpilloverNode } from '../core/schema'
+import { resolvePoolSpilloverSyncUpdate } from '../design/sync'
+import { disposePoolSpilloverVisual } from './dispose-visual'
 
 export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode }) {
   const rootRef = useRef<Group>(null!)
   const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
-  const geometry = useMemo(() => buildPoolSpilloverGeometry(node), [node])
+  const sourceValue = useScene((state) => state.nodes[node.sourcePoolId as never])
+  const targetValue = useScene((state) => state.nodes[node.targetPoolId as never])
+  const liveNode = useMemo(() => {
+    const source = PoolNode.safeParse(sourceValue)
+    const target = PoolNode.safeParse(targetValue)
+    if (!source.success || !target.success) return null
+    const update = resolvePoolSpilloverSyncUpdate(node, source.data, target.data)
+    return update ? { ...node, ...update } : null
+  }, [node, sourceValue, targetValue])
+  const geometry = useMemo(
+    () => liveNode ? buildPoolSpilloverGeometry(liveNode) : new Group(),
+    [liveNode],
+  )
   useRegistry(node.id, node.type, rootRef)
   useEffect(() => {
     let frame = 0
@@ -29,15 +44,15 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [geometry])
-  useEffect(() => () => {
-    for (const effect of geometry.userData.waterEffects ?? []) effect.dispose()
-    geometry.traverse((child) => {
-      const mesh = child as Mesh
-      if (!mesh.isMesh) return
-      mesh.geometry.dispose()
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      for (const material of materials as Material[]) material.dispose()
-    })
-  }, [geometry])
-  return <group ref={rootRef} position={node.position} rotation={node.rotation} {...handlers}><primitive object={geometry} /></group>
+  useEffect(() => () => disposePoolSpilloverVisual(geometry), [geometry])
+  return (
+    <group
+      ref={rootRef}
+      position={liveNode?.position ?? node.position}
+      rotation={liveNode?.rotation ?? node.rotation}
+      {...handlers}
+    >
+      <primitive object={geometry} />
+    </group>
+  )
 }

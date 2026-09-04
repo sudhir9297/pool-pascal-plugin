@@ -1,7 +1,22 @@
 import { describe, expect, test } from 'bun:test'
-import { addPipeIntersectionFittings, addPipeIntersectionFittingsToNetworks, appendPipePoint, attachPipeNode, branchPipePoint, connectPipeNetworkAtPoint, createPipeNetwork, createPipeNetworkFromPoints, deletePipeEdge, derivePipeFittingKind, detachPipeNode, findAnchoredPipeNodeIds, findNearestPipeConnection, getPipeEdgeEndpointIds, getPipeNodeAttachment, insertPipePoint, mergePipeNetworksAtEndpoints, movePipeEndpoint, movePipeEndpointByVector, movePipeEndpointTo, movePipeNode, movePipeNodeAcrossNetworks, normalizePipeNetworkEdgeIds, preparePipeNetworkForCommit, slidePipeEdge, syncAttachedPipeEndpoints, validatePipeNetwork } from './pipe-network'
+import { addPipeIntersectionFittings, addPipeIntersectionFittingsToNetworks, appendPipePoint, attachPipeNode, branchPipePoint, connectPipeNetworkAtPoint, createPipeNetwork, createPipeNetworkFromPoints, deletePipeEdge, derivePipeFittingKind, detachPipeNode, findAnchoredPipeNodeIds, findNearestPipeConnection, getPipeEdgeEndpointIds, getPipeNodeAttachment, insertPipePoint, mergePipeNetworksAtEndpoints, movePipeEndpoint, movePipeEndpointByVector, movePipeEndpointTo, movePipeNode, movePipeNodeAcrossNetworks, normalizePipeNetworkEdgeIds, preparePipeNetworkForCommit, rotatePipeBranch, slidePipeEdge, syncAttachedPipeEndpoints, validatePipeNetwork } from './pipe-network'
 
 describe('pipe network graph', () => {
+  test('rotates only the selected branch around a fitting pivot', () => {
+    const network = createPipeNetworkFromPoints('pipe_network_rotation', 'level_ground', [
+      [-2, 0, 0],
+      [0, 0, 0],
+      [2, 0, 0],
+      [4, 0, 0],
+    ])
+    const rotated = rotatePipeBranch(network, 'n1', 'n2', Math.PI / 2)
+    expect(rotated.nodes.find((node) => node.id === 'n1')?.position).toEqual([0, 0, 0])
+    expect(rotated.nodes.find((node) => node.id === 'n0')?.position).toEqual([-2, 0, 0])
+    expect(rotated.nodes.find((node) => node.id === 'n2')?.position[0]).toBeCloseTo(0)
+    expect(rotated.nodes.find((node) => node.id === 'n2')?.position[2]).toBeCloseTo(-2)
+    expect(rotated.nodes.find((node) => node.id === 'n3')?.position[2]).toBeCloseTo(-4)
+  })
+
   test('creates an open PVC run from two points', () => {
     const network = createPipeNetwork({
       id: 'pipe_network_1',
@@ -168,6 +183,17 @@ describe('pipe network graph', () => {
     expect(branched.edges.at(-1)).toEqual({ id: 'e3', from: 'n2', to: 'n3', style: 'rigid' })
   })
 
+  test('branches from an L corner and promotes the elbow to a tee', () => {
+    const lShape = createPipeNetworkFromPoints('pipe_l_corner', null, [
+      [0, 0, 0], [2, 0, 0], [2, 0, 2],
+    ])
+
+    const branched = branchPipePoint(lShape, 'n1', [2, 0, -2])
+
+    expect(branched.nodes.find((node) => node.id === 'n1')?.kind).toBe('tee')
+    expect(branched.edges.at(-1)).toEqual({ id: 'e2', from: 'n1', to: 'n3', style: 'rigid' })
+  })
+
   test('deletes only a selected branch and restores the cut run', () => {
     const trunk = insertPipePoint(createPipeNetwork({
       id: 'pipe_delete_branch', parentId: null, start: [-2, 0, 0], end: [2, 0, 0],
@@ -176,11 +202,10 @@ describe('pipe network graph', () => {
     const updated = deletePipeEdge(tee, 'e3')
 
     expect(updated.edges).toEqual([
-      { id: 'e1', from: 'n0', to: 'n2', style: 'rigid' },
-      { id: 'e2', from: 'n2', to: 'n1', style: 'rigid' },
+      { id: 'e1', from: 'n0', to: 'n1', style: 'rigid' },
     ])
-    expect(updated.nodes).toHaveLength(3)
-    expect(updated.nodes.find((node) => node.id === 'n2')?.kind).toBe('straight')
+    expect(updated.nodes).toHaveLength(2)
+    expect(updated.nodes.find((node) => node.id === 'n2')).toBeUndefined()
     expect(updated.nodes.some((node) => node.id === 'n3')).toBe(false)
   })
 
@@ -199,6 +224,17 @@ describe('pipe network graph', () => {
     expect(derivePipeFittingKind(diagonalY, 'n2')).toBe('y')
   })
 
+  test('keeps a shallow visible bend as an elbow instead of a straight run', () => {
+    const angle = (15 * Math.PI) / 180
+    const shallowBend = createPipeNetworkFromPoints('pipe_shallow_bend', null, [
+      [-2, 0, 0],
+      [0, 0, 0],
+      [2 * Math.cos(angle), 0, 2 * Math.sin(angle)],
+    ])
+
+    expect(derivePipeFittingKind(shallowBend, 'n1')).toBe('elbow')
+  })
+
   test('splits crossing networks and marks the crossing node as a cross fitting', () => {
     const horizontal = createPipeNetwork({ id: 'pipe_cross_horizontal', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] })
     const vertical = createPipeNetwork({ id: 'pipe_cross_vertical', parentId: null, start: [0, 0, -2], end: [0, 0, 2] })
@@ -211,31 +247,15 @@ describe('pipe network graph', () => {
     expect(addPipeIntersectionFittings(vertical, [horizontal]).nodes.some((node) => node.kind === 'cross')).toBe(true)
   })
 
-  test('splits both crossing networks while creating one canonical cross fitting', () => {
+  test('resolves every network crossing symmetrically at one shared location', () => {
     const horizontal = createPipeNetwork({ id: 'topology-horizontal', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] })
     const vertical = createPipeNetwork({ id: 'topology-vertical', parentId: null, start: [0, 0, -2], end: [0, 0, 2] })
     const [resolvedHorizontal, resolvedVertical] = addPipeIntersectionFittingsToNetworks([horizontal, vertical])
 
     expect(resolvedHorizontal?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
-    expect(resolvedVertical?.nodes.find((node) => node.position[0] === 0 && node.position[2] === 0)?.kind).toBe('straight')
+    expect(resolvedVertical?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
     expect(resolvedHorizontal?.edges).toHaveLength(2)
     expect(resolvedVertical?.edges).toHaveLength(2)
-  })
-
-  test('resolves crossings in world space for transformed networks', () => {
-    const horizontal = createPipeNetwork({ id: 'world-horizontal', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] })
-    const vertical = {
-      ...createPipeNetwork({ id: 'world-vertical', parentId: null, start: [-2, 0, 0], end: [2, 0, 0] }),
-      position: [10, 0, 5] as [number, number, number],
-      rotation: [0, Math.PI / 2, 0] as [number, number, number],
-    }
-    const movedHorizontal = { ...horizontal, position: [10, 0, 5] as [number, number, number] }
-    const [resolvedHorizontal, resolvedVertical] = addPipeIntersectionFittingsToNetworks([movedHorizontal, vertical])
-
-    expect(resolvedHorizontal?.edges).toHaveLength(2)
-    expect(resolvedVertical?.edges).toHaveLength(2)
-    expect(resolvedHorizontal?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 0, 0])
-    expect(resolvedVertical?.nodes.find((node) => node.position.every((value) => Math.abs(value) < 1e-6))?.kind).toBe('straight')
   })
 
   test('snaps to a pipe and joins a new run as a tee', () => {
@@ -294,7 +314,7 @@ describe('pipe network graph', () => {
     const moved = movePipeNodeAcrossNetworks([horizontal!, vertical!], horizontal!.id, junction.id, [0, 1, 0])
 
     expect(moved[0]?.nodes.find((node) => node.id === junction.id)?.position).toEqual([0, 1, 0])
-    expect(moved[1]?.nodes.find((node) => node.position[0] === 0 && node.position[2] === 0)?.position).toEqual([0, 1, 0])
+    expect(moved[1]?.nodes.find((node) => node.kind === 'cross')?.position).toEqual([0, 1, 0])
   })
 
   test('slides an edge by moving both endpoints together', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { BoxGeometry, IcosahedronGeometry, Mesh, SphereGeometry } from 'three'
+import { IcosahedronGeometry, Mesh, SphereGeometry } from 'three'
 import { buildPipeGeometry } from './geometry'
 import { PoolPipeNode } from './schema'
 
@@ -18,11 +18,7 @@ describe('PVC pipe geometry', () => {
     const meshes = group.children.filter((child) => child instanceof Mesh)
 
     expect(meshes).toHaveLength(1)
-    expect(meshes[0]?.userData).toMatchObject({
-      pipeEdgeId: 'e0',
-      pipeEdgeStart: [0, 0, 0],
-      pipeEdgeEnd: [3, 0, 0],
-    })
+    expect(meshes[0]?.userData).toMatchObject({ pipeEdgeId: 'e0' })
   })
 
   test('keeps visible fitting bodies at bends while leaving endpoints clear', () => {
@@ -65,7 +61,7 @@ describe('PVC pipe geometry', () => {
     const fittingMeshes = buildPipeGeometry(network).children.filter((child) => child instanceof Mesh && child.userData.pipeFittingKind)
     expect(fittingMeshes).toHaveLength(5)
     expect(fittingMeshes[0]?.userData.pipeFittingKind).toBe('cross')
-    expect((fittingMeshes[0] as Mesh | undefined)?.geometry).toBeInstanceOf(BoxGeometry)
+    expect((fittingMeshes[0] as Mesh | undefined)?.geometry).toBeInstanceOf(SphereGeometry)
   })
 
   test('renders a plus fitting for a crossing node with two local edges', () => {
@@ -84,7 +80,7 @@ describe('PVC pipe geometry', () => {
 
     const fittingMeshes = buildPipeGeometry(network).children.filter((child) => child instanceof Mesh && child.userData.pipeFittingKind === 'cross')
     expect(fittingMeshes).toHaveLength(5)
-    expect((fittingMeshes[0] as Mesh | undefined)?.geometry).toBeInstanceOf(BoxGeometry)
+    expect((fittingMeshes[0] as Mesh | undefined)?.geometry).toBeInstanceOf(SphereGeometry)
 
     const yNetwork = PoolPipeNode.parse({
       id: 'pipe-network_y-body',

@@ -1,6 +1,5 @@
 import { STANDARD_POOL_PVC_DIAMETER } from '../pipe/core/constants'
 import { findPipeCrossing } from '../pipe/design/ports'
-import { Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
 export type PipePoint = [number, number, number]
 
@@ -281,7 +280,11 @@ function isNearlyOpposite(left: PipePoint, right: PipePoint) {
   const rightLength = Math.hypot(...right)
   if (leftLength <= Number.EPSILON || rightLength <= Number.EPSILON) return false
   const dot = (left[0] * right[0] + left[1] * right[1] + left[2] * right[2]) / (leftLength * rightLength)
-  return dot <= -0.9
+  // Only treat a junction as straight when the two runs are within 10° of
+  // being perfectly collinear. A wider tolerance hides real shallow bends
+  // that still require a molded elbow fitting.
+  const straightAngleTolerance = (10 * Math.PI) / 180
+  return dot <= -Math.cos(straightAngleTolerance)
 }
 
 export function derivePipeFittingKind(network: PipeNetwork, nodeId: string): PipeFittingKind {
@@ -344,40 +347,11 @@ function findEdgeAtPoint(network: PipeNetwork, point: PipePoint) {
   return best?.distance !== undefined && best.distance <= 0.08 ? best.edgeId : null
 }
 
-function networkTransform(network: PipeNetwork) {
-  return new Matrix4().compose(
-    new Vector3(...network.position),
-    new Quaternion().setFromEuler(new Euler(...network.rotation)),
-    new Vector3(1, 1, 1),
-  )
-}
-
-function worldSpaceNetwork(network: PipeNetwork): PipeNetwork {
-  const transform = networkTransform(network)
-  return {
-    ...network,
-    position: [0, 0, 0],
-    rotation: [0, 0, 0],
-    nodes: network.nodes.map((node) => {
-      const point = new Vector3(...node.position).applyMatrix4(transform)
-      return { ...node, position: [point.x, point.y, point.z] }
-    }),
-    edges: network.edges.map((edge) => ({ ...edge })),
-  }
-}
-
-function pointInNetworkSpace(network: PipeNetwork, point: PipePoint): PipePoint {
-  const local = new Vector3(...point).applyMatrix4(networkTransform(network).invert())
-  return [local.x, local.y, local.z]
-}
-
-function insertIntersection(network: PipeNetwork, point: PipePoint, markAsCross = true): PipeNetwork {
+function insertIntersection(network: PipeNetwork, point: PipePoint): PipeNetwork {
   const existing = network.nodes.find((node) => Math.hypot(node.position[0] - point[0], node.position[2] - point[2]) <= 0.08)
   if (existing) return {
     ...network,
-    nodes: network.nodes.map((node) => node.id === existing.id
-      ? { ...node, kind: markAsCross ? 'cross' : derivePipeFittingKind(network, node.id) }
-      : { ...node }),
+    nodes: network.nodes.map((node) => node.id === existing.id ? { ...node, kind: 'cross' } : { ...node }),
   }
   const edgeId = findEdgeAtPoint(network, point)
   if (!edgeId) return network
@@ -385,7 +359,7 @@ function insertIntersection(network: PipeNetwork, point: PipePoint, markAsCross 
   const insertedId = inserted.nodes.at(-1)?.id
   return {
     ...inserted,
-    nodes: inserted.nodes.map((node) => node.id === insertedId && markAsCross ? { ...node, kind: 'cross' } : { ...node }),
+    nodes: inserted.nodes.map((node) => node.id === insertedId ? { ...node, kind: 'cross' } : { ...node }),
   }
 }
 
@@ -449,14 +423,12 @@ export function connectPipeNetworkAtPoint(
 export function addPipeIntersectionFittings(network: PipeNetwork, otherNetworks: readonly PipeNetwork[]): PipeNetwork {
   let next = network
   for (const other of otherNetworks) {
-    const leftWorld = worldSpaceNetwork(next)
-    const rightWorld = worldSpaceNetwork(other)
-    for (const edge of leftWorld.edges) {
-      const leftStart = leftWorld.nodes.find((node) => node.id === edge.from)?.position
-      const leftEnd = leftWorld.nodes.find((node) => node.id === edge.to)?.position
+    for (const edge of network.edges) {
+      const leftStart = network.nodes.find((node) => node.id === edge.from)?.position
+      const leftEnd = network.nodes.find((node) => node.id === edge.to)?.position
       if (!leftStart || !leftEnd) continue
-      const crossing = findPipeCrossing(leftStart, leftEnd, [rightWorld], { endMargin: 0.08 })
-      if (crossing) next = insertIntersection(next, pointInNetworkSpace(next, crossing.position))
+      const crossing = findPipeCrossing(leftStart, leftEnd, [other], { endMargin: 0.08 })
+      if (crossing) next = insertIntersection(next, crossing.position)
     }
   }
   return next
@@ -481,19 +453,14 @@ export function addPipeIntersectionFittingsToNetworks(
     for (let rightIndex = leftIndex + 1; rightIndex < resolved.length; rightIndex += 1) {
       const left = resolved[leftIndex]!
       const right = resolved[rightIndex]!
-      const leftWorld = worldSpaceNetwork(left)
-      const rightWorld = worldSpaceNetwork(right)
-      for (const edge of leftWorld.edges) {
-        const start = leftWorld.nodes.find((node) => node.id === edge.from)?.position
-        const end = leftWorld.nodes.find((node) => node.id === edge.to)?.position
+      for (const edge of left.edges) {
+        const start = left.nodes.find((node) => node.id === edge.from)?.position
+        const end = left.nodes.find((node) => node.id === edge.to)?.position
         if (!start || !end) continue
-        const crossing = findPipeCrossing(start, end, [rightWorld], { endMargin: 0.08 })
+        const crossing = findPipeCrossing(start, end, [right], { endMargin: 0.08 })
         if (!crossing) continue
-        // One network owns the physical cross fitting. The other network is
-        // still split at the exact same point, but must not render another
-        // fitting body on top of the canonical one.
-        resolved[leftIndex] = insertIntersection(resolved[leftIndex]!, pointInNetworkSpace(left, crossing.position), true)
-        resolved[rightIndex] = insertIntersection(resolved[rightIndex]!, pointInNetworkSpace(right, crossing.position), false)
+        resolved[leftIndex] = insertIntersection(resolved[leftIndex]!, crossing.position)
+        resolved[rightIndex] = insertIntersection(resolved[rightIndex]!, crossing.position)
       }
     }
   }
@@ -736,6 +703,65 @@ export function movePipeNode(
   return { ...next, nodes: refreshPipeFittingKinds(next) }
 }
 
+/**
+ * Rotate one connected branch around a fitting while leaving the fitting and
+ * the rest of the network fixed. This is the graph equivalent of rotating a
+ * molded elbow/tee branch in-place: topology and segment lengths are kept,
+ * only the selected branch subtree's positions change.
+ */
+export function rotatePipeBranch(
+  network: PipeNetwork,
+  fittingId: string,
+  branchRootId: string,
+  angle: number,
+  axis: PipePoint = [0, 1, 0],
+): PipeNetwork {
+  const fitting = network.nodes.find((node) => node.id === fittingId)
+  if (!fitting) throw new Error(`Pipe fitting not found: ${fittingId}`)
+  if (!network.nodes.some((node) => node.id === branchRootId)) throw new Error(`Pipe branch root not found: ${branchRootId}`)
+  if (fittingId === branchRootId) throw new Error('A fitting cannot rotate around itself.')
+
+  const neighbors = new Map<string, string[]>()
+  for (const edge of network.edges) {
+    neighbors.set(edge.from, [...(neighbors.get(edge.from) ?? []), edge.to])
+    neighbors.set(edge.to, [...(neighbors.get(edge.to) ?? []), edge.from])
+  }
+  const moved = new Set<string>()
+  const queue = [branchRootId]
+  while (queue.length) {
+    const current = queue.shift()!
+    if (current === fittingId || moved.has(current)) continue
+    moved.add(current)
+    for (const next of neighbors.get(current) ?? []) queue.push(next)
+  }
+
+  const axisLength = Math.hypot(...axis)
+  if (axisLength <= Number.EPSILON) throw new Error('Rotation axis must have a non-zero length.')
+  const unitAxis = axis.map((value) => value / axisLength) as PipePoint
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const rotate = (position: PipePoint): PipePoint => {
+    const relative: PipePoint = [position[0] - fitting.position[0], position[1] - fitting.position[1], position[2] - fitting.position[2]]
+    const dot = relative[0] * unitAxis[0] + relative[1] * unitAxis[1] + relative[2] * unitAxis[2]
+    const cross: PipePoint = [
+      unitAxis[1] * relative[2] - unitAxis[2] * relative[1],
+      unitAxis[2] * relative[0] - unitAxis[0] * relative[2],
+      unitAxis[0] * relative[1] - unitAxis[1] * relative[0],
+    ]
+    return [
+      fitting.position[0] + relative[0] * cos + cross[0] * sin + unitAxis[0] * dot * (1 - cos),
+      fitting.position[1] + relative[1] * cos + cross[1] * sin + unitAxis[1] * dot * (1 - cos),
+      fitting.position[2] + relative[2] * cos + cross[2] * sin + unitAxis[2] * dot * (1 - cos),
+    ]
+  }
+  const next: PipeNetwork = {
+    ...network,
+    nodes: network.nodes.map((node) => moved.has(node.id) ? { ...node, position: rotate(node.position) } : { ...node }),
+    edges: network.edges.map((edge) => ({ ...edge })),
+  }
+  return { ...next, nodes: refreshPipeFittingKinds(next) }
+}
+
 /** Move a junction and keep coincident junctions in sibling networks aligned. */
 export function movePipeNodeAcrossNetworks(
   networks: readonly PipeNetwork[],
@@ -756,7 +782,7 @@ export function movePipeNodeAcrossNetworks(
   return networks.map((network) => {
     const movedIds = network.id === activeNetworkId
       ? new Set([nodeId])
-      : new Set(network.nodes.filter((node) => isNearAnchor(node)).map((node) => node.id))
+      : new Set(network.nodes.filter((node) => node.kind === 'cross' && isNearAnchor(node)).map((node) => node.id))
     if (movedIds.size === 0) return { ...network, nodes: network.nodes.map((node) => ({ ...node })) }
     const next: PipeNetwork = {
       ...network,
@@ -846,5 +872,31 @@ export function deletePipeEdge(network: PipeNetwork, edgeId: string): PipeNetwor
     edges,
     attachments: (network.attachments ?? []).filter((attachment) => !removedNodeIds.has(attachment.nodeId)),
   }
-  return { ...next, nodes: refreshPipeFittingKinds(next) }
+  return collapseStraightJunctions(next)
+}
+
+function collapseStraightJunctions(network: PipeNetwork): PipeNetwork {
+  let current = { ...network, nodes: refreshPipeFittingKinds(network) }
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const node of current.nodes) {
+      if (node.kind !== 'straight') continue
+      if ((current.attachments ?? []).some((attachment) => attachment.nodeId === node.id)) continue
+      const incident = current.edges.filter((edge) => edge.from === node.id || edge.to === node.id)
+      if (incident.length !== 2 || incident.some((edge) => edge.style !== 'rigid')) continue
+      const otherIds = incident.map((edge) => edge.from === node.id ? edge.to : edge.from)
+      if (otherIds[0] === otherIds[1]) continue
+      const mergedEdge = { id: incident[0]!.id, from: otherIds[0]!, to: otherIds[1]!, style: 'rigid' as const }
+      current = {
+        ...current,
+        nodes: current.nodes.filter((candidate) => candidate.id !== node.id),
+        edges: [...current.edges.filter((edge) => edge.from !== node.id && edge.to !== node.id), mergedEdge],
+      }
+      current = { ...current, nodes: refreshPipeFittingKinds(current) }
+      changed = true
+      break
+    }
+  }
+  return current
 }

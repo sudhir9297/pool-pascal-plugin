@@ -1,11 +1,32 @@
 import type { AnyNode } from '@pascal-app/core'
 import { PoolNode } from '../../core/schema'
 import { PoolSpilloverNode } from '../core/schema'
-import { resolvePoolSpillover } from './placement'
+import { resolvePoolSpillover, type PoolSpilloverPlacement } from './placement'
 
 export type PoolSpilloverChanges = {
   update: Array<{ id: string; data: Partial<PoolSpilloverNode> }>
   delete: string[]
+}
+
+export type PoolSpilloverSyncUpdate = PoolSpilloverPlacement & Pick<PoolSpilloverNode,
+  'effectiveWidth' | 'waterColor' | 'surfaceColor'
+>
+
+/** Resolves current endpoint geometry while retaining user-authored appearance settings. */
+export function resolvePoolSpilloverSyncUpdate(
+  spillover: PoolSpilloverNode,
+  first: PoolNode,
+  second: PoolNode,
+): PoolSpilloverSyncUpdate | null {
+  const placement = resolvePoolSpillover(first, second, spillover.connectionStyle, spillover.width)
+  if (!placement) return null
+  return {
+    ...placement,
+    width: spillover.width,
+    effectiveWidth: placement.width,
+    waterColor: spillover.waterColor,
+    surfaceColor: spillover.surfaceColor,
+  }
 }
 
 /** Recomputes a spillover's direction, drop, and footprint after either pool moves. */
@@ -27,9 +48,9 @@ export function syncPoolSpillovers(nodes: Record<string, AnyNode>): PoolSpillove
       deleteIds.push(spillover.data.id)
       continue
     }
-    const placement = resolvePoolSpillover(source, target)
-    if (!placement) { deleteIds.push(spillover.data.id); continue }
-    update.push({ id: spillover.data.id, data: placement })
+    const data = resolvePoolSpilloverSyncUpdate(spillover.data, source, target)
+    if (!data) { deleteIds.push(spillover.data.id); continue }
+    update.push({ id: spillover.data.id, data })
   }
   return { update, delete: deleteIds }
 }

@@ -1,6 +1,22 @@
-import type { NodeDefinition } from '@pascal-app/core'
+import type { NodeDefinition, ToolHintChip } from '@pascal-app/core'
 import { STANDARD_POOL_PVC_DIAMETER } from './constants'
 import { PoolPipeNode } from './schema'
+import { usePipeEditStore } from '../editor/store'
+
+const continuousDrawingChip: ToolHintChip = {
+  subscribe: (listener) => usePipeEditStore.subscribe(() => listener()),
+  value: () => usePipeEditStore.getState().continuousDrawing ? 'continuous' : 'single',
+  cycle: () => { usePipeEditStore.getState().toggleContinuousDrawing() },
+  labels: {
+    single: 'Drawing: Single',
+    continuous: 'Drawing: Continuous',
+  },
+  icons: {
+    single: 'lucide:mouse-pointer-click',
+    continuous: 'lucide:repeat-2',
+  },
+  tooltip: 'Drawing mode — click or press C to toggle',
+}
 
 export const DEFAULT_POOL_PIPE = {
   position: [0, 0, 0] as [number, number, number],
@@ -28,7 +44,9 @@ export const poolPipeDefinition: NodeDefinition<typeof PoolPipeNode> = {
   }),
   capabilities: {
     movable: { axes: ['x', 'y', 'z'], gridSnap: true },
-    rotatable: { axes: ['x', 'y', 'z'] },
+    // Network rotation is intentionally handled by fitting-level controls.
+    // Keeping the generic node rotator enabled draws a large editor ring
+    // around the whole PVC network and permits an invalid global rotation.
     selectable: { hitVolume: 'bbox' },
     duplicable: true,
     deletable: true,
@@ -40,6 +58,7 @@ export const poolPipeDefinition: NodeDefinition<typeof PoolPipeNode> = {
   toolHints: [
     { key: 'First click', label: 'Set pipe start' },
     { key: 'Second click', label: 'Place pipe end' },
+    { key: 'C', label: 'Drawing mode', chip: continuousDrawingChip },
     { key: 'Esc', label: 'Cancel pipe drawing' },
   ],
   presentation: {

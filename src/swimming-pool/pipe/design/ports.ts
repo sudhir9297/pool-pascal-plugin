@@ -7,7 +7,7 @@ import type { PoolDrainNode } from '../../drain/core/schema'
 import { getSkimmerPipeConnection, resolveMountedSkimmer } from '../../skimmer/design/placement'
 import type { PoolSkimmerNode } from '../../skimmer/core/schema'
 import { getValveSlotKey } from '../../valve/design/placement'
-import { getValvePortPositions } from '../../valve/core/geometry'
+import { getValveConnectionPortIndices, getValvePortPositions } from '../../valve/core/geometry'
 import type { PoolValveNode } from '../../valve/core/schema'
 import type { PipeNetwork } from '../../design/pipe-network'
 
@@ -307,7 +307,12 @@ export function collectPoolPipePorts({ nodes, pools = [], ignoreNetworkId }: Poo
     ports.push({ id: `${node.id}:socket`, ownerId: node.id, kind: 'equipment', position: connection.position, direction: connection.direction })
   }
   for (const node of valves) {
-    getValvePortPositions(node).forEach((position, portIndex) => ports.push({ id: getValveSlotKey(node.id, portIndex), ownerId: node.id, kind: 'equipment', position: [position.x, position.y, position.z], direction: unit([position.x - node.position[0], position.y - node.position[1], position.z - node.position[2]]), diameter: node.diameter }))
+    const positions = getValvePortPositions(node)
+    for (const portIndex of getValveConnectionPortIndices(node)) {
+      const position = positions[portIndex]
+      if (!position) continue
+      ports.push({ id: getValveSlotKey(node.id, portIndex), ownerId: node.id, kind: 'equipment', position: [position.x, position.y, position.z], direction: unit([position.x - node.position[0], position.y - node.position[1], position.z - node.position[2]]), diameter: node.diameter })
+    }
   }
   for (const node of drains) {
     const connection = getDrainPipeConnection(node)

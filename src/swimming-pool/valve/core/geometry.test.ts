@@ -1,8 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { getValveFlowPairs, getValveOpenPortIndices } from './geometry'
+import { getValveConnectionPortIndices, getValveFlowPairs, getValveOpenPortIndices } from './geometry'
 import { PoolValveNode } from './schema'
 
 describe('pool valve flow pattern', () => {
+  test('keeps every physical socket connectable regardless of flow pattern', () => {
+    const valve = PoolValveNode.parse({ id: 'pool-valve_connections', variant: 'three-way', flowPattern: 'closed' })
+
+    expect(getValveConnectionPortIndices(valve)).toEqual([0, 1, 2])
+    expect(getValveOpenPortIndices(valve)).toEqual(new Set())
+  })
+
   test('changes the active flow ports and paths', () => {
     const leftBranch = PoolValveNode.parse({ id: 'pool-valve_flow', variant: 'three-way', flowPattern: 'left-branch' })
     const rightBranch = PoolValveNode.parse({ id: 'pool-valve_flow_right', variant: 'three-way', flowPattern: 'right-branch' })

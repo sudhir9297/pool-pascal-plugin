@@ -1,20 +1,31 @@
 export type PipePoint = [number, number, number]
 
-const HORIZONTAL_DIRECTIONS: readonly PipePoint[] = [
-  [1, 0, 0],
-  [-1, 0, 0],
-  [0, 0, 1],
-  [0, 0, -1],
-  [Math.SQRT1_2, 0, Math.SQRT1_2],
-  [Math.SQRT1_2, 0, -Math.SQRT1_2],
-  [-Math.SQRT1_2, 0, Math.SQRT1_2],
-  [-Math.SQRT1_2, 0, -Math.SQRT1_2],
-]
+/** Common molded PVC elbow angles from the fitting catalog. */
+export const PVC_ELBOW_ANGLES_DEGREES = [11.25, 15, 22.5, 30, 45, 60, 90] as const
+
+function horizontalDirections(): PipePoint[] {
+  const directions: PipePoint[] = []
+  const seen = new Set<string>()
+  for (const angle of PVC_ELBOW_ANGLES_DEGREES) {
+    // Include every plan orientation and its reverse. This lets a pipe run
+    // in any direction while keeping its heading on a supported angle.
+    for (let quarterTurn = 0; quarterTurn < 4; quarterTurn += 1) {
+      const radians = (angle * Math.PI) / 180 + quarterTurn * Math.PI / 2
+      const direction: PipePoint = [Math.cos(radians), 0, Math.sin(radians)]
+      const key = direction.map((value) => Math.round(value * 1e6)).join(',')
+      if (seen.has(key)) continue
+      seen.add(key)
+      directions.push(direction)
+    }
+  }
+  return directions
+}
+
+const HORIZONTAL_DIRECTIONS: readonly PipePoint[] = horizontalDirections()
 
 const THREE_DIRECTIONS: readonly PipePoint[] = [
-  [1, 0, 0], [-1, 0, 0],
+  ...HORIZONTAL_DIRECTIONS,
   [0, 1, 0], [0, -1, 0],
-  [0, 0, 1], [0, 0, -1],
   [Math.SQRT1_2, Math.SQRT1_2, 0], [Math.SQRT1_2, -Math.SQRT1_2, 0],
   [-Math.SQRT1_2, Math.SQRT1_2, 0], [-Math.SQRT1_2, -Math.SQRT1_2, 0],
   [Math.SQRT1_2, 0, Math.SQRT1_2], [Math.SQRT1_2, 0, -Math.SQRT1_2],

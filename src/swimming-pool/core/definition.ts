@@ -1,4 +1,4 @@
-import type { FloorplanGeometry, HandleDescriptor, NodeDefinition } from '@pascal-app/core'
+import type { FloorplanGeometry, GeometryContext, HandleDescriptor, NodeDefinition } from '@pascal-app/core'
 import { getPoolDepthRange } from '../design/depth-profile'
 import { poolParametrics } from '../editor/parametrics'
 import { PoolNode, resolvePoolPolygon } from './schema'
@@ -197,17 +197,19 @@ export const DEFAULT_POOL = {
   visualPreset: 'custom' as const,
 } as const
 
-export function poolFloorplan(node: PoolNode): FloorplanGeometry {
+export function poolFloorplan(node: PoolNode, ctx?: GeometryContext): FloorplanGeometry {
   const [first, ...rest] = resolvePoolPolygon(node)
+  const selected = ctx?.viewState?.selected ?? false
+  const outlineWidth = Math.min(node.copingWidth, 0.25)
   const basin: FloorplanGeometry = {
     kind: 'path',
     d: first
       ? `M ${first[0]} ${first[1]} ${rest.map(([x, y]) => `L ${x} ${y}`).join(' ')} Z`
       : '',
     fill: node.waterColor,
-    fillOpacity: 0.55,
-    stroke: node.copingColor,
-    strokeWidth: Math.min(node.copingWidth, 0.25),
+    fillOpacity: selected ? 0.72 : 0.55,
+    stroke: selected ? (ctx?.viewState?.palette.selectedStroke ?? '#22c55e') : node.copingColor,
+    strokeWidth: selected ? Math.max(0.12, outlineWidth * 1.5) : outlineWidth,
   }
   return basin
 }

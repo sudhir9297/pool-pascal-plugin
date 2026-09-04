@@ -24,6 +24,15 @@ export function getValvePortPositions(node: PoolValveNode): Vector3[] {
   return local.map((point) => point.applyEuler(rotation).add(new Vector3(...node.position)))
 }
 
+/**
+ * Valve sockets are bidirectional connection points. The selected flow
+ * pattern describes the ball's internal path for visualization/operation; it
+ * must never decide whether a pipe may attach to a socket.
+ */
+export function getValveConnectionPortIndices(node: PoolValveNode): number[] {
+  return getValvePortLocalPositions(node).map((_, index) => index)
+}
+
 /** Port order is -Z, +Z, +X. The T-port ball exposes one of the four common flow patterns. */
 export function getValveOpenPortIndices(node: PoolValveNode): Set<number> {
   if (node.variant === 'two-way') return node.flowPattern === 'open' ? new Set([0, 1]) : new Set()

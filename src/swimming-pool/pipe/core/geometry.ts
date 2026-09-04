@@ -1,6 +1,5 @@
 import {
   CylinderGeometry,
-  BoxGeometry,
   Group,
   IcosahedronGeometry,
   Mesh,
@@ -20,7 +19,7 @@ const orientation = new Quaternion()
 
 function fittingHubGeometry(kind: 'elbow' | 'tee' | 'y' | 'cross', diameter: number) {
   const radius = diameter * 0.92
-  if (kind === 'cross') return new BoxGeometry(radius * 1.9, radius * 1.9, radius * 1.9)
+  if (kind === 'cross') return new SphereGeometry(radius, 32, 20)
   if (kind === 'y') return new IcosahedronGeometry(radius, 1)
   return new SphereGeometry(radius, kind === 'elbow' ? 20 : 24, kind === 'elbow' ? 12 : 16)
 }
@@ -60,11 +59,7 @@ export function buildPipeGeometry(network: PoolPipeNode): Group {
     )
     mesh.position.copy(midpoint)
     mesh.quaternion.copy(orientation)
-    mesh.userData = {
-      pipeEdgeId: edge.id,
-      pipeEdgeStart: [...start],
-      pipeEdgeEnd: [...end],
-    }
+    mesh.userData = { pipeEdgeId: edge.id }
     group.add(mesh)
   }
 

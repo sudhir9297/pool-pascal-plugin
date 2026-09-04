@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { PoolNode } from '../core/schema'
 import { buildSharedJointGeometry } from '../shared-joint/core/geometry'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
-import { findSharedPoolJoint, getPoolConnectionPoints } from './shared-joint'
+import { PoolSpilloverNode } from '../spillover/core/schema'
+import { resolvePoolSpillover } from '../spillover/design/placement'
+import { findSharedPoolJoint, getPoolConnectionPoints, getPoolConnectionRegions, syncSharedPoolJoints } from './shared-joint'
 
 describe('shared pool joints', () => {
   test('detects a side-by-side pool pair and sizes one joint bridge', () => {
@@ -53,6 +55,26 @@ describe('shared pool joints', () => {
     expect(getPoolConnectionPoints(second, nodes as never)).toEqual([[-2.25, 0]])
   })
 
+  test('uses each spillover endpoint opening instead of the full connection footprint', () => {
+    const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
+    const upper = PoolNode.parse({ id: 'pool_opening_upper', parentId: 'level_a', position: [0, 1, 0], polygon: rectangle })
+    const lower = PoolNode.parse({ id: 'pool_opening_lower', parentId: 'level_a', position: [5.25, 0, 0], polygon: rectangle })
+    const placement = resolvePoolSpillover(upper, lower)
+    const spillover = PoolSpilloverNode.parse({
+      id: 'pool-spillover_openings',
+      parentId: 'level_a',
+      ...placement,
+    })
+    const nodes = { [upper.id]: upper, [lower.id]: lower, [spillover.id]: spillover }
+
+    const upperX = getPoolConnectionRegions(upper, nodes as never)[0]?.map(([x]) => x) ?? []
+    const lowerX = getPoolConnectionRegions(lower, nodes as never)[0]?.map(([x]) => x) ?? []
+    expect(Math.min(...upperX)).toBeCloseTo(1.75)
+    expect(Math.max(...upperX)).toBeCloseTo(2.25)
+    expect(Math.min(...lowerX)).toBeCloseTo(-2.25)
+    expect(Math.max(...lowerX)).toBeCloseTo(-1.75)
+  })
+
   test('tracks the lower finished deck height', () => {
     const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
     const first = PoolNode.parse({
@@ -66,6 +88,33 @@ describe('shared pool joints', () => {
       polygon: rectangle,
     })
     expect(findSharedPoolJoint(first, second)?.position[1]).toBeCloseTo(0.6)
+  })
+
+  test('removes an automatic joint when an explicit spillover connects the same pools', () => {
+    const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
+    const first = PoolNode.parse({ id: 'pool_joint_a', parentId: 'level_a', position: [0, 1, 0], polygon: rectangle })
+    const second = PoolNode.parse({ id: 'pool_joint_b', parentId: 'level_a', position: [3.5, 0, 0], polygon: rectangle })
+    const jointId = 'pool-shared-joint_pool_joint_a_pool_joint_b'
+    const joint = PoolSharedJointNode.parse({
+      id: jointId,
+      parentId: 'level_a',
+      poolIds: [first.id, second.id],
+    })
+    const spillover = PoolSpilloverNode.parse({
+      parentId: 'level_a',
+      sourcePoolId: first.id,
+      targetPoolId: second.id,
+    })
+
+    const changes = syncSharedPoolJoints({
+      [first.id]: first,
+      [second.id]: second,
+      [joint.id]: joint,
+      [spillover.id]: spillover,
+    } as never)
+
+    expect(changes.create).toEqual([])
+    expect(changes.delete).toEqual([jointId])
   })
 
   test('renders a water passage, submerged shelf, and seam rocks', () => {

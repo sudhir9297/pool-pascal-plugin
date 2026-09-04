@@ -136,40 +136,74 @@ function pointInAnyPolygon(point: PoolPoint, regions: PoolPoint[][]) {
   return regions.some((region) => pointInPolygon(point, region))
 }
 
-function segmentOrientation(first: PoolPoint, second: PoolPoint, third: PoolPoint) {
-  return (second[0] - first[0]) * (third[1] - first[1]) -
-    (second[1] - first[1]) * (third[0] - first[0])
+type VisibleSegmentFragment = { start: PoolPoint; end: PoolPoint; startT: number; endT: number }
+
+function interpolatePoolPoint(start: PoolPoint, end: PoolPoint, progress: number): PoolPoint {
+  return [
+    start[0] + (end[0] - start[0]) * progress,
+    start[1] + (end[1] - start[1]) * progress,
+  ]
 }
 
-function segmentsIntersect(firstStart: PoolPoint, firstEnd: PoolPoint, secondStart: PoolPoint, secondEnd: PoolPoint) {
-  const epsilon = 1e-7
-  const firstTurn = segmentOrientation(firstStart, firstEnd, secondStart)
-  const secondTurn = segmentOrientation(firstStart, firstEnd, secondEnd)
-  const thirdTurn = segmentOrientation(secondStart, secondEnd, firstStart)
-  const fourthTurn = segmentOrientation(secondStart, secondEnd, firstEnd)
-  const onSegment = (start: PoolPoint, point: PoolPoint, end: PoolPoint) =>
-    Math.abs(segmentOrientation(start, point, end)) <= epsilon &&
-    point[0] >= Math.min(start[0], end[0]) - epsilon &&
-    point[0] <= Math.max(start[0], end[0]) + epsilon &&
-    point[1] >= Math.min(start[1], end[1]) - epsilon &&
-    point[1] <= Math.max(start[1], end[1]) + epsilon
-  const crosses = (firstTurn > epsilon && secondTurn < -epsilon || firstTurn < -epsilon && secondTurn > epsilon) &&
-    (thirdTurn > epsilon && fourthTurn < -epsilon || thirdTurn < -epsilon && fourthTurn > epsilon)
-  return crosses ||
-    onSegment(firstStart, secondStart, firstEnd) ||
-    onSegment(firstStart, secondEnd, firstEnd) ||
-    onSegment(secondStart, firstStart, secondEnd) ||
-    onSegment(secondStart, firstEnd, secondEnd)
-}
-
-function segmentTouchesAnyPolygon(start: PoolPoint, end: PoolPoint, regions: PoolPoint[][]) {
-  return regions.some((region) => {
-    if (region.length < 3) return false
-    if (pointInPolygon(start, region) || pointInPolygon(end, region)) return true
-    return region.some((regionStart, index) =>
-      segmentsIntersect(start, end, regionStart, region[(index + 1) % region.length]!),
-    )
-  })
+function visibleSegmentFragments(
+  start: PoolPoint,
+  end: PoolPoint,
+  regions: PoolPoint[][],
+): VisibleSegmentFragment[] {
+  if (regions.length === 0) return [{ start, end, startT: 0, endT: 1 }]
+  const direction: PoolPoint = [end[0] - start[0], end[1] - start[1]]
+  const lengthSquared = direction[0] * direction[0] + direction[1] * direction[1]
+  if (lengthSquared <= GEOMETRY_EPSILON) return []
+  const splitProgress = [0, 1]
+  const addProgress = (value: number) => {
+    if (value <= GEOMETRY_EPSILON || value >= 1 - GEOMETRY_EPSILON) return
+    splitProgress.push(value)
+  }
+  for (const region of regions) {
+    if (region.length < 3) continue
+    for (let index = 0; index < region.length; index += 1) {
+      const regionStart = region[index]!
+      const regionEnd = region[(index + 1) % region.length]!
+      const regionDirection: PoolPoint = [
+        regionEnd[0] - regionStart[0],
+        regionEnd[1] - regionStart[1],
+      ]
+      const offset: PoolPoint = [regionStart[0] - start[0], regionStart[1] - start[1]]
+      const denominator = direction[0] * regionDirection[1] - direction[1] * regionDirection[0]
+      if (Math.abs(denominator) <= GEOMETRY_EPSILON) {
+        if (Math.abs(offset[0] * direction[1] - offset[1] * direction[0]) > GEOMETRY_EPSILON) continue
+        addProgress((offset[0] * direction[0] + offset[1] * direction[1]) / lengthSquared)
+        const endOffset: PoolPoint = [regionEnd[0] - start[0], regionEnd[1] - start[1]]
+        addProgress((endOffset[0] * direction[0] + endOffset[1] * direction[1]) / lengthSquared)
+        continue
+      }
+      const progress = (offset[0] * regionDirection[1] - offset[1] * regionDirection[0]) / denominator
+      const regionProgress = (offset[0] * direction[1] - offset[1] * direction[0]) / denominator
+      if (progress >= -GEOMETRY_EPSILON && progress <= 1 + GEOMETRY_EPSILON &&
+        regionProgress >= -GEOMETRY_EPSILON && regionProgress <= 1 + GEOMETRY_EPSILON) {
+        addProgress(Math.max(0, Math.min(1, progress)))
+      }
+    }
+  }
+  splitProgress.sort((left, right) => left - right)
+  const uniqueProgress = splitProgress.filter((value, index) =>
+    index === 0 || Math.abs(value - splitProgress[index - 1]!) > GEOMETRY_EPSILON,
+  )
+  const fragments: VisibleSegmentFragment[] = []
+  for (let index = 0; index < uniqueProgress.length - 1; index += 1) {
+    const startT = uniqueProgress[index]!
+    const endT = uniqueProgress[index + 1]!
+    if (endT - startT <= GEOMETRY_EPSILON) continue
+    const midpoint = interpolatePoolPoint(start, end, (startT + endT) / 2)
+    if (pointInAnyPolygon(midpoint, regions)) continue
+    fragments.push({
+      start: interpolatePoolPoint(start, end, startT),
+      end: interpolatePoolPoint(start, end, endT),
+      startT,
+      endT,
+    })
+  }
+  return fragments
 }
 
 function signedArea(points: PoolPoint[]) {
@@ -458,23 +492,24 @@ function createPoolWallGeometry(
   const addWallFace = (boundary: PoolPoint[], reverse: boolean, bottomOffset = 0) => {
     const split = splitBoundaryAtCuts(boundary, cuts)
     for (let index = 0; index < split.length; index += 1) {
-      const current = split[index]!
-      const next = split[(index + 1) % split.length]!
-      const topCurrent: Point3 = [current[0], 0, current[1]]
-      const topNext: Point3 = [next[0], 0, next[1]]
-      const bottomCurrent: Point3 = [
-        current[0],
-        -depthAtX(current[0]) + bottomOffset,
-        current[1],
-      ]
-      const bottomNext: Point3 = [
-        next[0],
-        -depthAtX(next[0]) + bottomOffset,
-        next[1],
-      ]
-      if (segmentTouchesAnyPolygon(current, next, removeWallRegions)) continue
-      if (reverse) pushQuad(positions, topCurrent, bottomCurrent, bottomNext, topNext)
-      else pushQuad(positions, topCurrent, topNext, bottomNext, bottomCurrent)
+      for (const fragment of visibleSegmentFragments(split[index]!, split[(index + 1) % split.length]!, removeWallRegions)) {
+        const current = fragment.start
+        const next = fragment.end
+        const topCurrent: Point3 = [current[0], 0, current[1]]
+        const topNext: Point3 = [next[0], 0, next[1]]
+        const bottomCurrent: Point3 = [
+          current[0],
+          -depthAtX(current[0]) + bottomOffset,
+          current[1],
+        ]
+        const bottomNext: Point3 = [
+          next[0],
+          -depthAtX(next[0]) + bottomOffset,
+          next[1],
+        ]
+        if (reverse) pushQuad(positions, topCurrent, bottomCurrent, bottomNext, topNext)
+        else pushQuad(positions, topCurrent, topNext, bottomNext, bottomCurrent)
+      }
     }
   }
 
@@ -486,9 +521,9 @@ function createPoolWallGeometry(
   if (coveRadius > GEOMETRY_EPSILON) {
     const inset = coveInner
     const radialSegments = 8
-    const covePoint = (index: number, angle: number): ProfiledPoint => {
-      const boundary = inner[index]!
-      const floorEdge = inset[index]!
+    const covePoint = (index: number, nextIndex: number, progress: number, angle: number): ProfiledPoint => {
+      const boundary = interpolatePoolPoint(inner[index]!, inner[nextIndex]!, progress)
+      const floorEdge = interpolatePoolPoint(inset[index]!, inset[nextIndex]!, progress)
       const horizontal = Math.cos(angle)
       const x = boundary[0] + (floorEdge[0] - boundary[0]) * horizontal
       const z = boundary[1] + (floorEdge[1] - boundary[1]) * horizontal
@@ -514,31 +549,36 @@ function createPoolWallGeometry(
 
     for (let index = 0; index < inner.length; index += 1) {
       const nextIndex = (index + 1) % inner.length
-      if (segmentTouchesAnyPolygon(inner[index]!, inner[nextIndex]!, removeWallRegions)) continue
-      for (let segment = 0; segment < radialSegments; segment += 1) {
-        const startAngle = segment / radialSegments * Math.PI / 2
-        const endAngle = (segment + 1) / radialSegments * Math.PI / 2
-        const first = covePoint(index, startAngle)
-        const second = covePoint(nextIndex, startAngle)
-        const third = covePoint(nextIndex, endAngle)
-        const fourth = covePoint(index, endAngle)
-        addCoveTriangle(first, second, third)
-        addCoveTriangle(first, third, fourth)
+      for (const fragment of visibleSegmentFragments(inner[index]!, inner[nextIndex]!, removeWallRegions)) {
+        for (let segment = 0; segment < radialSegments; segment += 1) {
+          const startAngle = segment / radialSegments * Math.PI / 2
+          const endAngle = (segment + 1) / radialSegments * Math.PI / 2
+          const first = covePoint(index, nextIndex, fragment.startT, startAngle)
+          const second = covePoint(index, nextIndex, fragment.endT, startAngle)
+          const third = covePoint(index, nextIndex, fragment.endT, endAngle)
+          const fourth = covePoint(index, nextIndex, fragment.startT, endAngle)
+          addCoveTriangle(first, second, third)
+          addCoveTriangle(first, third, fourth)
+        }
       }
     }
   }
 
   for (let index = 0; index < inner.length; index += 1) {
     const nextIndex = (index + 1) % inner.length
-    // The outer shell face is also part of the pool boundary. Leaving this
-    // face intact made a second intersecting pool render as a solid wall
-    // through the shared opening even after the inner wall was removed.
-    if (segmentTouchesAnyPolygon(inner[index]!, inner[nextIndex]!, removeWallRegions)) continue
-    const innerCurrent: Point3 = [inner[index]![0], 0, inner[index]![1]]
-    const innerNext: Point3 = [inner[nextIndex]![0], 0, inner[nextIndex]![1]]
-    const outerCurrent: Point3 = [outer[index]![0], 0, outer[index]![1]]
-    const outerNext: Point3 = [outer[nextIndex]![0], 0, outer[nextIndex]![1]]
-    pushQuad(positions, innerCurrent, outerCurrent, outerNext, innerNext)
+    for (const fragment of visibleSegmentFragments(inner[index]!, inner[nextIndex]!, removeWallRegions)) {
+      const innerCurrent = fragment.start
+      const innerNext = fragment.end
+      const outerCurrent = interpolatePoolPoint(outer[index]!, outer[nextIndex]!, fragment.startT)
+      const outerNext = interpolatePoolPoint(outer[index]!, outer[nextIndex]!, fragment.endT)
+      pushQuad(
+        positions,
+        [innerCurrent[0], 0, innerCurrent[1]],
+        [outerCurrent[0], 0, outerCurrent[1]],
+        [outerNext[0], 0, outerNext[1]],
+        [innerNext[0], 0, innerNext[1]],
+      )
+    }
   }
 
   const geometry = new BufferGeometry()

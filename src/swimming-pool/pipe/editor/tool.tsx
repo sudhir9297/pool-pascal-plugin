@@ -12,8 +12,9 @@ import {
 import {
   CursorSphere,
   isGridSnapActive,
-  isMagneticSnapActive,
   markToolCancelConsumed,
+  publishPlacementSurface,
+  clearPlacementSurface,
   triggerSFX,
   useInteractionScope,
   useEditor,
@@ -31,6 +32,7 @@ import { pipePreviewControllers } from './preview'
 import { usePipeEditStore, type PipeStartConnectionKind } from './store'
 import {
   collectPoolPipePorts,
+  findNearestPipePort,
   findNearestPoolPipeTarget,
   type PipePort,
 } from '../design/ports'
@@ -103,6 +105,14 @@ export default function PoolPipeTool() {
 
   useEffect(() => {
     if (!currentLevelId) return
+
+    // The host grid only reveals itself while the active snap context is in
+    // `grid` mode. PVC drawing is a construction workflow, so it must always
+    // show that lattice even if the user last left the item context on
+    // alignment-lines or off. Restore the user's preference when the tool
+    // exits.
+    const previousPipeSnappingMode = useEditor.getState().snappingModeByContext.item
+    useEditor.getState().setSnappingMode('item', 'grid')
 
     // Pipe It treats an armed pipe tool as the active interaction owner. This
     // prevents the generic select/V tool from claiming clicks on the scene
@@ -178,13 +188,47 @@ export default function PoolPipeTool() {
         pools,
         ignoreNetworkId: usePipeEditStore.getState().extension?.networkId,
       })
+      // Direction snapping is useful for free-space and pipe-to-pipe runs,
+      // but it can move the cursor across a valve body and select the socket
+      // on the opposite side from the one the user is pointing at. Resolve
+      // equipment from the raw cursor first, then let the normal constrained
+      // point handle all other targets.
+      const rawPoint: PipePoint = [local[0], local[1], local[2]]
+      const equipmentPorts = normalizedPorts
+        .filter((port) => port.kind === 'equipment')
+        .filter((port) => {
+          const offset: PipePoint = [
+            rawPoint[0] - port.position[0],
+            rawPoint[1] - port.position[1],
+            rawPoint[2] - port.position[2],
+          ]
+          // A point behind a socket belongs to the opposite side of the
+          // valve. Keep it out of the candidate list unless no socket is
+          // visibly facing the cursor.
+          const facing = offset[0] * port.direction[0] + offset[1] * port.direction[1] + offset[2] * port.direction[2]
+          return facing >= -0.02
+        })
+      const facingEquipmentPorts = equipmentPorts.length > 0
+        ? equipmentPorts
+        : normalizedPorts.filter((port) => port.kind === 'equipment')
+      const rawEquipmentPort = findNearestPipePort(
+        rawPoint,
+        facingEquipmentPorts,
+        0.45,
+        pipeStartPortRef.current?.ownerId,
+      )
       const pipeTarget = findNearestPoolPipeTarget(
-        [x, constrained?.[1] ?? local[1], z],
+        rawEquipmentPort ? rawPoint : [x, constrained?.[1] ?? local[1], z],
         normalizedPorts,
         pipes,
         {
           ignoreNetworkId: usePipeEditStore.getState().extension?.networkId,
-          connectionSnap: isMagneticSnapActive(),
+          // Pipe-to-pipe joining is always enabled while drawing. The cursor
+          // should lock to an existing segment or fitting as it approaches;
+          // magnetic snap still controls other scene interactions.
+          connectionSnap: true,
+          portDistance: 0.45,
+          bodyDistance: 0.45,
         },
       )
       const snappedPoint = pipeTarget?.position ?? [x, constrained?.[1] ?? local[1], z]
@@ -216,19 +260,29 @@ export default function PoolPipeTool() {
         const parsed = PoolPipeNode.safeParse(existing)
         if (!parsed.success) return false
         const network = parsed.data
-        const destination = new Vector3(...drawn[1]!)
         const levelObject = sceneRegistry.nodes.get(currentLevelId as never)
         const networkObject = sceneRegistry.nodes.get(extension.networkId as never)
-        levelObject?.localToWorld(destination)
-        if (networkObject) networkObject.worldToLocal(destination)
-        const networkPoint: PipePoint = [destination.x, destination.y, destination.z]
         const extensionNode = network.nodes.find((candidate) => candidate.id === extension.endpointId)
         if (!extensionNode) return false
-        let updated = extensionNode.kind === 'endpoint'
-          ? appendPipePoint(network, extension.endpointId, networkPoint)
-          : branchPipePoint(network, extension.endpointId, networkPoint)
+        const toNetworkPoint = (point: PipePoint): PipePoint => {
+          const transformed = new Vector3(...point)
+          levelObject?.localToWorld(transformed)
+          if (networkObject) networkObject.worldToLocal(transformed)
+          return [transformed.x, transformed.y, transformed.z]
+        }
+        let updated = network as unknown as PipeNetwork
+        let currentNodeId = extension.endpointId
+        for (const point of drawn.slice(1)) {
+          const networkPoint = toNetworkPoint(point!)
+          const currentNode = updated.nodes.find((candidate) => candidate.id === currentNodeId)
+          if (!currentNode) return false
+          updated = currentNode.kind === 'endpoint'
+            ? appendPipePoint(updated, currentNodeId, networkPoint)
+            : branchPipePoint(updated, currentNodeId, networkPoint)
+          currentNodeId = `n${updated.nodes.length - 1}`
+        }
         if (pipePortRef.current) {
-          updated = attachPipeNode(updated as never, `n${updated.nodes.length - 1}`, {
+          updated = attachPipeNode(updated as never, currentNodeId, {
             ownerId: pipePortRef.current.ownerId,
             portId: pipePortRef.current.id,
             kind: 'equipment',
@@ -236,34 +290,59 @@ export default function PoolPipeTool() {
         }
         const otherPipes = Object.values(scene.nodes)
           .filter((node) => (node.type as string) === 'pool:pipe-network' && (node as unknown as PoolPipeNode).id !== network.id) as unknown as PoolPipeNode[]
-        const resolvedNetworks = addPipeIntersectionFittingsToNetworks([updated, ...otherPipes] as unknown as PipeNetwork[])
-        updated = resolvedNetworks[0]!
+        const join = pipeJoinRef.current
+        const joinNode = join ? (scene.nodes as unknown as Record<string, unknown>)[join.networkId] : undefined
+        const joinNetwork = joinNode ? PoolPipeNode.safeParse(joinNode) : null
+        const joinedNetwork = join && joinNetwork?.success
+          ? preparePipeNetworkForCommit(connectPipeNetworkAtPoint(
+              joinNetwork.data,
+              updated,
+              join.edgeId,
+              join.position,
+              `n${updated.nodes.length - 1}`,
+            ))
+          : null
+        const resolvedNetworks = joinedNetwork
+          ? [joinedNetwork, ...otherPipes.filter((other) => other.id !== joinedNetwork.id)]
+          : addPipeIntersectionFittingsToNetworks([updated, ...otherPipes] as unknown as PipeNetwork[])
+        updated = joinedNetwork ?? resolvedNetworks[0]!
         runAsSingleSceneHistoryStep(useScene, () => {
-          for (const [index, other] of otherPipes.entries()) {
-            const updatedOther = resolvedNetworks[index + 1]!
+          if (joinedNetwork) {
+            scene.deleteNode(network.id as never)
+            scene.updateNode(joinedNetwork.id as never, {
+              nodes: joinedNetwork.nodes,
+              edges: joinedNetwork.edges,
+              attachments: joinedNetwork.attachments,
+            } as unknown as Partial<AnyNode>)
+          }
+          for (const [index, other] of otherPipes.filter((candidate) => !joinedNetwork || candidate.id !== joinedNetwork.id).entries()) {
+            const updatedOther = joinedNetwork ? other : resolvedNetworks[index + 1]!
             scene.updateNode(
               other.id as never,
               { nodes: updatedOther.nodes, edges: updatedOther.edges } as unknown as Partial<AnyNode>,
             )
           }
-          scene.updateNode(
-            network.id as never,
-            { nodes: updated.nodes, edges: updated.edges } as unknown as Partial<AnyNode>,
-          )
+          if (!joinedNetwork) scene.updateNode(network.id as never, { nodes: updated.nodes, edges: updated.edges } as unknown as Partial<AnyNode>)
         })
+        const resultNetworkId = joinedNetwork?.id ?? network.id
         pipePreviewControllers.get(extension.networkId)?.reset()
-        setSelection({ selectedIds: [] })
-        usePipeEditStore.getState().setSubSelection(
-          updated.edges.at(-1) ? { networkId: network.id, element: 'edge', elementId: updated.edges.at(-1)!.id } : null,
-        )
-        usePipeEditStore.getState().clearExtension()
-        startConnectionKindRef.current = null
-        useEditor.getState().setTool(null)
-        useEditor.getState().setMode('select')
+        if (joinedNetwork) pipePreviewControllers.get(joinedNetwork.id)?.reset()
+        setSelection({ selectedIds: [resultNetworkId] })
         triggerSFX('sfx:structure-build')
-        setDraft([])
         pipePortRef.current = null
         pipeStartPortRef.current = null
+        startConnectionKindRef.current = null
+        if (usePipeEditStore.getState().continuousDrawing) {
+          const nextEndpointId = updated.nodes.at(-1)?.id
+          if (!nextEndpointId) return false
+          usePipeEditStore.getState().beginExtension({ networkId: resultNetworkId, endpointId: nextEndpointId })
+          setDraft([drawn[1]!])
+        } else {
+          usePipeEditStore.getState().clearExtension()
+          useEditor.getState().setTool(null)
+          useEditor.getState().setMode('select')
+          setDraft([])
+        }
         return true
       }
       const networkCount = Object.values(scene.nodes)
@@ -301,6 +380,44 @@ export default function PoolPipeTool() {
           kind: 'equipment',
         }) as unknown as PoolPipeNode
       }
+      // If both ends of a new run are snapped to existing networks, consume
+      // both joins explicitly. The ordinary path can only merge one target,
+      // which leaves the opposite end as a bare intersection without its
+      // fitting.
+      if (startJoin && join && startJoin.networkId !== join.networkId) {
+        const startNode = (scene.nodes as unknown as Record<string, unknown>)[startJoin.networkId]
+        const endNode = (scene.nodes as unknown as Record<string, unknown>)[join.networkId]
+        const startNetwork = startNode ? PoolPipeNode.safeParse(startNode) : null
+        const endNetwork = endNode ? PoolPipeNode.safeParse(endNode) : null
+        if (startNetwork?.success && endNetwork?.success) {
+          const mergedAtStart = connectPipeNetworkAtPoint(startNetwork.data, pipe, startJoin.edgeId, startJoin.position, 'n0')
+          const incomingEndId = mergedAtStart.nodes.at(-1)?.id
+          const mergedAtBoth = incomingEndId
+            ? preparePipeNetworkForCommit(connectPipeNetworkAtPoint(endNetwork.data, mergedAtStart, join.edgeId, join.position, incomingEndId))
+            : null
+          if (mergedAtBoth) {
+            runAsSingleSceneHistoryStep(useScene, () => {
+              scene.deleteNode(startNetwork.data.id as never)
+              scene.updateNode(endNetwork.data.id as never, {
+                nodes: mergedAtBoth.nodes,
+                edges: mergedAtBoth.edges,
+                attachments: mergedAtBoth.attachments,
+              } as unknown as Partial<AnyNode>)
+            })
+            pipePreviewControllers.get(startNetwork.data.id)?.reset()
+            pipePreviewControllers.get(endNetwork.data.id)?.reset()
+            setSelection({ selectedIds: [endNetwork.data.id] })
+            triggerSFX('sfx:structure-build')
+            pipeJoinRef.current = null
+            pipeStartJoinRef.current = null
+            usePipeEditStore.getState().clearExtension()
+            useEditor.getState().setTool(null)
+            useEditor.getState().setMode('select')
+            setDraft([])
+            return true
+          }
+        }
+      }
       const joinNode = selectedJoin ? (scene.nodes as unknown as Record<string, unknown>)[selectedJoin.networkId] : undefined
       const joinNetwork = joinNode ? PoolPipeNode.safeParse(joinNode) : null
       if (selectedJoin && joinNetwork?.success) {
@@ -318,10 +435,7 @@ export default function PoolPipeTool() {
           }
           scene.updateNode(joinNetwork.data.id as never, { nodes: merged.nodes, edges: merged.edges } as unknown as Partial<AnyNode>)
         })
-        setSelection({ selectedIds: [] })
-        usePipeEditStore.getState().setSubSelection(
-          merged.edges.at(-1) ? { networkId: joinNetwork.data.id, element: 'edge', elementId: merged.edges.at(-1)!.id } : null,
-        )
+        setSelection({ selectedIds: [joinNetwork.data.id] })
         useEditor.getState().setTool(null)
         useEditor.getState().setMode('select')
         triggerSFX('sfx:structure-build')
@@ -340,10 +454,7 @@ export default function PoolPipeTool() {
         scene.createNode(preparePipeNetworkForCommit(pipe) as unknown as AnyNode, currentLevelId)
       })
       clearTransientPipePreview()
-      setSelection({ selectedIds: [] })
-      usePipeEditStore.getState().setSubSelection(
-        pipe.edges.at(-1) ? { networkId: pipe.id, element: 'edge', elementId: pipe.edges.at(-1)!.id } : null,
-      )
+      setSelection({ selectedIds: [pipe.id] })
       triggerSFX('sfx:structure-build')
       if (usePipeEditStore.getState().continuousDrawing) {
         setDraft([drawn.at(-1)!])
@@ -359,6 +470,7 @@ export default function PoolPipeTool() {
       return true
     }
     const reset = () => {
+      clearPlacementSurface()
       if (pointsRef.current.length > 0) markToolCancelConsumed()
       const activeExtension = usePipeEditStore.getState().extension
       usePipeEditStore.getState().clearExtension()
@@ -375,6 +487,9 @@ export default function PoolPipeTool() {
       )
     }
     const onMove = (event: GridEvent) => {
+      // Drive the editor's cursor-local reveal grid while Pipe is active,
+      // using the same placement-surface channel as wall and pool drawing.
+      publishPlacementSurface(new Vector3(event.position[0], event.position[1], event.position[2]), new Vector3(0, 1, 0))
       const resolved = snapEventPoint(event)
       const next = resolved.point
       cursorPointRef.current = next
@@ -388,17 +503,28 @@ export default function PoolPipeTool() {
             ? parsed.data.nodes.find((candidate) => candidate.id === extension.endpointId)
             : undefined
           if (parsed.success && extensionNode) {
-            const destination = new Vector3(...next)
-            sceneRegistry.nodes.get(currentLevelId as never)?.localToWorld(destination)
-            sceneRegistry.nodes.get(extension.networkId as never)?.worldToLocal(destination)
-            const networkPoint: PipePoint = [destination.x, destination.y, destination.z]
-            const preview = extensionNode.kind === 'endpoint'
-              ? appendPipePoint(parsed.data, extension.endpointId, networkPoint)
-              : branchPipePoint(parsed.data, extension.endpointId, networkPoint)
+            const previewRoute: PipePoint[] = [pointsRef.current[0]!, next]
+            const levelObject = sceneRegistry.nodes.get(currentLevelId as never)
+            const networkObject = sceneRegistry.nodes.get(extension.networkId as never)
+            let preview = parsed.data as unknown as PipeNetwork
+            let currentNodeId = extension.endpointId
+            for (const point of previewRoute.slice(1)) {
+              const destination = new Vector3(...point)
+              levelObject?.localToWorld(destination)
+              networkObject?.worldToLocal(destination)
+              const networkPoint: PipePoint = [destination.x, destination.y, destination.z]
+              const currentNode = preview.nodes.find((candidate) => candidate.id === currentNodeId)
+              if (!currentNode) break
+              preview = currentNode.kind === 'endpoint'
+                ? appendPipePoint(preview, currentNodeId, networkPoint)
+                : branchPipePoint(preview, currentNodeId, networkPoint)
+              currentNodeId = `n${preview.nodes.length - 1}`
+            }
             pipePreviewControllers.get(extension.networkId)?.preview(preview as unknown as PoolPipeNode)
           }
         } else if (draft.length === 1) {
-          const preview = createPipeNetworkFromPoints('pipe-preview', null, [draft[0]!, next])
+          const previewRoute: PipePoint[] = [draft[0]!, next]
+          const preview = createPipeNetworkFromPoints('pipe-preview', null, previewRoute)
           replaceTransientPipePreview(preview as unknown as PoolPipeNode)
         }
       } else {
@@ -429,7 +555,9 @@ export default function PoolPipeTool() {
           .map((node) => resolveMountedInlet(node as unknown as PoolInletNode, pools.find((pool) => pool.id === (node as unknown as PoolInletNode).poolId)))
         if (!validatePipeSocketUse(drawn, skimmers, pipes, extension?.networkId, valves, drains, inlets).valid) return
         const lead = usePipeEditStore.getState().startDirection ?? undefined
-        const routed = extension ? drawn : routePipeOutsidePools(drawn[0]!, drawn[1]!, pools, lead)
+        let routed = extension
+          ? drawn
+          : routePipeOutsidePools(drawn[0]!, drawn[1]!, pools, lead)
         finish(routed)
         return
       }
@@ -458,6 +586,8 @@ export default function PoolPipeTool() {
       emitter.off('grid:click', onClick)
       emitter.off('tool:cancel', reset)
       document.removeEventListener('keydown', onKeyDown)
+      clearPlacementSurface()
+      useEditor.getState().setSnappingMode('item', previousPipeSnappingMode)
       useInteractionScope.getState().endIf((scope) =>
         scope.kind === 'drafting' && scope.tool === 'pool:pipe-network',
       )

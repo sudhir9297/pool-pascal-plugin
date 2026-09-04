@@ -9,7 +9,7 @@ import {
   Mesh,
   MeshStandardMaterial,
 } from 'three'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import {
   WaterfallBubbleCloudEffect,
   WaterfallLineEffect,

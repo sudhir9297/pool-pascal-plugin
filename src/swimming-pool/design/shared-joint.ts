@@ -103,6 +103,7 @@ export type SharedPoolJoint = {
   commonFloorDepth: number
   copingStyle: PoolSharedJointNode['copingStyle']
   surfaceColor: string
+  poolPoints: [PoolPoint, PoolPoint]
 }
 
 function poolDeckHeight(pool: PoolNode) {
@@ -164,12 +165,26 @@ export function getPoolConnectionRegions(
   return Object.values(nodes)
     .filter((node) => ['pool:shared-joint', 'pool:spillover'].includes(String(node.type)))
     .flatMap((node) => {
-      const parsed = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.safeParse(node) : PoolSharedJointNode.safeParse(node)
-      if (!parsed.success) return []
-      const connection = String(node.type) === 'pool:spillover' ? PoolSpilloverNode.parse(node) : PoolSharedJointNode.parse(node)
-      const ids = 'sourcePoolId' in connection ? [connection.sourcePoolId, connection.targetPoolId] : connection.poolIds
-      if (!ids.includes(pool.id)) return []
-      return connection.intersection.map((region) => region.map(([x, z]) => {
+      let regions: PoolPoint[][]
+      if (String(node.type) === 'pool:spillover') {
+        const parsed = PoolSpilloverNode.safeParse(node)
+        if (!parsed.success) return []
+        const connection = parsed.data
+        if (connection.sourcePoolId === pool.id) {
+          regions = connection.sourceOpening.length >= 3
+            ? [connection.sourceOpening]
+            : connection.intersection
+        } else if (connection.targetPoolId === pool.id) {
+          regions = connection.targetOpening.length >= 3
+            ? [connection.targetOpening]
+            : connection.intersection
+        } else return []
+      } else {
+        const parsed = PoolSharedJointNode.safeParse(node)
+        if (!parsed.success || !parsed.data.poolIds.includes(pool.id)) return []
+        regions = parsed.data.intersection
+      }
+      return regions.map((region) => region.map(([x, z]) => {
         const dx = x - pool.position[0]
         const dz = z - pool.position[2]
         return [dx * cos - dz * sin, dx * sin + dz * cos] as PoolPoint
@@ -187,7 +202,13 @@ export function findSharedPoolJoint(
   if (intersection.length === 0) return null
   const firstSegments = worldSegments(first)
   const secondSegments = worldSegments(second)
-  let best: { gap: number; overlap: number; position: PoolPoint; tangent: PoolPoint } | null = null
+  let best: {
+    gap: number
+    overlap: number
+    position: PoolPoint
+    tangent: PoolPoint
+    poolPoints: [PoolPoint, PoolPoint]
+  } | null = null
 
   for (const left of firstSegments) {
     const leftLength = Math.hypot(left.end[0] - left.start[0], left.end[1] - left.start[1])
@@ -223,8 +244,13 @@ export function findSharedPoolJoint(
       const leftOffset = leftLine - dot(leftPoint, leftNormal)
       const rightLine = dot(right.start, leftNormal)
       const rightOffset = rightLine - dot(rightPoint, leftNormal)
-      const position = addScaled(addScaled(leftPoint, leftNormal, leftOffset), leftNormal, (rightOffset - leftOffset) / 2)
-      best = { gap, overlap, position, tangent: left.tangent }
+      const firstPoint = addScaled(leftPoint, leftNormal, leftOffset)
+      const secondPoint = addScaled(rightPoint, leftNormal, rightOffset)
+      const position: PoolPoint = [
+        (firstPoint[0] + secondPoint[0]) / 2,
+        (firstPoint[1] + secondPoint[1]) / 2,
+      ]
+      best = { gap, overlap, position, tangent: left.tangent, poolPoints: [firstPoint, secondPoint] }
     }
   }
 
@@ -251,6 +277,7 @@ export function findSharedPoolJoint(
     commonFloorDepth: Math.max(poolFloorDepth(first), poolFloorDepth(second)),
     copingStyle: first.copingStyle,
     surfaceColor: first.copingColor,
+    poolPoints: best.poolPoints,
   }
 }
 
@@ -283,6 +310,14 @@ export function syncSharedPoolJoints(nodes: Record<string, AnyNode>): SharedPool
       const parsed = PoolSharedJointNode.safeParse(node)
       return parsed.success ? [parsed.data] : []
     })
+  const explicitSpilloverPairs = new Set(Object.values(nodes)
+    .filter((node) => (node.type as string) === 'pool:spillover')
+    .flatMap((node) => {
+      const parsed = PoolSpilloverNode.safeParse(node)
+      return parsed.success
+        ? [sharedJointId(parsed.data.sourcePoolId, parsed.data.targetPoolId)]
+        : []
+    }))
   const expected = new Map<string, { first: PoolNode; second: PoolNode; joint: SharedPoolJoint }>()
 
   for (let firstIndex = 0; firstIndex < pools.length; firstIndex += 1) {
@@ -290,9 +325,11 @@ export function syncSharedPoolJoints(nodes: Record<string, AnyNode>): SharedPool
       const first = pools[firstIndex]!
       const second = pools[secondIndex]!
       if (first.parentId !== second.parentId) continue
+      const id = sharedJointId(first.id, second.id)
+      if (explicitSpilloverPairs.has(id)) continue
       const joint = findSharedPoolJoint(first, second)
       if (!joint) continue
-      expected.set(sharedJointId(first.id, second.id), { first, second, joint })
+      expected.set(id, { first, second, joint })
     }
   }
 

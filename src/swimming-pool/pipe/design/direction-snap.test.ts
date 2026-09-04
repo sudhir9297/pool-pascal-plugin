@@ -1,12 +1,18 @@
 import { describe, expect, test } from 'bun:test'
-import { snapPipePointToDirection, snapPipePointToRay } from './direction-snap'
+import { PVC_ELBOW_ANGLES_DEGREES, snapPipePointToDirection, snapPipePointToRay } from './direction-snap'
 
 describe('PVC direction snapping', () => {
-  test('chooses the closest cardinal direction', () => {
+  test('chooses the closest catalog angle', () => {
     const point = snapPipePointToDirection([0, 1, 0], [3, 9, 0.4])
-    expect(point[0]).toBeCloseTo(Math.hypot(3, 0.4))
+    const distance = Math.hypot(3, 0.4)
+    const angle = (11.25 * Math.PI) / 180
+    expect(point[0]).toBeCloseTo(distance * Math.cos(angle))
     expect(point[1]).toBe(1)
-    expect(point[2]).toBe(0)
+    expect(point[2]).toBeCloseTo(distance * Math.sin(angle))
+  })
+
+  test('exposes the supported PVC elbow angles', () => {
+    expect(PVC_ELBOW_ANGLES_DEGREES).toEqual([11.25, 15, 22.5, 30, 45, 60, 90])
   })
 
   test('chooses a 45-degree diagonal when the cursor points diagonally', () => {
