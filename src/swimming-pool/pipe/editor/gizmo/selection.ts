@@ -31,3 +31,21 @@ export function shouldClearLocalPipeSelectionForGlobalSelection({
 }): boolean {
   return selectedCount > 0
 }
+
+export type PipeHandleVisibilityState = {
+  pipeToolActive: boolean
+  globalSelectionCount: number
+  edgeSelected: boolean
+  fittingSelected: boolean
+}
+
+/**
+ * Per-pipe controls belong to a locally selected edge or fitting. Selecting a
+ * whole PVC network is an object-level operation and must not expose every
+ * endpoint and fitting control in that network.
+ */
+export function shouldShowPipeHandles(state: PipeHandleVisibilityState): boolean {
+  if (state.pipeToolActive) return false
+  if (state.globalSelectionCount > 0) return false
+  return state.edgeSelected || state.fittingSelected
+}

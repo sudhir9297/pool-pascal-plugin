@@ -18,7 +18,7 @@ import { pipeGizmoDimensions, pipeGizmoHitDimensions } from './gizmo/dimensions'
 import { getPipeFittingGizmoTarget } from './gizmo/fitting'
 import { createPipeRotationFrame, pipeRotationDelta } from './gizmo/rotation'
 import { pipeGizmoPortalTarget, syncPipeGizmoFrame } from './gizmo/scene'
-import { shouldClearLocalPipeSelectionForGlobalSelection, shouldClearPipeSelection } from './gizmo/selection'
+import { shouldClearLocalPipeSelectionForGlobalSelection, shouldClearPipeSelection, shouldShowPipeHandles } from './gizmo/selection'
 import { createPipePointerGuard } from './pointer-guard'
 
 const NO_RAYCAST = () => undefined
@@ -398,7 +398,12 @@ export default function PoolPipePreview({ node }: { node: PoolPipeNode }) {
     }
   }, [pipe, pipeToolActive])
 
-  const showHandles = !pipeToolActive && (selected || selectedEdgeId !== null || selectedFittingId !== null)
+  const showHandles = shouldShowPipeHandles({
+    pipeToolActive,
+    globalSelectionCount: selectedIds.length,
+    edgeSelected: selectedEdgeId !== null,
+    fittingSelected: selectedFittingId !== null,
+  })
   return (
     <>
       <group

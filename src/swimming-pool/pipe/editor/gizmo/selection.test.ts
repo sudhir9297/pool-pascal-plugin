@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { shouldClearLocalPipeSelectionForGlobalSelection, shouldClearPipeSelection } from './selection'
+import { shouldClearLocalPipeSelectionForGlobalSelection, shouldClearPipeSelection, shouldShowPipeHandles } from './selection'
 
 describe('shouldClearPipeSelection', () => {
   test('clears a locally selected fitting when global node selection is empty', () => {
@@ -74,5 +74,43 @@ describe('PVC global selection ownership', () => {
 
     expect(canvasCleanup).toBeDefined()
     expect(canvasCleanup).not.toContain('setSelection({ selectedIds: [] })')
+  })
+})
+
+describe('shouldShowPipeHandles', () => {
+  test('hides controls when one whole PVC network is selected', () => {
+    expect(shouldShowPipeHandles({
+      pipeToolActive: false,
+      globalSelectionCount: 1,
+      edgeSelected: false,
+      fittingSelected: false,
+    })).toBe(false)
+  })
+
+  test('hides controls for PVC networks in a marquee/group selection', () => {
+    expect(shouldShowPipeHandles({
+      pipeToolActive: false,
+      globalSelectionCount: 2,
+      edgeSelected: true,
+      fittingSelected: false,
+    })).toBe(false)
+  })
+
+  test('still shows controls for one locally selected pipe part', () => {
+    expect(shouldShowPipeHandles({
+      pipeToolActive: false,
+      globalSelectionCount: 0,
+      edgeSelected: true,
+      fittingSelected: false,
+    })).toBe(true)
+  })
+
+  test('hides all controls while the PVC drawing tool is active', () => {
+    expect(shouldShowPipeHandles({
+      pipeToolActive: true,
+      globalSelectionCount: 1,
+      edgeSelected: false,
+      fittingSelected: false,
+    })).toBe(false)
   })
 })
