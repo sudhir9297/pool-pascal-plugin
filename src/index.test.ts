@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { poolCatchBasinDefinition, poolHostPanel, poolPlugin, PoolCatchBasinNode, PoolInletNode, PoolNode, PoolSharedJointNode, PoolSkimmerNode, PoolValveNode, PoolPumpNode, PoolFilterNode, PoolWatercourseNode, PoolWaterfallNode, PoolStairNode } from './index'
+import { poolHostPanel, poolPlugin, PoolInletNode, PoolNode, PoolSharedJointNode, PoolSkimmerNode, PoolValveNode, PoolPumpNode, PoolFilterNode, PoolWaterfallNode, PoolStairNode } from './index'
 
 describe('Swimming pool plugin manifest', () => {
   test('exports the stable plugin identity and node kinds', () => {
     expect(poolPlugin.id).toBe('pascal:pool')
     expect(poolPlugin.apiVersion).toBe(1)
-    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:catch-basin', 'pool:watercourse', 'pool:heater', 'pool:shared-joint', 'pool:spillover', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
+    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:heater', 'pool:shared-joint', 'pool:spillover', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
   })
 
   test('associates the Pool panel with the plugin', () => {
@@ -46,16 +46,6 @@ describe('Swimming pool plugin manifest', () => {
   test('ships a valid default pool filter', () => {
     expect(PoolFilterNode.parse({}).type).toBe('pool:filter')
     expect(PoolFilterNode.parse({}).technology).toBe('sand')
-  })
-
-  test('ships a valid lower catch basin default', () => {
-    expect(PoolCatchBasinNode.parse({}).type).toBe('pool:catch-basin')
-    expect(PoolCatchBasinNode.parse(poolCatchBasinDefinition.defaults()).waterDepth).toBe(0.55)
-  })
-
-  test('ships a valid watercourse default', () => {
-    expect(PoolWatercourseNode.parse({}).type).toBe('pool:watercourse')
-    expect(PoolWatercourseNode.parse({}).slope).toBe(-0.12)
   })
 
   test('ships a complete low-poly rock waterfall and accepts every variant', () => {

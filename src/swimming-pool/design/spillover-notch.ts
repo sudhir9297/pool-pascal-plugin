@@ -32,6 +32,9 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
     const minimum = Math.min(0, ...offsets)
     const maximum = Math.max(0, ...offsets)
     const centerOffset = (minimum + maximum) / 2
+    const edgeProfile = edge.length > 1
+      ? edge.map(([across, along]) => [across, along - centerOffset] as [number, number])
+      : undefined
     const anchor = placement.connectionPath[endpointIndex]
     if (!anchor) return []
     const point: [number, number] = [anchor[0] + Math.cos(placement.rotation[1]) * centerOffset,
@@ -50,9 +53,7 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
       // as the support plane; the lip and outer border provide the visible
       // edge treatment around that opening.
       width: placement.width,
-      edgeProfile: edge.length > 1
-        ? edge.map(([across, along]) => [across - centerOffset, along] as [number, number])
-        : undefined,
+      edgeProfile,
       // Curvature belongs to the water sheet, not to the wall cut. Including
       // the edge's along-flow variation here made the CSG cutter grow into a
       // long triangular notch when intersecting pools used a curved path.

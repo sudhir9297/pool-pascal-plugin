@@ -1,5 +1,5 @@
 import { sampleSpilloverEdge } from '../design/curved-placement'
-import { BoxGeometry, BufferGeometry, Float32BufferAttribute, ShapeUtils, Vector2, Group, Mesh, MeshStandardMaterial } from 'three'
+import { BoxGeometry, BufferGeometry, Group, Mesh, MeshStandardMaterial } from 'three'
 import { WaterfallWaterEffect, type WaterfallWaterStyle } from '../../shader/waterfall-effect'
 import { createSpillwayGeometry } from '../../water-feature/waterfall/core/geometry'
 import type { PoolSpilloverNode } from './schema'
@@ -22,24 +22,6 @@ function deformGeometry(geometry: BufferGeometry, offset: (x: number, y: number,
   geometry.computeVertexNormals()
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
-}
-
-function buildOverlapSurfaceGeometry(node: PoolSpilloverNode) {
-  const positions: number[] = []
-  for (const region of node.intersection) {
-    const local = region.map((point) => worldPointToLocal(node, point))
-    const triangles = ShapeUtils.triangulateShape(local.map(([x, z]) => new Vector2(x, z)), [])
-    for (const triangle of triangles) {
-      for (const index of triangle) {
-        const point = local[index]!
-        positions.push(point[0], 0, point[1])
-      }
-    }
-  }
-  const geometry = new BufferGeometry()
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
-  geometry.computeVertexNormals()
-  return geometry
 }
 
 export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?: WaterfallWaterStyle) {
@@ -68,9 +50,8 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   const [rawTargetX, targetZ] = targetBoundary
   // Overlapping boundary points can be reversed; flow follows the pools,
   // not the sign of the gap between their rims.
-  const baseLandingInset = node.landingInset ?? 0
   const overlapReach = node.connectionMode === 'overlap'
-    ? Math.max(0.28, Math.min(0.45, baseLandingInset + 0.16))
+    ? 0.4
     : 0
   const targetX = node.connectionMode === 'overlap'
     ? sourceBoundaryX + (-node.sourceSide) * overlapReach
@@ -81,15 +62,10 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   // receiving pool.
   const pathDirection = Math.sign(targetX - sourceBoundaryX) || -node.sourceSide || 1
   const edgeDirection = -node.sourceSide
-  const landingInset = Math.max(baseLandingInset,
-    Math.abs(targetX - sourceBoundaryX) + node.lipThickness)
   const touchingConnection = node.connectionMode === 'channel' && node.length <= 0.2
-  // Keep separated-pool water within the platform gap. Rock coping may need a
-  // little receiving clearance, but it must not stretch the visible sheet by
-  // the full coping-dependent inset.
-  const waterLandingInset = node.connectionMode === 'overlap'
-    ? landingInset
-    : 0
+  // The overlap reach already defines the complete horizontal run. Do not
+  // add the receiving inset again or the requested 0.10 m span will grow.
+  const waterLandingInset = 0
   // Landing inset extends only the water curtain into the receiving basin;
   // the solid platform and its borders remain exactly the measured gap.
   const channelLength = Math.max(node.lipThickness, Math.abs(targetX - sourceBoundaryX))
@@ -107,39 +83,6 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
     shallowWaterColor: node.waterColor,
     deepWaterColor: node.waterColor,
   }, node.flowStrength, 0.25)
-
-  const hasResolvedOverlap = node.connectionMode === 'overlap'
-    && node.intersection.length > 0
-    && node.connectionPath.length >= 2
-  if (node.connectionMode === 'overlap') {
-    const exactIntersection = node.intersection.length > 0
-    const surfaceGeometry = exactIntersection
-      ? buildOverlapSurfaceGeometry(node)
-      : new BoxGeometry(channelLength, node.lipThickness, width, 1, 1, 40)
-    const surface = new Mesh(surfaceGeometry, surfaceMaterial())
-    if (!exactIntersection) deformGeometry(surface.geometry, (x, y, z) => [
-      x + sampleSpilloverEdge(node.sourceEdge, z), y, z,
-    ])
-    surface.name = 'pool-spillover-overlap-surface'
-    surface.position.y = -node.lipThickness
-    if (!exactIntersection) surface.position.set(channelCenter, -node.lipThickness, (sourceBoundaryZ + targetZ) / 2)
-    group.add(surface)
-    if (!exactIntersection) {
-      const wallHeight = Math.max(0.22, node.lipThickness * 3)
-      const wallOffset = Math.max(0, width / 2 - node.lipThickness / 2)
-      const wallInset = Math.max(0.025, node.lipThickness * 0.5)
-      for (const side of [-1, 1] as const) {
-        const wall = new Mesh(new BoxGeometry(channelLength, wallHeight, node.lipThickness), surfaceMaterial())
-        wall.name = `pool-spillover-overlap-wall-${side < 0 ? 'left' : 'right'}`
-        wall.position.set(
-          channelCenter,
-          -node.lipThickness / 2 + wallHeight / 2 + 0.001,
-          (sourceBoundaryZ + targetZ) / 2 + side * Math.max(0, wallOffset - wallInset),
-        )
-        group.add(wall)
-      }
-    }
-  }
 
   if (node.connectionMode === 'channel' && !touchingConnection) {
     const bed = new Mesh(new BoxGeometry(channelLength, node.lipThickness, width, 1, 1, 40), surfaceMaterial())
@@ -174,9 +117,13 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
     // the visible side borders into the coping so no seam remains between the
     // spillover rail and rock/continuous pool borders. The floor opening and
     // water sheet retain the exact endpoint-to-endpoint length.
-    const borderLength = channelLength + node.lipThickness * 2 + 0.04
+    const curvedBorder = node.sourceEdge.length > 1 || node.targetEdge.length > 1
+    const borderLength = curvedBorder ? channelLength : channelLength + node.lipThickness * 2 + 0.04
     for (const side of [-1, 1] as const) {
       const border = new Mesh(new BoxGeometry(borderLength, node.lipThickness, node.lipThickness), surfaceMaterial())
+      if (curvedBorder) deformGeometry(border.geometry, (x, y, z) => [
+        x + channelOffset(x, z + side * wallOffset), y, z,
+      ])
       border.name = `pool-spillover-channel-outer-border-${side < 0 ? 'left' : 'right'}`
       border.position.set(
         channelCenter,
@@ -204,6 +151,41 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   const approach = touchingConnection
     ? node.lipThickness
     : Math.max(node.lipThickness, pathDistance - curveRadius, overlapReach)
+
+  if (node.connectionMode === 'overlap' && node.dropHeight > 0.021) {
+    // The exact intersection surface stops at the shared pool footprint, but
+    // the water continues outward by its landing inset before falling. Build
+    // a closed slab under that full horizontal run so its top, bottom, and
+    // side faces visibly support the cantilevered spillover.
+    const bedEndX = targetX + pathDirection * waterLandingInset
+    const bedLength = Math.max(node.lipThickness, Math.abs(bedEndX - sourceBoundaryX))
+    const bedCenterX = (sourceBoundaryX + bedEndX) / 2
+    const bed = new Mesh(new BoxGeometry(bedLength, node.lipThickness, width, 1, 1, 40), surfaceMaterial())
+    deformGeometry(bed.geometry, (x, y, z) => [x + sampleSpilloverEdge(node.sourceEdge, z), y, z])
+    bed.name = 'pool-spillover-overlap-bed'
+    bed.position.set(bedCenterX, -node.lipThickness / 2, (sourceBoundaryZ + targetZ) / 2)
+    group.add(bed)
+
+    const wallHeight = Math.max(0.14, node.lipThickness * 2)
+    const wallOffset = Math.max(0, width / 2 - node.lipThickness / 2)
+    for (const side of [-1, 1] as const) {
+      const wall = new Mesh(
+        new BoxGeometry(bedLength, wallHeight, node.lipThickness, 1, 1, 40),
+        surfaceMaterial(),
+      )
+      deformGeometry(wall.geometry, (x, y, z) => [
+        x + sampleSpilloverEdge(node.sourceEdge, side * wallOffset + z), y, z,
+      ])
+      wall.name = `pool-spillover-overlap-bed-wall-${side < 0 ? 'left' : 'right'}`
+      wall.position.set(
+        bedCenterX,
+        wallHeight / 2,
+        (sourceBoundaryZ + targetZ) / 2 + side * wallOffset,
+      )
+      group.add(wall)
+    }
+  }
+
   const sheetGeometry = createSpillwayGeometry(
     // Let the water reach both platform edges. The side walls sit beneath
     // those edges and provide the containment instead of narrowing the sheet.
@@ -233,7 +215,7 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   sheet.position.set(targetX, waterClearance, targetZ)
   sheet.renderOrder = 3
   sheet.userData.waterfallEffect = waterEffect
-  if (!hasResolvedOverlap) group.add(sheet)
+  group.add(sheet)
 
   group.userData.waterEffects = [waterEffect]
   return group

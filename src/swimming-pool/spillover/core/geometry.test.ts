@@ -27,9 +27,9 @@ describe('pool spillover geometry', () => {
     }))
     expect(geometry.children.map((child) => child.name)).toEqual([
       'pool-spillover-crest',
-      'pool-spillover-overlap-surface',
-      'pool-spillover-overlap-wall-left',
-      'pool-spillover-overlap-wall-right',
+      'pool-spillover-overlap-bed',
+      'pool-spillover-overlap-bed-wall-left',
+      'pool-spillover-overlap-bed-wall-right',
       'pool-spillover-water-sheet',
     ])
     expect(geometry.userData.waterEffects).toHaveLength(1)
@@ -53,11 +53,11 @@ describe('pool spillover geometry', () => {
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.x).toBeCloseTo(0.21)
     // Overlap connections land just outside the source rim rather than
     // extending back through the higher basin.
-    expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.03)
+    expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.15)
     disposeGeometry(geometry)
   })
 
-  test('uses the exact intersecting footprint for an overlap support surface', () => {
+  test('does not render the full intersection footprint as a spillover plane', () => {
     const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
       position: [1, 1, 0],
       sourcePoolId: 'pool-upper',
@@ -68,11 +68,10 @@ describe('pool spillover geometry', () => {
       width: 2.4,
       dropHeight: 0.6,
     }))
-    expect(geometry.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
+    expect(geometry.getObjectByName('pool-spillover-overlap-surface')).toBeUndefined()
+    expect(geometry.getObjectByName('pool-spillover-overlap-bed')).toBeDefined()
     expect(geometry.getObjectByName('pool-spillover-overlap-wall-left')).toBeUndefined()
     expect(geometry.getObjectByName('pool-spillover-overlap-wall-right')).toBeUndefined()
-    const surface = geometry.getObjectByName('pool-spillover-overlap-surface') as Mesh
-    expect(surface.geometry.getAttribute('position').count).toBe(6)
     disposeGeometry(geometry)
   })
 

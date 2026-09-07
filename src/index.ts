@@ -4,8 +4,6 @@ import { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 import { poolValveDefinition } from './swimming-pool/valve/core/definition'
 import { poolPumpDefinition } from './swimming-pool/pump/core/definition'
 import { poolFilterDefinition } from './swimming-pool/filter/core/definition'
-import { poolCatchBasinDefinition } from './swimming-pool/water-feature/basin/core/definition'
-import { poolWatercourseDefinition } from './swimming-pool/water-feature/watercourse/core/definition'
 import { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
 import { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
 import { poolSpilloverDefinition } from './swimming-pool/spillover/core/definition'
@@ -29,8 +27,6 @@ export const poolPlugin: Plugin = {
     poolValveDefinition as unknown as AnyNodeDefinition,
     poolPumpDefinition as unknown as AnyNodeDefinition,
     poolFilterDefinition as unknown as AnyNodeDefinition,
-    poolCatchBasinDefinition as unknown as AnyNodeDefinition,
-    poolWatercourseDefinition as unknown as AnyNodeDefinition,
     poolHeaterDefinition as unknown as AnyNodeDefinition,
     poolSharedJointDefinition as unknown as AnyNodeDefinition,
     poolSpilloverDefinition as unknown as AnyNodeDefinition,
@@ -64,8 +60,6 @@ export { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 export { poolValveDefinition } from './swimming-pool/valve/core/definition'
 export { poolPumpDefinition } from './swimming-pool/pump/core/definition'
 export { poolFilterDefinition } from './swimming-pool/filter/core/definition'
-export { poolCatchBasinDefinition } from './swimming-pool/water-feature/basin/core/definition'
-export { poolWatercourseDefinition } from './swimming-pool/water-feature/watercourse/core/definition'
 export { poolHeaterDefinition } from './swimming-pool/heater/core/definition'
 export { poolSharedJointDefinition } from './swimming-pool/shared-joint/core/definition'
 export { poolSharedJointParametrics } from './swimming-pool/shared-joint/editor/parametrics'
@@ -86,8 +80,6 @@ export { PoolValveNode } from './swimming-pool/valve/core/schema'
 export { poolValveParametrics } from './swimming-pool/valve/editor/parametrics'
 export { PoolPumpNode } from './swimming-pool/pump/core/schema'
 export { PoolFilterNode } from './swimming-pool/filter/core/schema'
-export { PoolCatchBasinNode } from './swimming-pool/water-feature/basin/core/schema'
-export { PoolWatercourseNode } from './swimming-pool/water-feature/watercourse/core/schema'
 export { PoolHeaterNode } from './swimming-pool/heater/core/schema'
 export { PoolSharedJointNode } from './swimming-pool/shared-joint/core/schema'
 export { PoolSpilloverNode } from './swimming-pool/spillover/core/schema'

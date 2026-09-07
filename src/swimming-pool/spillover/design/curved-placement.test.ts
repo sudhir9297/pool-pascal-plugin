@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { Raycaster, Vector3, type Mesh } from 'three'
+import { Raycaster, Vector3, type BoxGeometry, type Mesh } from 'three'
 import { buildPoolGeometry } from '../../core/geometry'
 import { PoolNode, type PoolPoint } from '../../core/schema'
 import { buildPoolSpilloverGeometry } from '../core/geometry'
@@ -35,6 +35,19 @@ test.each([32, 128, 256])('connects a curved pool across multiple short edges at
   }
   const notches = getPoolSpilloverNotches(upper, {[upper.id]:upper,[lower.id]:lower,[node.id]:node} as never)
   expect(notches).toHaveLength(1)
+  expect(notches[0]!.edgeProfile!.map(([across]) => across)).toEqual(node.sourceEdge.map(([across]) => across))
+  // Border endpoints must coincide with the curved containment wall, rather
+  // than protrude beyond it as straight rails.
+  for (const side of ['left', 'right']) {
+    const border = geometry.getObjectByName(`pool-spillover-channel-outer-border-${side}`) as Mesh
+    const wall = geometry.getObjectByName(`pool-spillover-channel-wall-${side}`) as Mesh
+    const borderPoints = border.geometry.getAttribute('position')
+    const wallPoints = wall.geometry.getAttribute('position')
+    for (let i = 0; i < borderPoints.count; i++) {
+      expect(borderPoints.getX(i)).toBeCloseTo(wallPoints.getX(i), 5)
+      expect(borderPoints.getZ(i)).toBeCloseTo(wallPoints.getZ(i), 5)
+    }
+  }
   // The opening cutter stays tight to the shell; curved edge offsets deform
   // the water sheet and must not enlarge the wall notch.
   expect(notches[0]!.depth).toBeCloseTo(upper.copingWidth * 6 + 0.2)
@@ -110,9 +123,32 @@ test('a nested higher pool spills outward across its own rim', () => {
   expect(placement.connectionPath[0]![0]).toBeCloseTo(2)
   expect(placement.connectionPath[1]![0]).toBeCloseTo(2)
   expect(placement.sourceSide).toBe(-1)
-  const visual = buildPoolSpilloverGeometry(PoolSpilloverNode.parse(placement))
-  expect(visual.getObjectByName('pool-spillover-water-sheet')).toBeUndefined()
-  expect(visual.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
+  const node = PoolSpilloverNode.parse(placement)
+  const visual = buildPoolSpilloverGeometry(node)
+  expect(visual.getObjectByName('pool-spillover-water-sheet')).toBeDefined()
+  const bed = visual.getObjectByName('pool-spillover-overlap-bed') as Mesh<BoxGeometry>
+  expect(bed).toBeDefined()
+  expect(bed.geometry.parameters.width).toBeCloseTo(0.4)
+  expect(visual.getObjectByName('pool-spillover-overlap-bed-wall-left')).toBeDefined()
+  expect(visual.getObjectByName('pool-spillover-overlap-bed-wall-right')).toBeDefined()
+  expect(visual.getObjectByName('pool-spillover-overlap-surface')).toBeUndefined()
+  const notches = getPoolSpilloverNotches(upper, {
+    [upper.id]: upper,
+    [lower.id]: lower,
+    [node.id]: node,
+  } as never)
+  const upperGeometry = buildPoolGeometry(upper, { spilloverNotches: notches })
+  upperGeometry.updateMatrixWorld(true)
+  const supportingWall = upperGeometry.getObjectByName('pool-shell-walls')!
+  const supportRay = new Raycaster(new Vector3(3, -0.5, 0), new Vector3(-1, 0, 0), 0, 2)
+  expect(supportRay.intersectObject(supportingWall).length).toBeGreaterThan(0)
+  upperGeometry.userData.waterEffect.dispose()
+  upperGeometry.traverse((object) => {
+    const mesh = object as Mesh
+    if (!mesh.isMesh) return
+    mesh.geometry.dispose()
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose()
+  })
   disposePoolSpilloverVisual(visual)
 })
 
