@@ -1,21 +1,14 @@
 'use client'
 
-import { useRegistry, type AnyNode } from '@pascal-app/core'
-import { useNodeEvents } from '@pascal-app/viewer'
-import { useMemo, useRef } from 'react'
-import { Quaternion, Vector3, type Group } from 'three'
+import { Quaternion, Vector3 } from 'three'
+import { GeometryPreview } from '../../editor/geometry-preview'
 import { buildFilterGeometry, getFilterPortsLocal } from '../core/geometry'
 import type { PoolFilterNode } from '../core/schema'
 
 export default function PoolFilterPreview({ node }: { node: PoolFilterNode }) {
-  const rootRef = useRef<Group>(null!)
-  const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
-  useRegistry(node.id, node.type, rootRef)
-  const geometry = useMemo(() => buildFilterGeometry(node), [node])
-  return <group position={node.position} rotation={node.rotation} ref={rootRef} {...handlers}>
-    <primitive object={geometry} />
+  return <GeometryPreview node={node} buildGeometry={buildFilterGeometry}>
     {node.showFlow && <FlowArrows node={node} />}
-  </group>
+  </GeometryPreview>
 }
 
 function FlowArrows({ node }: { node: PoolFilterNode }) {

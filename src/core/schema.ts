@@ -1,23 +1,77 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
-import { POOL_ENTRY_FEATURES } from '../design/entry-features'
-import { POOL_FLOOR_PROFILES } from '../design/depth-profile'
-import { POOL_SHAPES } from '../design/shapes'
-import { WATER_PRESETS } from '../shader/water-presets'
-import { POOL_FINISHES } from '../design/pool-finishes'
-import { POOL_VISUAL_PRESETS } from '../design/visual-presets'
+import { WATER_PRESET_SETTINGS } from './water-presets'
+import {
+  POOL_ENTRY_FEATURES,
+  POOL_FINISHES,
+  POOL_FLOOR_PROFILES,
+  POOL_SHAPES,
+  POOL_VISUAL_PRESETS,
+  WATER_PRESETS,
+} from './pool-options'
+import { Point2Schema, Point3Schema, type PoolPoint } from './schema-primitives'
+
+export const DEFAULT_POOL = {
+  shape: 'rectangle' as const,
+  length: 8,
+  width: 4,
+  polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]] as Array<[number, number]>,
+  outlineControlPoints: [] as Array<[number, number]>,
+  children: [] as string[],
+  floorProfile: 'flat' as const,
+  depth: 1.5,
+  shallowDepth: 1.1,
+  deepDepth: 2,
+  slopeStart: 35,
+  slopeEnd: 70,
+  coveRadius: 0.15,
+  entryFeature: 'none' as const,
+  entryLength: 2,
+  entryWaterDepth: 0.25,
+  stepCount: 3,
+  benchEnabled: false,
+  benchStyle: 'end' as const,
+  benchWall: 'max-x' as const,
+  benchBoundaryT: 0.4166667,
+  benchLength: 3,
+  benchWidth: 0.5,
+  benchWaterDepth: 0.5,
+  copingWidth: 0.3,
+  copingThickness: 0.08,
+  copingStyle: 'continuous' as const,
+  copingStoneLength: 0.65,
+  copingJointWidth: 0.025,
+  copingIrregularity: 0.4,
+  copingSeed: 1847,
+  shellThickness: 0.2,
+  floorThickness: 0.2,
+  openingClearance: 0.02,
+  finishedDeckElevation: 0,
+  designWaterElevation: -0.12,
+  copingProfile: 'square' as const,
+  copingCorner: 'miter' as const,
+  copingColor: '#e2e8f0',
+  ...WATER_PRESET_SETTINGS['crystal-clear'],
+  sunElevation: 52,
+  sunAzimuth: 135,
+  supportSlabId: null,
+  waterColor: '#38bdf8',
+  shellColor: '#e2e8f0',
+  interiorFinish: 'light-mosaic' as const,
+  visualPreset: 'custom' as const,
+} as const
 
 export const PoolNode = BaseNode.extend({
   id: objectId('pool'),
   type: nodeType('pool:pool'),
-  position: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
-  rotation: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
+  position: Point3Schema.default([0, 0, 0]),
+  rotation: Point3Schema.default([0, 0, 0]),
   children: z.array(z.string()).default([]),
   shape: z.enum(POOL_SHAPES).default('rectangle'),
   length: z.number().min(0.5).default(8),
   width: z.number().min(0.5).default(4),
-  polygon: z.array(z.tuple([z.number(), z.number()])).min(3).default([[-4, -2], [4, -2], [4, 2], [-4, 2]]),
-  outlineControlPoints: z.array(z.tuple([z.number(), z.number()])).default([]),
+  polygon: z.array(Point2Schema).min(3).default([[-4, -2], [4, -2], [4, 2], [-4, 2]]),
+  outlineControlPoints: z.array(Point2Schema).default([]),
   floorProfile: z.enum(POOL_FLOOR_PROFILES).default('flat'),
   depth: z.number().min(0.5).default(1.5),
   shallowDepth: z.number().min(0.5).default(1.1),
@@ -60,9 +114,9 @@ export const PoolNode = BaseNode.extend({
   surfaceDetail: z.number().min(0.4).max(3).default(1.6),
   viscosity: z.number().min(0).max(1).default(0.4),
   rippleSize: z.number().min(8).max(80).default(30),
-  clarity: z.number().min(0.3).max(3).default(1),
+  clarity: z.number().min(0.3).max(3).default(WATER_PRESET_SETTINGS['crystal-clear'].clarity),
   rain: z.number().min(0).max(1).default(0),
-  breeze: z.number().min(0).max(1).default(0.25),
+  breeze: z.number().min(0).max(1).default(WATER_PRESET_SETTINGS['crystal-clear'].breeze),
   sunElevation: z.number().min(14).max(86).default(52),
   sunAzimuth: z.number().min(0).max(360).default(135),
   normalScale: z.number().min(0.25).max(20).default(5),
@@ -75,10 +129,10 @@ export const PoolNode = BaseNode.extend({
   causticsStrength: z.number().min(0).max(4).default(3),
   causticsScale: z.number().min(0.25).max(12).default(2.76),
   causticsSpeed: z.number().min(-4).max(4).default(1.3),
-  intersectionStrength: z.number().min(0).max(1).default(0),
+  intersectionStrength: z.number().min(0).max(1).default(WATER_PRESET_SETTINGS['crystal-clear'].intersectionStrength),
   intersectionColor: z.string().default('#f6e975'),
   intersectionWidth: z.number().min(0.05).max(2).default(1.17),
-  shorelineStrength: z.number().min(0).max(1).default(0),
+  shorelineStrength: z.number().min(0).max(1).default(WATER_PRESET_SETTINGS['crystal-clear'].shorelineStrength),
   shorelineWidth: z.number().min(0.02).max(1).default(0.35),
   shorelineSpeed: z.number().min(-3).max(3).default(0),
   specularStrength: z.number().min(0).max(4).default(1.35),
@@ -94,7 +148,7 @@ export const PoolNode = BaseNode.extend({
 })
 
 export type PoolNode = z.infer<typeof PoolNode>
-export type PoolPoint = [number, number]
+export type { PoolPoint } from './schema-primitives'
 
 export function resolvePoolPolygon(value: { polygon?: unknown; length?: unknown; width?: unknown }): PoolPoint[] {
   if (Array.isArray(value.polygon) && value.polygon.length >= 3 && value.polygon.every((point) => Array.isArray(point) && point.length >= 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]))) {

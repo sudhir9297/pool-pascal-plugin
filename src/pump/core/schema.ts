@@ -1,14 +1,23 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
+import { Point3Schema } from '../../core/schema-primitives'
 
-const Point3 = z.tuple([z.number(), z.number(), z.number()])
+export const DEFAULT_POOL_PUMP = {
+  position: [0, 0, 0] as [number, number, number],
+  rotation: [0, 0, 0] as [number, number, number],
+  diameter: 0.05,
+  bodyWidth: 0.42,
+  bodyHeight: 0.34,
+  bodyDepth: 0.62,
+  showFlow: false,
+}
 
 /** A free-standing pool circulation pump. Local +Z is the inlet and +Y is the outlet. */
 export const PoolPumpNode = BaseNode.extend({
   id: objectId('pool-pump'),
   type: nodeType('pool:pump'),
-  position: Point3.default([0, 0, 0]),
-  rotation: Point3.default([0, 0, 0]),
+  position: Point3Schema.default([0, 0, 0]),
+  rotation: Point3Schema.default([0, 0, 0]),
   diameter: z.number().min(0.025).default(0.05),
   bodyWidth: z.number().min(0.25).default(0.42),
   bodyHeight: z.number().min(0.22).default(0.34),

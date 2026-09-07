@@ -1,17 +1,6 @@
-import type { PoolPoint } from '../core/schema'
-
-export const POOL_SHAPES = [
-  'rectangle',
-  'lap-rectangle',
-  'kidney',
-  'lagoon',
-  'roman',
-  'l-shape',
-  'spline',
-  'custom',
-] as const
-
-export type PoolShape = (typeof POOL_SHAPES)[number]
+import { POOL_SHAPES, type PoolShape } from '../core/pool-options'
+import type { PoolPoint } from '../core/schema-primitives'
+export { POOL_SHAPES, type PoolShape } from '../core/pool-options'
 
 export const POOL_SHAPE_OPTIONS: ReadonlyArray<{
   label: string

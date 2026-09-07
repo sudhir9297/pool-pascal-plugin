@@ -3,10 +3,12 @@
 import { useScene } from '@pascal-app/core'
 import { SegmentedControl, SliderControl, ToggleControl, useEditor } from '@pascal-app/editor'
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePoolStore } from './store'
 import { POOL_SHAPE_OPTIONS, type PoolShape } from '../design/shapes'
 import { POOL_STAIR_CATALOG, POOL_STAIR_VARIANTS, type PoolStairVariant } from '../stair/data/catalog'
 import { usePoolStairStore } from '../stair/editor/store'
+import { countPoolPluginNodes } from './scene-nodes'
 
 const THUMBNAILS = {
   pool: new URL('./assets/swimming-pool-thumbnail-v2.webp', import.meta.url).href,
@@ -48,17 +50,18 @@ export default function PoolPanel() {
   const length = usePoolStore((state) => state.length)
   const width = usePoolStore((state) => state.width)
   const stairVariant = usePoolStairStore((state) => state.variant)
-  const poolCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pool').length)
-  const stairCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:stair').length)
-  const skimmerCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:skimmer').length)
-  const inletCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:inlet').length)
-  const valveCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:valve').length)
-  const pumpCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pump').length)
-  const filterCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:filter').length)
-  const heaterCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:heater').length)
-  const drainCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:drain').length)
-  const waterfallCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:waterfall').length)
-  const spilloverCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:spillover').length)
+  const counts = useScene(useShallow((state) => countPoolPluginNodes(state.nodes)))
+  const poolCount = counts['pool:pool']
+  const stairCount = counts['pool:stair']
+  const skimmerCount = counts['pool:skimmer']
+  const inletCount = counts['pool:inlet']
+  const valveCount = counts['pool:valve']
+  const pumpCount = counts['pool:pump']
+  const filterCount = counts['pool:filter']
+  const heaterCount = counts['pool:heater']
+  const drainCount = counts['pool:drain']
+  const waterfallCount = counts['pool:waterfall']
+  const spilloverCount = counts['pool:spillover']
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Alt' || event.repeat || event.metaKey || event.ctrlKey || event.shiftKey) return

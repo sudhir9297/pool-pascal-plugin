@@ -2,7 +2,7 @@ import { Color } from 'three'
 
 // A restrained cool gray-beige pool-rock family. The small range keeps the
 // coping cohesive while avoiding a repeated, perfectly uniform material.
-export const POOL_ROCK_COLORS = [
+const POOL_ROCK_COLORS = [
   '#b8b6af',
   '#bebcb5',
   '#b0afa9',

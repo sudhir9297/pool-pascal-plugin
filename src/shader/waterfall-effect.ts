@@ -468,28 +468,6 @@ export class WaterfallBubbleCloudEffect {
   }
 }
 
-/** Lightweight impact disc retained for the legacy standalone spillover node. */
-export class WaterfallImpactEffect {
-  readonly material: MeshBasicNodeMaterial
-
-  constructor(waterColor = '#d9ffff') {
-    this.material = new MeshBasicNodeMaterial({
-      color: waterColor,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-      side: DoubleSide,
-      toneMapped: false,
-    })
-  }
-
-  update(_delta: number) {}
-
-  dispose() {
-    this.material.dispose()
-  }
-}
-
 /** Animated horizontal water used for the plunge pool and the source shelf. */
 export class WaterfallPoolEffect {
   readonly material: MeshBasicNodeMaterial

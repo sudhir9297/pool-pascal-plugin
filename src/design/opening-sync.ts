@@ -11,8 +11,6 @@ import { PoolSharedJointNode } from '../shared-joint/core/schema'
 import { PoolSpilloverNode } from '../spillover/core/schema'
 import { buildPoolOutlines, outsetPoolPolygon } from './outlines'
 
-export { outsetPoolPolygon as outsetPolygon } from './outlines'
-
 type ExistingHoleMetadata = SlabNode['holeMetadata'][number]
 
 export type PoolOpeningUpdate = {
@@ -80,7 +78,7 @@ function roundCoordinate(value: number) {
   return Math.round(value * COORDINATE_PRECISION) / COORDINATE_PRECISION
 }
 
-export function getPoolOpeningPolygon(pool: PoolNode): PolygonPoint2D[] {
+function getPoolOpeningPolygon(pool: PoolNode): PolygonPoint2D[] {
   const rotation = pool.rotation[1] ?? 0
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)

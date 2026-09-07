@@ -134,7 +134,6 @@ export function buildSharedJointGeometry(node: PoolSharedJointNode) {
   const group = new Group()
   // The pools remain independent. This module owns only the narrow transition
   // between them: shared rocks, a water passage, and an optional submerged shelf.
-  const innerWidth = Math.max(0.08, node.width - node.rockWidth * 2)
   const waterEffect = new PoolWaterEffect({
     waterPreset: 'crystal-clear',
     waterColor: '#168ca8',

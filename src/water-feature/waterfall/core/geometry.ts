@@ -10,6 +10,7 @@ import {
   MeshStandardMaterial,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import {
   WaterfallBubbleCloudEffect,
   WaterfallLineEffect,
@@ -18,12 +19,10 @@ import {
 } from '../../../shader/waterfall-effect'
 import type { WaterfallBubbleFamily } from '../../../shader/waterfall-effect'
 import {
-  createLowPolyRockMesh,
+  createLowPolyRockGeometry,
   type LowPolyRockProfile,
 } from '../../../design/low-poly-rock'
-import { getPoolRockColor } from '../../../design/rock-colors'
-import { DEFAULT_POOL_WATERFALL } from './definition'
-import type { PoolWaterfallNode } from './schema'
+import { PoolWaterfallNode } from './schema'
 
 type RockPlacement = {
   x: number
@@ -135,19 +134,10 @@ export function buildWaterfallGeometry(node: PoolWaterfallNode) {
   const definedNode = Object.fromEntries(
     Object.entries(node).filter(([, value]) => value !== undefined),
   )
-  const normalized: PoolWaterfallNode = {
-    ...DEFAULT_POOL_WATERFALL,
-    ...definedNode,
-    edgeCurve: Array.isArray(definedNode.edgeCurve) && definedNode.edgeCurve.length >= 2
-      ? definedNode.edgeCurve as Array<[number, number]>
-      : FLAT_EDGE_CURVE,
-    targetWaterOffset: Number.isFinite(definedNode.targetWaterOffset)
-      ? definedNode.targetWaterOffset as number
-      : 0,
-  } as PoolWaterfallNode
-  return normalized.waterfallType === 'modern'
-    ? buildModernWaterfallGeometry(normalized)
-    : buildRockWaterfallGeometry(normalized)
+  const normalized = PoolWaterfallNode.parse(definedNode)
+  if (normalized.waterfallType === 'modern') return buildModernWaterfallGeometry(normalized)
+  if (normalized.waterfallType === 'spillover') return buildSpilloverWaterfallGeometry(normalized)
+  return buildRockWaterfallGeometry(normalized)
 }
 
 function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
@@ -183,18 +173,16 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   group.name = `pool-waterfall-${node.waterfallType}`
   addReceivingPool(group, node)
 
-  const heightScale = node.waterfallType === 'spillover' ? 0.72 : 1
   const moundRocks = adaptiveMoundRocks(node)
-  for (const [index, rock] of moundRocks.entries()) {
-    addRock(group, node, {
-      ...rock,
-      y: rock.y * heightScale,
-      height: rock.height * heightScale,
-    }, index)
-  }
-  if (!node.poolId) addPondEdgeRocks(group, node, moundRocks.length)
+  const moundMaterial = createRockMaterial(0.96)
+  group.add(mergeRockMeshes(
+    moundRocks.map((rock, index) => createRock(node, rock, index, moundMaterial)),
+    'waterfall-rock-mound',
+    moundMaterial,
+  ))
+  if (!node.poolId) group.add(createPondEdgeRocks(node, moundRocks.length, createRockMaterial(0.82)))
 
-  const topY = node.height * (node.waterfallType === 'spillover' ? 0.66 : 0.82)
+  const topY = node.height * 0.82
   const fallZ = getWaterfallLipZ(node)
   const fallWidth = node.width * 0.3
   // Natural cascades use a recessed void framed by the rocks. The engineered
@@ -208,19 +196,61 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   return group
 }
 
-function addRock(group: Group, node: PoolWaterfallNode, rock: RockPlacement, index: number) {
+function buildSpilloverWaterfallGeometry(node: PoolWaterfallNode) {
+  const group = new Group()
+  group.name = 'pool-waterfall-spillover'
+  addReceivingPool(group, node)
+
+  const rocks = adaptiveMoundRocks(node).filter((rock) => rock.y < 0.35)
+  const rockMaterial = createRockMaterial(0.96)
+  group.add(mergeRockMeshes(rocks.map((rock, index) => createRock(node, {
+      ...rock,
+      y: rock.y * 0.62,
+      height: rock.height * 0.58,
+      depth: rock.depth * 0.82,
+    }, index, rockMaterial)), 'waterfall-rock-spillover', rockMaterial))
+  if (!node.poolId) group.add(createPondEdgeRocks(node, rocks.length, createRockMaterial(0.82)))
+
+  const topY = node.height * 0.38
+  const fallZ = getWaterfallLipZ(node)
+  const fallWidth = node.width * 0.72
+  addSpilloverWeir(group, node, fallWidth, topY, fallZ)
+  addNaturalChannel(group, node, fallWidth, topY, fallZ)
+  if (node.showFlow) addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node)
+  return group
+}
+
+function createRockMaterial(roughness: number) {
+  return new MeshStandardMaterial({
+    color: '#ffffff',
+    roughness,
+    metalness: 0,
+    flatShading: true,
+    vertexColors: true,
+  })
+}
+
+function createRock(
+  node: PoolWaterfallNode,
+  rock: RockPlacement,
+  index: number,
+  material: MeshStandardMaterial,
+) {
   const seed = node.rockSeed + index * 7919
   const color = waterfallRockColor(node.rockColor, node.poolRockSeed, node.rockSeed, index)
-  const mesh = createLowPolyRockMesh(
+  const mesh = new Mesh(createLowPolyRockGeometry(
     rock.width * node.width * ROCK_PACKING_WIDTH,
     rock.height * node.height,
     rock.depth * node.depth * ROCK_PACKING_DEPTH,
     seed,
-    color,
     rock.profile,
-    0.96,
-  )
+    color,
+  ), material)
   mesh.name = `waterfall-rock-${index}-${rock.profile}`
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+  mesh.userData.rockProfile = rock.profile
+  mesh.userData.seed = seed
   const x = rock.x * node.width
   const edge = sampleEdgeCurve(node.edgeCurve, x)
   mesh.position.set(x, rock.y * node.height, rock.z * node.depth + edge.z)
@@ -229,37 +259,85 @@ function addRock(group: Group, node: PoolWaterfallNode, rock: RockPlacement, ind
     (rock.yaw ?? Math.sin(seed * 0.0023) * 0.18) - Math.atan(edge.slope),
     rock.roll ?? Math.cos(seed * 0.0019) * 0.045,
   )
-  group.add(mesh)
+  return mesh
 }
 
-function addPondEdgeRocks(group: Group, node: PoolWaterfallNode, startIndex: number) {
+function createPondEdgeRocks(
+  node: PoolWaterfallNode,
+  startIndex: number,
+  material: MeshStandardMaterial,
+) {
+  const rocks: Mesh[] = []
   for (const [offset, rock] of POND_EDGE_ROCKS.entries()) {
     const [x, y, z, width, height, depth, profile, yaw] = rock
     const index = startIndex + offset
     const seed = node.rockSeed + index * 7919
-    const mesh = createLowPolyRockMesh(
+    const mesh = new Mesh(createLowPolyRockGeometry(
       width * node.receivingPoolWidth,
       height * node.height,
       depth * node.receivingPoolDepth,
       seed,
-      waterfallRockColor(node.rockColor, node.poolRockSeed, node.rockSeed, index),
       profile,
-      0.82,
-    )
+      waterfallRockColor(node.rockColor, node.poolRockSeed, node.rockSeed, index),
+    ), material)
     mesh.name = `waterfall-rock-${index}-${profile}`
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    mesh.userData.rockProfile = profile
+    mesh.userData.seed = seed
     mesh.position.set(x * node.receivingPoolWidth, y * node.height, z * node.receivingPoolDepth)
     mesh.rotation.set(0, yaw, Math.sin(seed * 0.0013) * 0.04)
-    group.add(mesh)
+    rocks.push(mesh)
   }
+  return mergeRockMeshes(rocks, 'waterfall-rock-pond-edge', material)
+}
+
+function mergeRockMeshes(rocks: readonly Mesh[], name: string, material: MeshStandardMaterial) {
+  const geometries = rocks.map((rock) => {
+    rock.updateMatrix()
+    return rock.geometry.clone().applyMatrix4(rock.matrix)
+  })
+  const geometry = mergeGeometries(geometries, false)
+  for (const source of geometries) source.dispose()
+  if (!geometry) throw new Error(`Unable to merge ${name} geometry`)
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
+  const mesh = new Mesh(geometry, material)
+  mesh.name = name
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+  mesh.userData.rockCount = rocks.length
+  mesh.userData.rockProfiles = [...new Set(rocks.map((rock) => rock.userData.rockProfile as LowPolyRockProfile))]
+  return mesh
 }
 
 function waterfallRockColor(baseColor: string, poolRockSeed: number | null, seed: number, index: number) {
   // Keep the user-selected rock color authoritative while retaining subtle,
   // deterministic facet-to-facet variation from the seed.
-  const color = poolRockSeed === null ? new Color(baseColor) : getPoolRockColor(poolRockSeed, index)
-  const variation = Math.sin((seed + index * 7919) * 0.017) * 0.018
+  const color = new Color(baseColor)
+  const colorSeed = poolRockSeed ?? seed
+  const variation = Math.sin((colorSeed + index * 7919) * 0.017) * 0.018
   color.offsetHSL(variation, 0, variation)
   return `#${color.getHexString()}`
+}
+
+function addSpilloverWeir(
+  group: Group,
+  node: PoolWaterfallNode,
+  waterWidth: number,
+  waterY: number,
+  lipZ: number,
+) {
+  const thickness = Math.max(0.07, node.lipThickness)
+  const weir = new Mesh(
+    new RoundedBoxGeometry(waterWidth + thickness * 2.4, thickness * 1.4, thickness * 2.2, 2, thickness * 0.25),
+    new MeshStandardMaterial({ color: node.rockColor, roughness: 0.92, metalness: 0 }),
+  )
+  weir.name = 'waterfall-spillover-weir'
+  weir.position.set(0, waterY - thickness * 0.85, lipZ + thickness * 0.15)
+  weir.castShadow = true
+  weir.receiveShadow = true
+  group.add(weir)
 }
 
 function addNaturalCavity(
@@ -356,8 +434,8 @@ function createCurvedChannelGeometry(
   thickness: number,
   edgeCurve: readonly (readonly [number, number])[],
 ) {
-  const xSegments = 40
-  const depthSegments = 4
+  const xSegments = Math.max(12, Math.min(40, Math.ceil(width * 8)))
+  const depthSegments = Math.max(2, Math.min(4, Math.ceil(depth * 8)))
   const positions: number[] = []
   const indices: number[] = []
   const rowSize = xSegments + 1
@@ -680,14 +758,16 @@ export function createSpillwayGeometry(
   sheetDepth: number,
   edgeCurve: readonly (readonly [number, number])[] = FLAT_EDGE_CURVE,
 ) {
+  // Pool spillover geometry and its curved-edge sampler share this row resolution.
+  // Keep it stable because createSpillwayGeometry is used by both feature types.
   const xSegments = 40
-  const pathSegments = 96
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
   const curveLength = Math.PI * curveRadius / 2
   const verticalLength = Math.max(0.08, height - curveRadius)
   const pathLength = approach + curveLength + verticalLength
+  const pathSegments = Math.max(32, Math.min(96, Math.ceil(pathLength * 28)))
 
   for (let pathIndex = 0; pathIndex <= pathSegments; pathIndex += 1) {
     const progress = pathIndex / pathSegments

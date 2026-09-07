@@ -1,13 +1,12 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
-
-const Point3 = z.tuple([z.number(), z.number(), z.number()])
+import { Point3Schema } from '../../core/schema-primitives'
 
 export const PoolSharedJointNode = BaseNode.extend({
   id: objectId('pool-shared-joint'),
   type: nodeType('pool:shared-joint'),
-  position: Point3.default([0, 0, 0]),
-  rotation: Point3.default([0, 0, 0]),
+  position: Point3Schema.default([0, 0, 0]),
+  rotation: Point3Schema.default([0, 0, 0]),
   poolIds: z.tuple([z.string(), z.string()]),
   intersection: z.array(z.array(z.tuple([z.number(), z.number()]))).default([]),
   copingStyle: z.enum(['continuous', 'natural-stone', 'rock']).default('continuous'),

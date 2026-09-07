@@ -3,12 +3,9 @@ import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/webgpu'
 import type { PoolPoint } from '../core/schema'
 import {
   layoutNaturalCopingStones,
-  naturalCopingStoneCount,
   type NaturalCopingLayoutOptions,
 } from './coping-layout'
 import { getPoolRockColor } from './rock-colors'
-
-export { naturalCopingStoneCount } from './coping-layout'
 
 export type NaturalCopingOptions = NaturalCopingLayoutOptions & {
   color: string

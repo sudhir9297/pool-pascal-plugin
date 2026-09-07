@@ -1,21 +1,19 @@
 'use client'
 
-import { useNodeEvents } from '@pascal-app/viewer'
-import { useRegistry, useScene, type AnyNode } from '@pascal-app/core'
-import { useMemo, useRef } from 'react'
-import type { Group } from 'three'
+import { useScene } from '@pascal-app/core'
+import { useMemo } from 'react'
+import { GeometryPreview } from '../../editor/geometry-preview'
+import { getPoolNode } from '../../editor/scene-nodes'
 import { buildSkimmerGeometry } from '../core/geometry'
 import type { PoolSkimmerNode } from '../core/schema'
 import { resolveMountedSkimmer } from '../design/placement'
 
 export default function PoolSkimmerPreview({ node }: { node: PoolSkimmerNode }) {
-  const rootRef = useRef<Group>(null!)
-  const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
-  const pool = useScene((state) => node.poolId ? (state.nodes as unknown as Record<string, PoolSkimmerNode>)[node.poolId] : undefined)
-  const mountedNode = useMemo(() => resolveMountedSkimmer(node, pool as never), [node, pool])
-  useRegistry(node.id, node.type, rootRef)
-  const geometry = useMemo(() => buildSkimmerGeometry(mountedNode), [mountedNode])
-  return <group position={mountedNode.position} rotation={mountedNode.rotation} ref={rootRef} {...handlers}><primitive object={geometry} />{mountedNode.showFlow && <FlowArrows />}</group>
+  const pool = useScene((state) => getPoolNode(state.nodes, node.poolId))
+  const mountedNode = useMemo(() => resolveMountedSkimmer(node, pool), [node, pool])
+  return <GeometryPreview node={mountedNode} buildGeometry={buildSkimmerGeometry}>
+    {mountedNode.showFlow && <FlowArrows />}
+  </GeometryPreview>
 }
 
 function FlowArrows() {

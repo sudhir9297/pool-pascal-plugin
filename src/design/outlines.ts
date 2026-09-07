@@ -74,7 +74,7 @@ function segmentsIntersect(a: PoolPoint, b: PoolPoint, c: PoolPoint, d: PoolPoin
       || (cdA < -GEOMETRY_TOLERANCE && cdB > GEOMETRY_TOLERANCE))
 }
 
-export function isSimplePoolPolygon(polygon: PoolPoint[]) {
+function isSimplePoolPolygon(polygon: PoolPoint[]) {
   if (polygon.length < 3 || polygon.some(([x, z]) => !Number.isFinite(x) || !Number.isFinite(z))) {
     return false
   }

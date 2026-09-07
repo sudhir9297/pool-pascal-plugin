@@ -2,7 +2,7 @@ import type { NodeDefinition } from '@pascal-app/core'
 import { PoolSharedJointNode } from './schema'
 import { poolSharedJointParametrics } from '../editor/parametrics'
 
-export const DEFAULT_POOL_SHARED_JOINT = {
+const DEFAULT_POOL_SHARED_JOINT = {
   position: [0, 0, 0] as [number, number, number],
   rotation: [0, 0, 0] as [number, number, number],
   poolIds: ['', ''] as [string, string],

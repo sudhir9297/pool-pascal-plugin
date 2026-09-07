@@ -3,7 +3,7 @@
 import { useScene } from '@pascal-app/core'
 import { useEffect, useMemo } from 'react'
 import type { Material, Mesh } from 'three'
-import type { PoolNode } from '../../core/schema'
+import { getPoolNode } from '../../editor/scene-nodes'
 import { buildPoolStairGeometry } from '../core/geometry'
 import type { PoolStairNode } from '../core/schema'
 import { resolvePoolStairMounting } from '../design/mounting'
@@ -13,9 +13,7 @@ export default function PoolStairGhost({ node, placement }: {
   node: PoolStairNode
   placement: PoolStairAttachment
 }) {
-  const pool = useScene((state) => (
-    state.nodes as unknown as Record<string, PoolNode>
-  )[placement.poolId])
+  const pool = useScene((state) => getPoolNode(state.nodes, placement.poolId))
   const geometry = useMemo(() => {
     const group = buildPoolStairGeometry(node, resolvePoolStairMounting(node, pool))
     group.traverse((child) => {

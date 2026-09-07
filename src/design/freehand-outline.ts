@@ -39,7 +39,7 @@ function segmentIntersection(
   }
 }
 
-export function closeFreehandPoolStroke(
+function closeFreehandPoolStroke(
   points: readonly PoolPoint[],
   closeDistance: number,
 ): PoolPoint[] | null {
@@ -159,12 +159,12 @@ export type FreehandPoolOutline = {
   polygon: PoolPoint[]
 }
 
-export type ReshapedFreehandPoolOutline = FreehandPoolOutline & {
+type ReshapedFreehandPoolOutline = FreehandPoolOutline & {
   length: number
   width: number
 }
 
-export function reshapeFreehandPoolOutline(
+function reshapeFreehandPoolOutline(
   controlPoints: readonly PoolPoint[],
   segmentsPerSpan = 8,
 ): ReshapedFreehandPoolOutline | null {

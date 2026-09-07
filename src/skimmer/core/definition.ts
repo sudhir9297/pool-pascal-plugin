@@ -1,25 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
-import { PoolSkimmerNode } from './schema'
+import { DEFAULT_POOL_SKIMMER, PoolSkimmerNode } from './schema'
 import { poolSkimmerParametrics } from '../editor/parametrics'
-
-export const DEFAULT_POOL_SKIMMER = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  poolId: null,
-  wallIndex: 0,
-  wallT: 0.5,
-  style: 'standard' as const,
-  accessState: 'closed' as const,
-  showFlow: false,
-  bodyWidth: 0.6,
-  bodyHeight: 0.55,
-  bodyDepth: 0.42,
-  mouthWidth: 0.42,
-  mouthHeight: 0.14,
-  waterlineOffset: 0,
-  suctionDiameter: 0.05,
-  showBasket: true,
-}
 
 export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
   kind: 'pool:skimmer',

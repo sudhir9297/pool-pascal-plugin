@@ -8,9 +8,9 @@ export const poolWaterfallParametrics: ParametricDescriptor<PoolWaterfallNode> =
       label: 'Waterfall settings',
       fields: [
         { key: 'waterfallType', kind: 'enum', options: ['modern', 'rock-cascade', 'spillover'], display: 'segmented' },
-        { key: 'width', kind: 'number', unit: 'm', min: 0.8, max: 12, step: 0.05 },
-        { key: 'height', kind: 'number', unit: 'm', min: 0.6, max: 6, step: 0.05 },
-        { key: 'depth', kind: 'number', unit: 'm', min: 0.4, max: 4, step: 0.05 },
+        { key: 'width', kind: 'number', unit: 'm', min: 0.8, max: 12, step: 0.05, visibleIf: hasManualDimensions },
+        { key: 'height', kind: 'number', unit: 'm', min: 0.6, max: 6, step: 0.05, visibleIf: hasManualDimensions },
+        { key: 'depth', kind: 'number', unit: 'm', min: 0.4, max: 4, step: 0.05, visibleIf: hasManualDimensions },
         { key: 'lipThickness', kind: 'number', unit: 'm', min: 0.02, max: 0.3, step: 0.01 },
         { key: 'showFlow', kind: 'boolean' },
         { key: 'flowStrength', kind: 'number', min: 0.2, max: 2, step: 0.05, visibleIf: (node) => node.showFlow },
@@ -51,4 +51,8 @@ export const poolWaterfallParametrics: ParametricDescriptor<PoolWaterfallNode> =
       deepWaterColor: preset.deepWaterColor,
     }
   },
+}
+
+function hasManualDimensions(node: PoolWaterfallNode) {
+  return !(node.poolId && node.waterfallType === 'modern' && node.autoSizeOnPool)
 }

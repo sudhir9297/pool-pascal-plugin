@@ -1,13 +1,13 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, type NodeEvent, sceneRegistry, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, type NodeEvent, sceneRegistry, useScene } from '@pascal-app/core'
 import { markToolCancelConsumed, triggerSFX, useEditor, useInteractionScope } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PoolNode } from '../../core/schema'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import { DEFAULT_POOL_SPILLOVER } from '../core/definition'
-import { PoolSpilloverNode } from '../core/schema'
+import { createPoolPluginNode } from '../../editor/scene-nodes'
+import { DEFAULT_POOL_SPILLOVER, PoolSpilloverNode } from '../core/schema'
 import { findPoolAtPoint, resolvePoolSpilloverCandidate, resolvePoolSpilloverPair } from '../design/interaction'
 import type { PoolSpilloverPlacement } from '../design/placement'
 import { setPoolSpilloverPlacementStage } from '../design/stage'
@@ -44,7 +44,7 @@ export default function PoolSpilloverTool() {
       name: `Pool Spillover ${count + 1}`,
       parentId: levelId,
     })
-    useScene.getState().createNode(spillover as unknown as AnyNode, levelId)
+    createPoolPluginNode(spillover, levelId)
     setSelection({ selectedIds: [spillover.id] })
     setSourcePool(null)
     setHoveredPool(null)

@@ -3,9 +3,8 @@
 import { useEffect, useMemo } from 'react'
 import { DoubleSide, Mesh, MeshBasicMaterial, Shape, ShapeGeometry, type Material } from 'three'
 import { resolvePoolPolygon, type PoolNode } from '../../core/schema'
-import { DEFAULT_POOL_SPILLOVER } from '../core/definition'
 import { buildPoolSpilloverGeometry } from '../core/geometry'
-import { PoolSpilloverNode } from '../core/schema'
+import { DEFAULT_POOL_SPILLOVER, PoolSpilloverNode } from '../core/schema'
 import type { PoolSpilloverPlacement } from '../design/placement'
 import { disposePoolSpilloverVisual } from './dispose-visual'
 

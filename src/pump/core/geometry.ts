@@ -17,9 +17,9 @@ const Y_AXIS = new Vector3(0, 1, 0)
 const Z_AXIS = new Vector3(0, 0, 1)
 
 /** Stored pump positions follow the host's floor surface; this is the model's base lift. */
-export const PUMP_BASE_LIFT = 0.27
+const PUMP_BASE_LIFT = 0.27
 
-export const PUMP_PORT_DIRECTIONS = [new Vector3(0, 0, 1), new Vector3(0, 1, 0)] as const
+const PUMP_PORT_DIRECTIONS = [new Vector3(0, 0, 1), new Vector3(0, 1, 0)] as const
 
 function identify<T extends Mesh>(mesh: T, name: string, role = 'body'): T {
   mesh.name = name

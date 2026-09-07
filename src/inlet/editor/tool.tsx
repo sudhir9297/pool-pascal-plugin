@@ -1,15 +1,14 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
 import { isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useState } from 'react'
 import type { Material, Mesh } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import type { PoolNode } from '../../core/schema'
+import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
 import { findNearestInletWall, type InletPlacement } from '../design/placement'
-import { DEFAULT_POOL_INLET, poolInletDefinition } from '../core/definition'
-import { PoolInletNode } from '../core/schema'
+import { DEFAULT_POOL_INLET, PoolInletNode } from '../core/schema'
 import { buildInletGeometry } from '../core/geometry'
 
 export default function PoolInletTool() {
@@ -23,7 +22,7 @@ export default function PoolInletTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const pools = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
+      const pools = getPoolNodes(useScene.getState().nodes)
       return findNearestInletWall([x, z], pools)
     }
     const onMove = (event: GridEvent) => {
@@ -33,9 +32,9 @@ export default function PoolInletTool() {
     const onClick = (event: GridEvent) => {
       const next = resolve(event)
       if (!next) return
-      const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:inlet').length
-      const inlet = PoolInletNode.parse({ ...poolInletDefinition.defaults(), id: undefined, name: `Pool Return Inlet ${count + 1}`, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
-      useScene.getState().createNode(inlet as unknown as AnyNode, levelId)
+      const count = countNodesByType(useScene.getState().nodes, 'pool:inlet')
+      const inlet = PoolInletNode.parse({ ...DEFAULT_POOL_INLET, id: undefined, name: `Pool Return Inlet ${count + 1}`, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
+      createPoolPluginNode(inlet, levelId)
       setSelection({ selectedIds: [inlet.id] })
       useEditor.getState().setTool(null); useEditor.getState().setMode('select'); triggerSFX('sfx:structure-build')
     }

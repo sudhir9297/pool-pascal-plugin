@@ -1,20 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
-import { PoolHeaterNode } from './schema'
+import { DEFAULT_POOL_HEATER, PoolHeaterNode } from './schema'
 import { poolHeaterParametrics } from '../editor/parametrics'
-
-export const DEFAULT_POOL_HEATER = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  heaterId: 'heat-pump-twin-fan',
-  technology: 'heat-pump' as const,
-  bodyWidth: 1.1,
-  bodyHeight: 1.2,
-  bodyDepth: 0.78,
-  portDiameter: 0.05,
-  exhaustDiameter: 0.18,
-  showExhaust: false,
-  showFlow: false,
-}
 
 export const poolHeaterDefinition: NodeDefinition<typeof PoolHeaterNode> = {
   kind: 'pool:heater',
@@ -38,7 +24,6 @@ export const poolHeaterDefinition: NodeDefinition<typeof PoolHeaterNode> = {
   tool: () => import('../editor/tool'),
   toolHints: [
     { key: 'Click', label: 'Place pool heater' },
-    { key: 'R', label: 'Rotate heater' },
     { key: 'Esc', label: 'Cancel placement' },
   ],
   presentation: {

@@ -1,17 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
-import { PoolDrainNode } from './schema'
+import { DEFAULT_POOL_DRAIN, PoolDrainNode } from './schema'
 import { poolDrainParametrics } from '../editor/parametrics'
-
-export const DEFAULT_POOL_DRAIN = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  poolId: null,
-  style: 'round' as const,
-  diameter: 0.05,
-  grateDiameter: 0.22,
-  bodyDepth: 0.08,
-  showFlow: false,
-}
 
 export const poolDrainDefinition: NodeDefinition<typeof PoolDrainNode> = {
   kind: 'pool:drain',

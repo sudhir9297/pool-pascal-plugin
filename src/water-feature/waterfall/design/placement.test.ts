@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { PoolNode } from '../../../core/schema'
 import { createPoolShapePolygon } from '../../../design/shapes'
 import { PoolWaterfallNode } from '../core/schema'
-import { findNearestWaterfallPlacement, getMountedWaterfallDimensions, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
+import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, getMountedWaterfallDimensions, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
 
 describe('pool waterfall placement', () => {
   test('snaps to the pool edge, faces inward, and inherits the water surface', () => {
@@ -22,7 +22,6 @@ describe('pool waterfall placement', () => {
     expect(placement?.poolId).toBe(pool.id)
     expect(placement?.rotation[1]).toBeCloseTo(-Math.PI / 2)
     expect(placement?.targetWaterOffset).toBeCloseTo(-0.17)
-    expect(placement?.waterColor).toBe('#06b6d4')
     expect(placement?.waterPreset).toBe('vivid-aqua')
     expect(placement?.shallowWaterColor).toBe('#00d9a3')
     expect(placement?.deepWaterColor).toBe('#007f99')
@@ -119,5 +118,37 @@ describe('pool waterfall placement', () => {
     expect(mounted.width).toBe(dimensions.width)
     expect(mounted.height).toBe(dimensions.height)
     expect(mounted.depth).toBe(dimensions.depth)
+  })
+
+  test('ignores duplicate boundary points without losing a valid nearby placement', () => {
+    const validPool = PoolNode.parse({ id: 'pool_waterfall_valid' })
+    const duplicateEdgePool = PoolNode.parse({
+      id: 'pool_waterfall_duplicate',
+      shape: 'custom',
+      polygon: [[0, 0], [0, 0], [2, 0], [2, 2], [0, 2]],
+    })
+
+    const placement = findNearestWaterfallPlacement([4.1, 0], [validPool, duplicateEdgePool], 1.2)
+
+    expect(placement).not.toBeNull()
+    expect(Number.isFinite(placement!.position[0])).toBe(true)
+    expect(Number.isFinite(placement!.position[2])).toBe(true)
+  })
+
+  test('creates a standalone placement with its own receiving pool', () => {
+    const node = PoolWaterfallNode.parse({
+      rotation: [0, 0.4, 0],
+      waterPreset: 'vivid-aqua',
+      shallowWaterColor: '#56ddea',
+      deepWaterColor: '#087f9e',
+    })
+
+    const placement = createStandaloneWaterfallPlacement([2, 0.5, -3], node)
+
+    expect(placement.position).toEqual([2, 0.5, -3])
+    expect(placement.rotation).toEqual([0, 0.4, 0])
+    expect(placement.poolId).toBeNull()
+    expect(placement.poolRockSeed).toBeNull()
+    expect(placement.waterPreset).toBe('vivid-aqua')
   })
 })

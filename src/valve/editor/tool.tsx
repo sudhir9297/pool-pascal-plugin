@@ -1,13 +1,13 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
 import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useRef } from 'react'
 import { Vector3, type Group } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import { poolValveDefinition } from '../core/definition'
-import { PoolValveNode } from '../core/schema'
+import { createPoolPluginNode } from '../../editor/scene-nodes'
+import { DEFAULT_POOL_VALVE, PoolValveNode } from '../core/schema'
 import { useValveEditStore } from './store'
 
 export default function PoolValveTool() {
@@ -34,8 +34,8 @@ export default function PoolValveTool() {
       const rotationAxis = useEditor.getState().rotationAxis
       const rotation = [0, 0, 0] as [number, number, number]
       rotation[rotationAxis === 'x' ? 0 : rotationAxis === 'y' ? 1 : 2] = rotationQuarterTurns * Math.PI / 2
-      const valve = PoolValveNode.parse({ ...poolValveDefinition.defaults(), id: undefined, name: `PVC ${variant} suction valve ${count + 1}`, variant, diameter, position: point, rotation })
-      useScene.getState().createNode(valve as unknown as AnyNode, levelId)
+      const valve = PoolValveNode.parse({ ...DEFAULT_POOL_VALVE, id: undefined, name: `PVC ${variant} suction valve ${count + 1}`, variant, diameter, position: point, rotation })
+      createPoolPluginNode(valve, levelId)
       setSelection({ selectedIds: [valve.id] })
       useEditor.getState().setTool(null); useEditor.getState().setMode('select'); triggerSFX('sfx:structure-build')
     }

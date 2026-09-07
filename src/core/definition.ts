@@ -1,9 +1,8 @@
 import type { FloorplanGeometry, GeometryContext, HandleDescriptor, NodeDefinition } from '@pascal-app/core'
 import { getPoolDepthRange } from '../design/depth-profile'
 import { poolParametrics } from '../editor/parametrics'
-import { PoolNode, resolvePoolPolygon } from './schema'
+import { DEFAULT_POOL, PoolNode, resolvePoolPolygon } from './schema'
 import { createPoolShapePolygon, getPoolPolygonDimensions, isDrawnPoolShape } from '../design/shapes'
-import { WATER_PRESET_SETTINGS } from '../shader/water-presets'
 
 type PoolDefinition = NodeDefinition<typeof PoolNode> & Record<string, unknown>
 
@@ -146,56 +145,6 @@ function poolDepthHandle(): HandleDescriptor<PoolNode> {
 function poolHandles(): HandleDescriptor<PoolNode>[] {
   return [poolHorizontalHandle('x'), poolHorizontalHandle('z'), poolDepthHandle()]
 }
-
-export const DEFAULT_POOL = {
-  shape: 'rectangle' as const,
-  length: 8,
-  width: 4,
-  polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]] as Array<[number, number]>,
-  outlineControlPoints: [] as Array<[number, number]>,
-  children: [] as string[],
-  floorProfile: 'flat' as const,
-  depth: 1.5,
-  shallowDepth: 1.1,
-  deepDepth: 2,
-  slopeStart: 35,
-  slopeEnd: 70,
-  coveRadius: 0.15,
-  entryFeature: 'none' as const,
-  entryLength: 2,
-  entryWaterDepth: 0.25,
-  stepCount: 3,
-  benchEnabled: false,
-  benchStyle: 'end' as const,
-  benchWall: 'max-x' as const,
-  benchBoundaryT: 0.4166667,
-  benchLength: 3,
-  benchWidth: 0.5,
-  benchWaterDepth: 0.5,
-  copingWidth: 0.3,
-  copingThickness: 0.08,
-  copingStyle: 'continuous' as const,
-  copingStoneLength: 0.65,
-  copingJointWidth: 0.025,
-  copingIrregularity: 0.4,
-  copingSeed: 1847,
-  shellThickness: 0.2,
-  floorThickness: 0.2,
-  openingClearance: 0.02,
-  finishedDeckElevation: 0,
-  designWaterElevation: -0.12,
-  copingProfile: 'square' as const,
-  copingCorner: 'miter' as const,
-  copingColor: '#e2e8f0',
-  ...WATER_PRESET_SETTINGS['crystal-clear'],
-  sunElevation: 52,
-  sunAzimuth: 135,
-  supportSlabId: null,
-  waterColor: '#38bdf8',
-  shellColor: '#e2e8f0',
-  interiorFinish: 'light-mosaic' as const,
-  visualPreset: 'custom' as const,
-} as const
 
 export function poolFloorplan(node: PoolNode, ctx?: GeometryContext): FloorplanGeometry {
   const [first, ...rest] = resolvePoolPolygon(node)

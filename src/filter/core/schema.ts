@@ -1,14 +1,26 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
+import { Point3Schema } from '../../core/schema-primitives'
 
-const Point3 = z.tuple([z.number(), z.number(), z.number()])
+export const DEFAULT_POOL_FILTER = {
+  position: [0, 0, 0] as [number, number, number],
+  rotation: [0, 0, 0] as [number, number, number],
+  filterId: 'sand-standard-600',
+  technology: 'sand' as const,
+  diameter: 0.68,
+  bodyHeight: 0.66,
+  portDiameter: 0.05,
+  valvePosition: 'top' as const,
+  showGauge: true,
+  showFlow: false,
+}
 
 /** A vertical pool filter tank with a top-mounted multiport valve. */
 export const PoolFilterNode = BaseNode.extend({
   id: objectId('pool-filter'),
   type: nodeType('pool:filter'),
-  position: Point3.default([0, 0, 0]),
-  rotation: Point3.default([0, 0, 0]),
+  position: Point3Schema.default([0, 0, 0]),
+  rotation: Point3Schema.default([0, 0, 0]),
   filterId: z.string().default('sand-standard-600'),
   technology: z.enum(['cartridge', 'sand', 'diatomaceous-earth']).default('sand'),
   diameter: z.number().min(0.25).max(1.5).default(0.68),

@@ -1,21 +1,13 @@
 'use client'
 
-import { useNodeEvents } from '@pascal-app/viewer'
-import { useRegistry, type AnyNode } from '@pascal-app/core'
-import { useMemo, useRef } from 'react'
-import { type Group } from 'three'
+import { GeometryPreview } from '../../editor/geometry-preview'
 import { buildPumpGeometry } from '../core/geometry'
 import type { PoolPumpNode } from '../core/schema'
 
 export default function PoolPumpPreview({ node }: { node: PoolPumpNode }) {
-  const rootRef = useRef<Group>(null!)
-  const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
-  useRegistry(node.id, node.type, rootRef)
-  const geometry = useMemo(() => buildPumpGeometry(node), [node])
-  return <group position={node.position} rotation={node.rotation} ref={rootRef} {...handlers}>
-    <primitive object={geometry} />
+  return <GeometryPreview node={node} buildGeometry={buildPumpGeometry}>
     {node.showFlow && <FlowArrows />}
-  </group>
+  </GeometryPreview>
 }
 
 function FlowArrows() {

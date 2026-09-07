@@ -14,7 +14,7 @@ import type { PoolHeaterNode } from './schema'
 
 const UP = new Vector3(0, 1, 0)
 
-export type HeaterPortRole = 'inlet' | 'outlet'
+type HeaterPortRole = 'inlet' | 'outlet'
 export type HeaterPort = {
   role: HeaterPortRole
   label: string

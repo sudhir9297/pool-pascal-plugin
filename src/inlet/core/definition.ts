@@ -1,20 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
 import { poolInletParametrics } from '../editor/parametrics'
-import { PoolInletNode } from './schema'
-
-export const DEFAULT_POOL_INLET = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  poolId: null,
-  wallIndex: 0,
-  wallT: 0.5,
-  verticalOffset: -0.45,
-  nozzleDiameter: 0.05,
-  flangeRadius: 0.12,
-  bodyDepth: 0.16,
-  showFlow: false,
-  flowLength: 0.35,
-}
+import { DEFAULT_POOL_INLET, PoolInletNode } from './schema'
 
 export const poolInletDefinition: NodeDefinition<typeof PoolInletNode> = {
   kind: 'pool:inlet',

@@ -4,7 +4,6 @@ import { cutPoolSpilloverNotches } from './spillover-notch'
 import type { SpilloverNotch } from '../design/spillover-notch'
 import {
   BufferGeometry,
-  CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
   Float32BufferAttribute,
@@ -116,6 +115,7 @@ export type PoolGeometryOptions = {
   removeWallCapRegions?: PoolPoint[][]
   removeFloorRegions?: PoolPoint[][]
   removeWaterRegions?: PoolPoint[][]
+  waterResolution?: number
 }
 
 function pointInPolygon(point: PoolPoint, polygon: PoolPoint[]) {
@@ -1151,7 +1151,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   const waterElevation = node.designWaterElevation
   const shellOuter = outlines.shellOuter
   const copingOuter = outlines.copingOuter
-  const waterEffect = new PoolWaterEffect(node)
+  const waterEffect = new PoolWaterEffect(node, options.waterResolution)
   const shellMaterial = createTileMaterial(node, waterEffect, inner)
   const outerWallMaterial = new MeshBasicNodeMaterial({ color: '#ffffff', side: DoubleSide })
   const copingMaterial = new MeshBasicNodeMaterial({ color: node.copingColor, side: DoubleSide })
@@ -1257,7 +1257,6 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   if (node.benchEnabled) {
     const perimeter = node.benchStyle === 'perimeter'
     const width = Math.min(node.benchWidth, Math.min(node.length, node.width) * 0.3)
-    const startX = depth.maximumX - width
     const benchAssembly = new Group()
     const boundaryT = Object.prototype.hasOwnProperty.call(nodeInput, 'benchBoundaryT')
       ? node.benchBoundaryT

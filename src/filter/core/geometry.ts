@@ -126,15 +126,6 @@ export function getFilterPortsLocal(node: FilterGeometryNode): FilterPort[] {
   return ports
 }
 
-/** Kept as an array API for connection-port consumers. */
-export function getFilterPortLocalPositions(node: FilterGeometryNode): Vector3[] {
-  return getFilterPortsLocal(node).map((port) => port.position.clone())
-}
-
-export function getFilterPortLocalDirections(node: Pick<PoolFilterNode, 'diameter' | 'bodyHeight' | 'portDiameter' | 'technology'>): Vector3[] {
-  return getFilterPortsLocal({ ...node, showGauge: true }).map((port) => port.direction.clone())
-}
-
 export function getFilterPortPositions(node: PoolFilterNode): Vector3[] {
   const rotation = new Euler(node.rotation[0], node.rotation[1], node.rotation[2])
   const origin = new Vector3(...node.position)

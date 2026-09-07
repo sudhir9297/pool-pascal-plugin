@@ -7,17 +7,16 @@ export type WaterfallPlacement = {
   position: [number, number, number]
   rotation: [number, number, number]
   distance: number
-  poolId: string
+  poolId: string | null
   wallIndex: number
   wallT: number
   edgeCurve: Array<[number, number]>
   landingInset: number
   targetWaterOffset: number
-  waterColor: string
   waterPreset: WaterPreset
   shallowWaterColor: string
   deepWaterColor: string
-  poolRockSeed: number
+  poolRockSeed: number | null
 }
 
 function poolWallLength(pool: PoolNode, wallIndex: number) {
@@ -86,11 +85,34 @@ export function findNearestWaterfallPlacement(
       const b = polygon[(wallIndex + 1) % polygon.length]!
       const hit = closestPoint(local[0], local[1], a[0], a[1], b[0], b[1])
       if (hit.distance > maxDistance || best && hit.distance >= best.distance) continue
-      best = placementOnPoolBoundary(pool, wallIndex, hit.t, width)
-      if (best) best.distance = hit.distance
+      const candidate = placementOnPoolBoundary(pool, wallIndex, hit.t, width)
+      if (!candidate) continue
+      candidate.distance = hit.distance
+      best = candidate
     }
   }
   return best
+}
+
+export function createStandaloneWaterfallPlacement(
+  position: readonly [number, number, number],
+  node: PoolWaterfallNode,
+): WaterfallPlacement {
+  return {
+    position: [...position],
+    rotation: [...node.rotation],
+    distance: Number.POSITIVE_INFINITY,
+    poolId: null,
+    wallIndex: node.wallIndex,
+    wallT: node.wallT,
+    edgeCurve: node.edgeCurve.map(([x, z]) => [x, z]),
+    landingInset: 0,
+    targetWaterOffset: 0,
+    waterPreset: node.waterPreset,
+    shallowWaterColor: node.shallowWaterColor,
+    deepWaterColor: node.deepWaterColor,
+    poolRockSeed: null,
+  }
 }
 
 export function placementOnPoolBoundary(pool: PoolNode, wallIndex: number, wallT: number, width: number): WaterfallPlacement | null {
@@ -122,7 +144,6 @@ export function placementOnPoolBoundary(pool: PoolNode, wallIndex: number, wallT
     edgeCurve: sampleBoundaryCurve(polygon, index, t, width, localAngle, ccw, anchor),
     landingInset: getPoolWaterLandingInset(pool),
     targetWaterOffset: pool.designWaterElevation - pool.finishedDeckElevation,
-    waterColor: pool.waterColor,
     waterPreset: pool.waterPreset,
     shallowWaterColor: pool.shallowWaterColor,
     deepWaterColor: pool.deepWaterColor,
@@ -147,7 +168,6 @@ export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode 
     edgeCurve: placement.edgeCurve,
     landingInset: placement.landingInset,
     targetWaterOffset: placement.targetWaterOffset,
-    waterColor: placement.waterColor,
     waterPreset: placement.waterPreset,
     shallowWaterColor: placement.shallowWaterColor,
     deepWaterColor: placement.deepWaterColor,

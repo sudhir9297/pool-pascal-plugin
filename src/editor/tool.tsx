@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  type AnyNode,
   DEFAULT_ANGLE_STEP,
   emitter,
   type GridEvent,
@@ -33,7 +32,8 @@ import {
 import { useViewer } from '@pascal-app/viewer'
 import { useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BufferGeometry, DoubleSide, type Group, type Line, Shape, Vector3 } from 'three'
+import { BufferGeometry, DoubleSide, type Group, Line, Shape, Vector3 } from 'three'
+import { LineBasicNodeMaterial } from 'three/webgpu'
 import { advanceFreehandPoolStroke, buildFreehandPoolOutline } from '../design/freehand-outline'
 import { findPoolHostSlabId, localizePoolPolygon } from '../design/opening-sync'
 import { worldPointToPoolLevel } from '../design/level-coordinates'
@@ -49,6 +49,7 @@ import {
 import { usePoolStore } from './store'
 import { findSharedPoolJoint } from '../design/shared-joint'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
+import { countNodesByType, createPoolPluginNode, getPoolNodes } from './scene-nodes'
 
 type Point = [number, number]
 
@@ -92,8 +93,7 @@ function commitPoolDrawing(
     settings.shellThickness + settings.openingClearance,
   )
   const supportSlabId = constructionPlane?.supportSlabId ?? detectedSlabId
-  const poolCount = Object.values(scene.nodes)
-    .filter((node) => (node.type as string) === 'pool:pool').length
+  const poolCount = countNodesByType(scene.nodes, 'pool:pool')
   const pool = PoolNode.parse({
     ...settings,
     ...placement,
@@ -104,11 +104,9 @@ function commitPoolDrawing(
     position,
     supportSlabId,
   })
-  scene.createNode(pool as unknown as AnyNode, levelId)
-  const nearbyPool = Object.values(scene.nodes)
-    .filter((node) => (node.type as string) === 'pool:pool')
-    .map((node) => PoolNode.safeParse(node).success ? PoolNode.parse(node) : null)
-    .find((candidate) => candidate && candidate.id !== pool.id && findSharedPoolJoint(candidate, pool))
+  createPoolPluginNode(pool, levelId)
+  const nearbyPool = getPoolNodes(scene.nodes)
+    .find((candidate) => candidate.id !== pool.id && findSharedPoolJoint(candidate, pool))
   if (nearbyPool) {
     const joint = findSharedPoolJoint(nearbyPool, pool)
     if (joint) {
@@ -122,7 +120,7 @@ function commitPoolDrawing(
           poolIds: [nearbyPool.id, pool.id],
           ...joint,
         })
-        scene.createNode(sharedJoint as unknown as AnyNode, levelId)
+        createPoolPluginNode(sharedJoint, levelId)
       }
     }
   }
@@ -132,8 +130,34 @@ function commitPoolDrawing(
 
 export default function PoolTool() {
   const cursorRef = useRef<Group>(null)
-  const mainLineRef = useRef<Line>(null!)
-  const closingLineRef = useRef<Line>(null!)
+  const mainLine = useMemo(() => {
+    const line = new Line(new BufferGeometry(), new LineBasicNodeMaterial({
+      color: '#0284c7',
+      depthTest: false,
+      depthWrite: false,
+      linewidth: 3,
+    }))
+    line.frustumCulled = false
+    line.layers.set(EDITOR_LAYER)
+    line.renderOrder = 1
+    line.visible = false
+    return line
+  }, [])
+  const closingLine = useMemo(() => {
+    const line = new Line(new BufferGeometry(), new LineBasicNodeMaterial({
+      color: '#0284c7',
+      depthTest: false,
+      depthWrite: false,
+      linewidth: 2,
+      opacity: 0.5,
+      transparent: true,
+    }))
+    line.frustumCulled = false
+    line.layers.set(EDITOR_LAYER)
+    line.renderOrder = 1
+    line.visible = false
+    return line
+  }, [])
   const currentLevelId = useViewer((state) => state.selection.levelId)
   const setSelection = useViewer((state) => state.setSelection)
   const camera = useThree((state) => state.camera)
@@ -473,31 +497,37 @@ export default function PoolTool() {
   }, [currentLevelId, cursorPosition, isCustom, isDrawnShape, isSpline, length, setSelection, shape, width])
 
   useEffect(() => {
-    if (!(mainLineRef.current && closingLineRef.current)) return
     if (!isDrawnShape || points.length === 0) {
-      mainLineRef.current.visible = false
-      closingLineRef.current.visible = false
+      mainLine.visible = false
+      closingLine.visible = false
       return
     }
     const y = levelY + Y_OFFSET
     const draftLine: Point[] = isSpline ? points : [...points, snappedCursorPosition]
     const linePoints = draftLine.map(([x, z]) => new Vector3(x, y, z))
-    mainLineRef.current.geometry.dispose()
-    mainLineRef.current.geometry = new BufferGeometry().setFromPoints(linePoints)
-    mainLineRef.current.visible = true
+    mainLine.geometry.dispose()
+    mainLine.geometry = new BufferGeometry().setFromPoints(linePoints)
+    mainLine.visible = true
 
     const firstPoint = points[0]
     if (!isSpline && points.length >= 2 && firstPoint) {
-      closingLineRef.current.geometry.dispose()
-      closingLineRef.current.geometry = new BufferGeometry().setFromPoints([
+      closingLine.geometry.dispose()
+      closingLine.geometry = new BufferGeometry().setFromPoints([
         new Vector3(snappedCursorPosition[0], y, snappedCursorPosition[1]),
         new Vector3(firstPoint[0], y, firstPoint[1]),
       ])
-      closingLineRef.current.visible = true
+      closingLine.visible = true
     } else {
-      closingLineRef.current.visible = false
+      closingLine.visible = false
     }
-  }, [isDrawnShape, isSpline, levelY, points, snappedCursorPosition])
+  }, [closingLine, isDrawnShape, isSpline, levelY, mainLine, points, snappedCursorPosition])
+
+  useEffect(() => () => {
+    mainLine.geometry.dispose()
+    mainLine.material.dispose()
+    closingLine.geometry.dispose()
+    closingLine.material.dispose()
+  }, [closingLine, mainLine])
 
   const previewShape = useMemo(() => {
     if (isSpline) return null
@@ -533,23 +563,8 @@ export default function PoolTool() {
           />
         </mesh>
       )}
-      {/* @ts-ignore */}
-      <line frustumCulled={false} layers={EDITOR_LAYER} ref={mainLineRef} renderOrder={1} visible={false}>
-        <bufferGeometry />
-        <lineBasicNodeMaterial color="#0284c7" depthTest={false} depthWrite={false} linewidth={3} />
-      </line>
-      {/* @ts-ignore */}
-      <line frustumCulled={false} layers={EDITOR_LAYER} ref={closingLineRef} renderOrder={1} visible={false}>
-        <bufferGeometry />
-        <lineBasicNodeMaterial
-          color="#0284c7"
-          depthTest={false}
-          depthWrite={false}
-          linewidth={2}
-          opacity={0.5}
-          transparent
-        />
-      </line>
+      <primitive object={mainLine} />
+      <primitive object={closingLine} />
       {points.map(([x, z], index) => (!isSpline || index === 0) && (
         <CursorSphere
           color="#0284c7"

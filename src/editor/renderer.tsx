@@ -1,19 +1,27 @@
 'use client'
 
-import { useLiveNodeOverrides, useRegistry, useScene } from '@pascal-app/core'
-import { NodeRenderer, useNodeEvents } from '@pascal-app/viewer'
+import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
+import { NodeRenderer } from '@pascal-app/viewer'
 import { type ThreeEvent, useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { Material, Mesh } from 'three'
-import type { Group } from 'three'
+import { Box3, Frustum, Matrix4, Sphere, Vector3, type Group, type Material, type Mesh } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
+import { useShallow } from 'zustand/react/shallow'
 import { buildPoolGeometry } from '../core/geometry'
-import type { PoolNode } from '../core/schema'
+import { resolvePoolPolygon, type PoolNode } from '../core/schema'
 import { getPoolOverlaps } from '../design/pool-overlap'
 import { getPoolSpilloverNotches } from '../design/spillover-notch'
 import { getPoolConnectionRegions } from '../design/shared-joint'
 import { subscribePoolWaterActions } from '../shader/water-actions'
 import type { PoolWaterEffect } from '../shader/water-effect'
+import {
+  countPools,
+  getPoolGeometrySignature,
+  getPoolRippleUv,
+  getPoolWaterResolution,
+  selectPoolRenderNodes,
+} from './pool-render-state'
+import { usePoolNodeHost } from './node-host'
 
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const ref = useRef<Group>(null!)
@@ -25,30 +33,48 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     () => (liveOverride ? ({ ...storeNode, ...liveOverride } as PoolNode) : storeNode),
     [storeNode, liveOverride],
   )
-  const sceneNodes = useScene((state) => state.nodes)
-  const spilloverEditInProgress = useLiveNodeOverrides((state) => Object.values(sceneNodes).some((candidate) => {
+  const relatedNodes = useScene(useShallow(
+    (state) => selectPoolRenderNodes(state.nodes, storeNode.id),
+  ))
+  const visiblePoolCount = useScene((state) => countPools(state.nodes))
+  const waterResolution = getPoolWaterResolution(visiblePoolCount)
+  const geometrySignature = getPoolGeometrySignature(node)
+  const geometryNode = useMemo(() => node, [geometrySignature])
+  const sceneNodes = useMemo(() => Object.fromEntries([
+    [geometryNode.id, geometryNode],
+    ...relatedNodes.map((candidate) => [candidate.id, candidate] as const),
+  ]), [geometryNode, relatedNodes])
+  const spilloverEditInProgress = useLiveNodeOverrides((state) => relatedNodes.some((candidate) => {
     if (String(candidate.type) !== 'pool:spillover') return false
     const connection = candidate as unknown as { sourcePoolId?: string; targetPoolId?: string; id: string }
     return (connection.sourcePoolId === node.id || connection.targetPoolId === node.id) && Boolean(state.get(connection.id))
   }))
   const suppressSpilloverGeometry = Boolean(liveOverride) || spilloverEditInProgress
   const pool = useMemo(
-    () => buildPoolGeometry(node, {
-      overlaps: getPoolOverlaps(node, sceneNodes),
+    () => buildPoolGeometry(geometryNode, {
+      overlaps: getPoolOverlaps(geometryNode, sceneNodes),
       // Live transforms can leave the committed connection endpoint briefly
       // stale. Hide its cuts during that frame; the committed sync rebuilds
       // them once the edit is released.
-      spilloverNotches: suppressSpilloverGeometry ? [] : getPoolSpilloverNotches(node, sceneNodes),
-      removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
-      removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),
-      removeWaterRegions: getPoolConnectionRegions(node, sceneNodes),
+      spilloverNotches: suppressSpilloverGeometry ? [] : getPoolSpilloverNotches(geometryNode, sceneNodes),
+      removeWallRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+      removeFloorRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+      removeWaterRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+      waterResolution,
     }),
-    [node, sceneNodes, suppressSpilloverGeometry],
+    [geometryNode, sceneNodes, suppressSpilloverGeometry, waterResolution],
   )
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.
-  const handlers = useNodeEvents(node as any, node.type as any)
+  const handlers = usePoolNodeHost(node, ref)
   const waterEffect = pool.userData.waterEffect as PoolWaterEffect
+  const localWaterBounds = useMemo(
+    () => new Box3().setFromObject(pool).getBoundingSphere(new Sphere()),
+    [pool],
+  )
+  const viewFrustum = useRef(new Frustum())
+  const viewProjection = useRef(new Matrix4())
+  const worldWaterBounds = useRef(new Sphere())
   useEffect(() => {
     waterEffect.setSettings(node)
   }, [node, waterEffect])
@@ -69,8 +95,14 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     }
   }, [node, waterEffect])
 
-  useFrame(({ gl, invalidate }, delta) => {
-    if (node.visible === false) return
+  useFrame(({ camera, gl, invalidate }, delta) => {
+    const root = ref.current
+    if (!root || node.visible === false) return
+    root.updateWorldMatrix(true, false)
+    viewProjection.current.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    viewFrustum.current.setFromProjectionMatrix(viewProjection.current)
+    worldWaterBounds.current.copy(localWaterBounds).applyMatrix4(root.matrixWorld)
+    if (!viewFrustum.current.intersectsSphere(worldWaterBounds.current)) return
     if ((gl as unknown as { isWebGPURenderer?: boolean }).isWebGPURenderer) {
       waterEffect.update(gl as unknown as WebGPURenderer, delta)
     }
@@ -81,15 +113,22 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
 
   const onPointerUp = (event: ThreeEvent<PointerEvent>) => {
     handlers.onPointerUp(event)
-    if (event.object.name === 'pool-water' && event.uv) {
-      waterEffect.addDrop(event.uv.x, event.uv.y)
+    const root = ref.current
+    if (!root) return
+    const localPoint = root.worldToLocal(event.point.clone() as Vector3)
+    const rippleUv = getPoolRippleUv(
+      event.object.name,
+      [localPoint.x, localPoint.z],
+      resolvePoolPolygon(node),
+    )
+    if (rippleUv) {
+      waterEffect.addDrop(rippleUv[0], rippleUv[1])
     }
   }
 
   // Custom renderers do not pass through ParametricNodeRenderer, so they must
   // register their root object and wire the node event bus themselves. Without
   // this, the meshes can be visible but clicks never reach SelectionManager.
-  useRegistry(node.id as any, node.type as any, ref)
   useLayoutEffect(() => {
     useScene.getState().markDirty(node.id as any)
   }, [node.id])

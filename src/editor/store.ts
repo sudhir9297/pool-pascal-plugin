@@ -1,9 +1,7 @@
 import { create } from 'zustand'
-import { DEFAULT_POOL } from '../core/definition'
-import type { PoolNode } from '../core/schema'
+import { DEFAULT_POOL, type PoolNode } from '../core/schema'
 import { DEFAULT_POOL_SHAPE_DIMENSIONS, type PoolShape } from '../design/shapes'
 import type { PoolFloorProfile } from '../design/depth-profile'
-import type { PoolEntryFeature } from '../design/entry-features'
 
 type PoolSettings = Pick<PoolNode,
   | 'shape' | 'length' | 'width' | 'floorProfile' | 'depth' | 'shallowDepth' | 'deepDepth'
@@ -71,5 +69,3 @@ export const usePoolStore = create<PoolStore>((set) => ({
   setSunAzimuth: (sunAzimuth) => set({ sunAzimuth }),
   triggerWaterAction: (type) => set((state) => ({ waterAction: { type, nonce: (state.waterAction?.nonce ?? 0) + 1 } })),
 }))
-
-export type { PoolShape, PoolFloorProfile, PoolEntryFeature }

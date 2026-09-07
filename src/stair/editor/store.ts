@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_POOL_STAIR } from '../core/definition'
-import type { PoolStairNode } from '../core/schema'
+import { DEFAULT_POOL_STAIR, type PoolStairNode } from '../core/schema'
 import { getPoolStairPreset, type PoolStairVariant } from '../data/catalog'
 
 export type PoolStairPlacementSettings = Pick<

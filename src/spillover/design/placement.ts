@@ -187,11 +187,3 @@ export function resolvePoolSpillover(
     surfaceColor: source.copingColor,
   }
 }
-
-export function isPoolSpilloverEndpoint(node: PoolSpilloverNode, poolId: string) {
-  return node.sourcePoolId === poolId || node.targetPoolId === poolId
-}
-
-export function isPoolPolygonUsable(pool: PoolNode) {
-  return resolvePoolPolygon(pool).length >= 3
-}

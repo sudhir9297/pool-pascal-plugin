@@ -1,16 +1,5 @@
-import type { PoolPoint } from '../core/schema'
-
-export const POOL_FLOOR_PROFILES = ['flat', 'shallow-to-deep'] as const
-
-export type PoolFloorProfile = (typeof POOL_FLOOR_PROFILES)[number]
-
-export const POOL_FLOOR_PROFILE_OPTIONS: ReadonlyArray<{
-  value: PoolFloorProfile
-  label: string
-}> = [
-  { value: 'flat', label: 'Flat' },
-  { value: 'shallow-to-deep', label: 'Shallow to deep' },
-]
+import type { PoolPoint } from '../core/schema-primitives'
+export { POOL_FLOOR_PROFILES, type PoolFloorProfile } from '../core/pool-options'
 
 type PoolDepthSource = {
   floorProfile?: unknown
@@ -41,7 +30,7 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value))
 }
 
-export function resolvePoolDepthProfile(source: PoolDepthSource): ResolvedPoolDepthProfile {
+function resolvePoolDepthProfile(source: PoolDepthSource): ResolvedPoolDepthProfile {
   const depth = Math.max(MINIMUM_DEPTH, finiteNumber(source.depth, 1.5))
   if (source.floorProfile !== 'shallow-to-deep') return { kind: 'flat', depth }
 
@@ -62,7 +51,7 @@ export function resolvePoolDepthProfile(source: PoolDepthSource): ResolvedPoolDe
   return { kind: 'shallow-to-deep', shallowDepth, deepDepth, slopeStart, slopeEnd }
 }
 
-export function getPoolDepthAtX(
+function getPoolDepthAtX(
   profile: ResolvedPoolDepthProfile,
   x: number,
   minimumX: number,

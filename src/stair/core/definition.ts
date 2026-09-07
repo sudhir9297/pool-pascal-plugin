@@ -1,12 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
 import { poolStairParametrics } from '../editor/parametrics'
-import { PoolStairNode } from './schema'
-
-export const DEFAULT_POOL_STAIR = {
-  position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number],
-  poolId: null, wallIndex: 0, wallT: 0.5, variant: 'classic' as const, stepCount: 4,
-  width: 0.5, depth: 1.4, tubeDiameter: 0.043, treadDepth: 0.11, metalColor: '#dce3e8',
-}
+import { DEFAULT_POOL_STAIR, PoolStairNode } from './schema'
 
 export const poolStairDefinition: NodeDefinition<typeof PoolStairNode> = {
   kind: 'pool:stair', schemaVersion: 2, schema: PoolStairNode, category: 'furnish', distributionRole: 'run', snapProfile: 'item',

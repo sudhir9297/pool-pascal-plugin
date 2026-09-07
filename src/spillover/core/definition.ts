@@ -1,7 +1,7 @@
 import type { FloorplanGeometry, GeometryContext, NodeDefinition } from '@pascal-app/core'
 import { poolSpilloverParametrics } from '../editor/parametrics'
 import { firstPoolHintVisibility, secondPoolHintVisibility } from '../design/stage'
-import { PoolSpilloverNode } from './schema'
+import { DEFAULT_POOL_SPILLOVER, PoolSpilloverNode } from './schema'
 
 const poolSpilloverToolHints = [
   { key: 'Click', label: 'Select the first pool', visible: firstPoolHintVisibility },
@@ -9,32 +9,6 @@ const poolSpilloverToolHints = [
   { key: 'Move', label: 'Preview the connection', visible: secondPoolHintVisibility },
   { key: 'Esc', label: 'Cancel spillover placement' },
 ]
-
-export const DEFAULT_POOL_SPILLOVER = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  sourcePoolId: '',
-  targetPoolId: '',
-  connectionStyle: 'auto' as const,
-  connectionMode: 'overlap' as const,
-  mergedSurface: false,
-  sourceOpening: [] as Array<[number, number]>,
-  targetOpening: [] as Array<[number, number]>,
-  sourceEdge: [] as Array<[number, number]>,
-  targetEdge: [] as Array<[number, number]>,
-  connectionPath: [] as Array<[number, number]>,
-  intersection: [] as Array<Array<[number, number]>>,
-  sourceSide: 1 as const,
-  width: 2,
-  effectiveWidth: null as number | null,
-  length: 0.8,
-  landingInset: 0,
-  dropHeight: 0.25,
-  lipThickness: 0.08,
-  flowStrength: 1,
-  waterColor: '#38bdf8',
-  surfaceColor: '#e2e8f0',
-}
 
 function worldPointToLocal(node: PoolSpilloverNode, point: [number, number]) {
   const angle = node.rotation[1] ?? 0

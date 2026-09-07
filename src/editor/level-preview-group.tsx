@@ -5,7 +5,7 @@ import { useViewer } from '@pascal-app/viewer'
 import { type ReactNode, useEffect, useRef } from 'react'
 import type { Group } from 'three'
 
-export function copyPoolLevelWorldTransform(target: Group, level: Group | null | undefined) {
+function copyPoolLevelWorldTransform(target: Group, level: Group | null | undefined) {
   if (!level) {
     target.position.set(0, 0, 0)
     target.quaternion.identity()

@@ -4,7 +4,6 @@ import type { PoolInletNode } from '../core/schema'
 
 export type InletPlacement = SkimmerPlacement
 export const findNearestInletWall = findNearestSkimmerWall
-export { placementOnPoolWall }
 
 export function resolveMountedInlet(node: PoolInletNode, pool: PoolNode | null | undefined): PoolInletNode {
   if (!pool || node.poolId !== pool.id) return node

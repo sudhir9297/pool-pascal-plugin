@@ -4,6 +4,19 @@ import { PoolNode } from './schema'
 import { buildPoolGeometry } from './geometry'
 
 describe('pool connection wall openings', () => {
+  test('uses the requested adaptive water resolution', () => {
+    const geometry = buildPoolGeometry(PoolNode.parse({}), { waterResolution: 64 })
+    expect(geometry.userData.waterEffect.resolution).toBe(64)
+    geometry.userData.waterEffect.dispose()
+    geometry.traverse((child) => {
+      const mesh = child as Mesh
+      if (!mesh.isMesh) return
+      mesh.geometry.dispose()
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const material of materials as Material[]) material.dispose()
+    })
+  })
+
   test('keeps wall fragments on both sides of a narrow opening', () => {
     const pool = PoolNode.parse({
       polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]],

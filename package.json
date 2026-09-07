@@ -11,22 +11,25 @@
     "url": "https://github.com/pascalorg/plugin-pool/issues"
   },
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
   "scripts": {
+    "check-architecture": "bun run scripts/check-architecture.ts",
     "check-types": "tsc --noEmit",
     "test": "bun test",
-    "build": "tsc --noEmit"
+    "build": "bun run scripts/build.ts",
+    "prepack": "bun run build"
   },
   "peerDependencies": {
     "@pascal-app/core": ">=0.9.1 <1 || >=1.0.0-beta.0 <2",
@@ -51,6 +54,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@types/three": "^0.184.0",
+    "next": "16.3.4",
     "react": "^19",
     "three": "^0.185",
     "typescript": "6.0.3",
@@ -64,6 +68,10 @@
     "plugin"
   ],
   "license": "MIT",
+  "overrides": {
+    "fflate": "0.6.11",
+    "nanoid": "3.3.18"
+  },
   "dependencies": {
     "three-bvh-csg": "^0.0.18",
     "three-mesh-bvh": "^0.9.8"

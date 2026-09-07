@@ -1,16 +1,15 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
 import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
-import type { PoolNode } from '../../../core/schema'
+import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../../editor/scene-nodes'
 import { worldPointToPoolLevel } from '../../../design/level-coordinates'
-import { DEFAULT_POOL_WATERFALL, poolWaterfallDefinition } from '../core/definition'
 import { buildWaterfallGeometry } from '../core/geometry'
-import { PoolWaterfallNode } from '../core/schema'
-import { findNearestWaterfallPlacement, type WaterfallPlacement } from '../design/placement'
+import { DEFAULT_POOL_WATERFALL, PoolWaterfallNode } from '../core/schema'
+import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, type WaterfallPlacement } from '../design/placement'
 
 export default function PoolWaterfallTool() {
   const cursorRef = useRef<Group>(null)
@@ -18,9 +17,8 @@ export default function PoolWaterfallTool() {
   const setSelection = useViewer((state) => state.setSelection)
   const [placement, setPlacement] = useState<WaterfallPlacement | null>(null)
   const ghostNode = useMemo(() => PoolWaterfallNode.parse({
-    ...poolWaterfallDefinition.defaults(),
+    ...DEFAULT_POOL_WATERFALL,
     receivingPoolEnabled: false,
-    fountainEnabled: false,
     showFlow: false,
   }), [])
 
@@ -31,10 +29,9 @@ export default function PoolWaterfallTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const point = snapPointToGrid([local[0], local[2]], step)
-      const pools = Object.values(useScene.getState().nodes)
-        .filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pool')
-        .filter((node) => (node as unknown as { parentId?: string | null }).parentId === levelId) as unknown as PoolNode[]
+      const pools = getPoolNodes(useScene.getState().nodes, levelId)
       return findNearestWaterfallPlacement(point, pools, DEFAULT_POOL_WATERFALL.width)
+        ?? createStandaloneWaterfallPlacement([point[0], local[1], point[1]], ghostNode)
     }
     const onMove = (event: GridEvent) => {
       const next = getPlacement(event)
@@ -50,8 +47,7 @@ export default function PoolWaterfallTool() {
     const place = (event: GridEvent) => {
       const next = getPlacement(event)
       if (!next) return
-      const count = Object.values(useScene.getState().nodes)
-        .filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:waterfall').length
+      const count = countNodesByType(useScene.getState().nodes, 'pool:waterfall')
       const waterfall = PoolWaterfallNode.parse({
         ...DEFAULT_POOL_WATERFALL,
         id: undefined,
@@ -65,14 +61,13 @@ export default function PoolWaterfallTool() {
         wallT: next.wallT,
         edgeCurve: next.edgeCurve,
         targetWaterOffset: next.targetWaterOffset,
-        waterColor: next.waterColor,
         waterPreset: next.waterPreset,
         shallowWaterColor: next.shallowWaterColor,
         deepWaterColor: next.deepWaterColor,
         poolRockSeed: next.poolRockSeed,
-        receivingPoolEnabled: false,
+        receivingPoolEnabled: next.poolId === null,
       })
-      useScene.getState().createNode(waterfall as unknown as AnyNode, levelId)
+      createPoolPluginNode(waterfall, levelId)
       setSelection({ selectedIds: [waterfall.id] })
       useEditor.getState().setTool(null)
       useEditor.getState().setMode('select')
@@ -93,7 +88,7 @@ export default function PoolWaterfallTool() {
       emitter.off('tool:cancel', cancel)
       setPlacement(null)
     }
-  }, [levelId, setSelection])
+  }, [ghostNode, levelId, setSelection])
 
   return (
     <group>
@@ -108,8 +103,7 @@ function WaterfallGhost({ node, placement }: { node: PoolWaterfallNode; placemen
     const group = buildWaterfallGeometry(PoolWaterfallNode.parse({
       ...node,
       ...placement,
-      receivingPoolEnabled: false,
-      fountainEnabled: false,
+      receivingPoolEnabled: placement.poolId === null,
       showFlow: false,
     }))
     group.traverse((child) => {

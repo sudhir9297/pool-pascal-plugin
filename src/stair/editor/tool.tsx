@@ -1,14 +1,13 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
 import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import type { PoolNode } from '../../core/schema'
-import { poolStairDefinition } from '../core/definition'
-import { PoolStairNode } from '../core/schema'
+import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
+import { DEFAULT_POOL_STAIR, PoolStairNode } from '../core/schema'
 import { findNearestPoolStairAttachment, poolStairAttachmentPatch, type PoolStairAttachment } from '../design/placement'
 import PoolStairGhost from './ghost'
 import { getPoolStairPlacementSettings, usePoolStairStore } from './store'
@@ -26,7 +25,7 @@ export default function PoolStairTool() {
   const treadDepth = usePoolStairStore((state) => state.treadDepth)
   const metalColor = usePoolStairStore((state) => state.metalColor)
   const ghostNode = useMemo(() => PoolStairNode.parse({
-    ...poolStairDefinition.defaults(), variant, stepCount, width, depth, tubeDiameter, treadDepth, metalColor,
+    ...DEFAULT_POOL_STAIR, variant, stepCount, width, depth, tubeDiameter, treadDepth, metalColor,
   }), [depth, metalColor, stepCount, treadDepth, tubeDiameter, variant, width])
   useEffect(() => {
     if (!levelId) return
@@ -35,9 +34,7 @@ export default function PoolStairTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const point = snapPointToGrid([local[0], local[2]], step)
-      const pools = Object.values(useScene.getState().nodes).filter((node) => (
-        (node.type as string) === 'pool:pool' && node.parentId === levelId
-      )) as unknown as PoolNode[]
+      const pools = getPoolNodes(useScene.getState().nodes, levelId)
       return findNearestPoolStairAttachment([point[0], local[1], point[1]], pools)
     }
     const resolve = (event: GridEvent) => {
@@ -48,15 +45,15 @@ export default function PoolStairTool() {
     const onClick = (event: GridEvent) => {
       const next = getPlacement(event)
       if (!next) return
-      const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:stair').length
+      const count = countNodesByType(useScene.getState().nodes, 'pool:stair')
       const stair = PoolStairNode.parse({
-        ...poolStairDefinition.defaults(),
+        ...DEFAULT_POOL_STAIR,
         ...getPoolStairPlacementSettings(),
         ...poolStairAttachmentPatch(next),
         id: undefined,
         name: `Pool Stairs ${count + 1}`,
       })
-      useScene.getState().createNode(stair as unknown as AnyNode, next.poolId as never)
+      createPoolPluginNode(stair, next.poolId)
       setSelection({ selectedIds: [stair.id] }); useEditor.getState().setTool(null); useEditor.getState().setMode('select'); triggerSFX('sfx:structure-build')
     }
     const onCancel = () => { markToolCancelConsumed(); setPlacement(null); useEditor.getState().setTool(null); useEditor.getState().setMode('select') }

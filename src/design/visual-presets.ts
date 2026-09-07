@@ -1,18 +1,22 @@
-import type { PoolNode } from '../core/schema'
+import {
+  POOL_VISUAL_PRESETS,
+  type PoolEntryFeature,
+  type PoolFinish,
+  type PoolVisualPreset,
+  type WaterPreset,
+} from '../core/pool-options'
+export { POOL_VISUAL_PRESETS, type PoolVisualPreset } from '../core/pool-options'
 
-export const POOL_VISUAL_PRESETS = [
-  'custom',
-  'modern',
-  'natural',
-  'resort',
-  'lap-pool',
-] as const
-
-export type PoolVisualPreset = (typeof POOL_VISUAL_PRESETS)[number]
-export type PoolVisualPresetPatch = Partial<Pick<PoolNode,
-  'copingStyle' | 'interiorFinish' | 'waterPreset' | 'entryFeature' |
-  'copingColor' | 'shellColor' | 'copingWidth' | 'waterColor'
->>
+export type PoolVisualPresetPatch = Partial<{
+  copingStyle: 'continuous' | 'natural-stone' | 'rock'
+  interiorFinish: PoolFinish
+  waterPreset: WaterPreset
+  entryFeature: PoolEntryFeature
+  copingColor: string
+  shellColor: string
+  copingWidth: number
+  waterColor: string
+}>
 
 export const POOL_VISUAL_PRESETS_SETTINGS: Record<PoolVisualPreset, PoolVisualPresetPatch> = {
   custom: {},

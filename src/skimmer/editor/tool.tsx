@@ -1,15 +1,14 @@
 'use client'
 
-import { type AnyNode, emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
+import { emitter, type GridEvent, sceneRegistry, snapPointToGrid, useScene } from '@pascal-app/core'
 import { CursorSphere, isGridSnapActive, markToolCancelConsumed, triggerSFX, useEditor } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
-import type { PoolNode } from '../../core/schema'
+import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
 import { findNearestPoolWall, type SkimmerPlacement } from '../design/placement'
-import { poolSkimmerDefinition } from '../core/definition'
-import { PoolSkimmerNode } from '../core/schema'
+import { DEFAULT_POOL_SKIMMER, PoolSkimmerNode } from '../core/schema'
 import { buildSkimmerGeometry } from '../core/geometry'
 
 export default function PoolSkimmerTool() {
@@ -24,7 +23,7 @@ export default function PoolSkimmerTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const poolNodes = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
+      const poolNodes = getPoolNodes(useScene.getState().nodes)
       const next = findNearestPoolWall([x, z], poolNodes)
       setPlacement(next)
       if (cursorRef.current && next) cursorRef.current.position.set(next.position[0], next.position[1], next.position[2])
@@ -34,12 +33,12 @@ export default function PoolSkimmerTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const poolNodes = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:pool') as unknown as PoolNode[]
+      const poolNodes = getPoolNodes(useScene.getState().nodes)
       const next = findNearestPoolWall([x, z], poolNodes)
       if (!next) return
-      const count = Object.values(useScene.getState().nodes).filter((node) => (node.type as string) === 'pool:skimmer').length
-      const skimmer = PoolSkimmerNode.parse({ ...poolSkimmerDefinition.defaults(), id: undefined, name: `Pool Skimmer ${count + 1}`, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
-      useScene.getState().createNode(skimmer as unknown as AnyNode, levelId)
+      const count = countNodesByType(useScene.getState().nodes, 'pool:skimmer')
+      const skimmer = PoolSkimmerNode.parse({ ...DEFAULT_POOL_SKIMMER, id: undefined, name: `Pool Skimmer ${count + 1}`, poolId: next.poolId, wallIndex: next.wallIndex, wallT: next.wallT, position: next.position, rotation: next.rotation })
+      createPoolPluginNode(skimmer, levelId)
       setSelection({ selectedIds: [skimmer.id] })
       useEditor.getState().setTool(null)
       useEditor.getState().setMode('select')

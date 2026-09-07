@@ -10,8 +10,8 @@ import {
 } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PoolNode } from '../../core/schema'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
+import { getPoolNode, getPoolNodes } from '../../editor/scene-nodes'
 import type { PoolStairNode } from '../core/schema'
 import {
   findNearestPoolStairAttachment,
@@ -24,9 +24,7 @@ import PoolStairGhost from './ghost'
 export default function MovePoolStairTool({ node }: { node: PoolStairNode }) {
   const levelId = useViewer((state) => state.selection.levelId)
   const [attachment, setAttachment] = useState<PoolStairAttachment | null>(() => {
-    const pool = node.poolId
-      ? (useScene.getState().nodes as unknown as Record<string, PoolNode>)[node.poolId]
-      : undefined
+    const pool = getPoolNode(useScene.getState().nodes, node.poolId)
     return pool ? poolStairAttachmentOnWall(pool, node.wallIndex, node.wallT) : null
   })
   const attachmentRef = useRef(attachment)
@@ -53,9 +51,7 @@ export default function MovePoolStairTool({ node }: { node: PoolStairNode }) {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const pools = Object.values(useScene.getState().nodes).filter((candidate) => (
-        (candidate.type as string) === 'pool:pool' && candidate.parentId === levelId
-      )) as unknown as PoolNode[]
+      const pools = getPoolNodes(useScene.getState().nodes, levelId)
       return findNearestPoolStairAttachment([x, local[1], z], pools)
     }
 

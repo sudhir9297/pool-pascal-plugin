@@ -1,15 +1,5 @@
 import type { NodeDefinition } from '@pascal-app/core'
-import { PoolPumpNode } from './schema'
-
-export const DEFAULT_POOL_PUMP = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  diameter: 0.05,
-  bodyWidth: 0.42,
-  bodyHeight: 0.34,
-  bodyDepth: 0.62,
-  showFlow: false,
-}
+import { DEFAULT_POOL_PUMP, PoolPumpNode } from './schema'
 
 export const poolPumpDefinition: NodeDefinition<typeof PoolPumpNode> = {
   kind: 'pool:pump',
@@ -32,8 +22,6 @@ export const poolPumpDefinition: NodeDefinition<typeof PoolPumpNode> = {
   tool: () => import('../editor/tool'),
   toolHints: [
     { key: 'Click', label: 'Place circulation pump' },
-    { key: 'Alt', label: 'Switch rotation axis' },
-    { key: 'R', label: 'Rotate 90° on selected axis' },
     { key: 'Esc', label: 'Cancel placement' },
   ],
   presentation: {

@@ -1,14 +1,27 @@
 import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
+import { Point3Schema } from '../../core/schema-primitives'
 
-const Point3 = z.tuple([z.number(), z.number(), z.number()])
+export const DEFAULT_POOL_INLET = {
+  position: [0, 0, 0] as [number, number, number],
+  rotation: [0, 0, 0] as [number, number, number],
+  poolId: null,
+  wallIndex: 0,
+  wallT: 0.5,
+  verticalOffset: -0.45,
+  nozzleDiameter: 0.05,
+  flangeRadius: 0.12,
+  bodyDepth: 0.16,
+  showFlow: false,
+  flowLength: 0.35,
+}
 
 /** A wall-mounted return fitting. Local +Z points into the pool. */
 export const PoolInletNode = BaseNode.extend({
   id: objectId('pool-inlet'),
   type: nodeType('pool:inlet'),
-  position: Point3.default([0, 0, 0]),
-  rotation: Point3.default([0, 0, 0]),
+  position: Point3Schema.default([0, 0, 0]),
+  rotation: Point3Schema.default([0, 0, 0]),
   poolId: z.string().nullable().default(null),
   wallIndex: z.number().int().min(0).default(0),
   wallT: z.number().min(0).max(1).default(0.5),

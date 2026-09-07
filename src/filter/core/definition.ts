@@ -1,19 +1,6 @@
 import type { NodeDefinition } from '@pascal-app/core'
-import { PoolFilterNode } from './schema'
+import { DEFAULT_POOL_FILTER, PoolFilterNode } from './schema'
 import { poolFilterParametrics } from '../editor/parametrics'
-
-export const DEFAULT_POOL_FILTER = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  filterId: 'sand-standard-600',
-  technology: 'sand' as const,
-  diameter: 0.68,
-  bodyHeight: 0.66,
-  portDiameter: 0.05,
-  valvePosition: 'top' as const,
-  showGauge: true,
-  showFlow: false,
-}
 
 export const poolFilterDefinition: NodeDefinition<typeof PoolFilterNode> = {
   kind: 'pool:filter',
@@ -37,7 +24,6 @@ export const poolFilterDefinition: NodeDefinition<typeof PoolFilterNode> = {
   tool: () => import('../editor/tool'),
   toolHints: [
     { key: 'Click', label: 'Place pool filter' },
-    { key: 'R', label: 'Rotate filter' },
     { key: 'Esc', label: 'Cancel placement' },
   ],
   presentation: {

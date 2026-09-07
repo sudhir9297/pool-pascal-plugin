@@ -1,17 +1,7 @@
 import { useEditor } from '@pascal-app/editor'
 import { useScene, type AnyNode, type NodeDefinition } from '@pascal-app/core'
-import { PoolValveNode } from './schema'
+import { DEFAULT_POOL_VALVE, PoolValveNode } from './schema'
 import { poolValveParametrics } from '../editor/parametrics'
-
-export const DEFAULT_POOL_VALVE = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  variant: 'two-way' as const,
-  flowPattern: 'open' as const,
-  diameter: 0.05,
-  bodyRadius: 0.11,
-  handleAngle: 0,
-}
 
 export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
   kind: 'pool:valve',

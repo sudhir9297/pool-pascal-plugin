@@ -64,7 +64,7 @@ const DEFAULTS = {
 } as const
 
 /** Motion multipliers from the stylized-water panner equations. */
-export const WATER_MOTION_RATES = {
+const WATER_MOTION_RATES = {
   normalPrimary: -0.05,
   normalSecondary: 0.1,
   caustics: 0.045,
@@ -150,7 +150,7 @@ function finite(value: unknown, fallback: number, min: number, max: number) {
 }
 
 /** Resolve saved pools before values are uploaded as renderer uniforms. */
-export function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
+function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
   const preset = getWaterPresetSettings(value.waterPreset)
   return {
     waterPreset: preset.waterPreset,
@@ -544,6 +544,7 @@ export class PoolWaterEffect {
     this.specularSize.value = this.settings.specularSize
     this.specularHardness.value = this.settings.specularHardness
     this.absorption.value = -0.62 / this.settings.clarity
+    this.material.color.set(this.settings.waterColor)
     this.updateSunDirection()
     if (previousPreset !== this.settings.waterPreset) {
       const selected = PRESET_TEXTURES[this.settings.waterPreset]

@@ -1,20 +1,6 @@
-export const POOL_FINISHES = [
-  'clean-white-plaster',
-  'clean-pale-blue-plaster',
-  'white-plaster',
-  'quartz-white',
-  'quartz-blue-gray',
-  'natural-pebble-aqua',
-  'natural-pebble-gray',
-  'polished-aggregate-blue',
-  'glass-bead-aqua',
-  'light-mosaic',
-  'blue-mosaic',
-  'dark-mosaic',
-] as const
-
-export type PoolFinish = (typeof POOL_FINISHES)[number]
-export type PoolFinishKind = 'solid' | 'speckle' | 'pebble' | 'polished' | 'glass' | 'mosaic'
+import { POOL_FINISHES, type PoolFinish } from '../core/pool-options'
+export { POOL_FINISHES, type PoolFinish } from '../core/pool-options'
+type PoolFinishKind = 'solid' | 'speckle' | 'pebble' | 'polished' | 'glass' | 'mosaic'
 
 export type PoolFinishSettings = {
   kind: PoolFinishKind

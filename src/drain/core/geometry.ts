@@ -1,9 +1,7 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Euler, Group, Mesh, MeshStandardMaterial, TorusGeometry, Vector3 } from 'three'
 import type { PoolDrainNode } from './schema'
 
-const Y_AXIS = new Vector3(0, 1, 0)
-
-export function getDrainPortLocalPosition(node: Pick<PoolDrainNode, 'bodyDepth'>): Vector3 {
+function getDrainPortLocalPosition(node: Pick<PoolDrainNode, 'bodyDepth'>): Vector3 {
   return new Vector3(0, -node.bodyDepth * 1.4, 0)
 }
 

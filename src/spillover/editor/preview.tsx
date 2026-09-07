@@ -1,20 +1,19 @@
 'use client'
 
-import { useLiveNodeOverrides, useRegistry, useScene, type AnyNode } from '@pascal-app/core'
-import { useNodeEvents } from '@pascal-app/viewer'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
+import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
 import { Group } from 'three'
-import { subscribeWaterfallAnimation } from '../../shader/waterfall-animation'
 import { PoolNode } from '../../core/schema'
+import { usePoolNodeHost } from '../../editor/node-host'
 import { buildPoolSpilloverGeometry } from '../core/geometry'
 import type { PoolSpilloverNode } from '../core/schema'
 import { resolvePoolSpilloverSyncUpdate } from '../design/sync'
 import { disposePoolSpilloverVisual } from './dispose-visual'
 
 export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode }) {
-  const [, redraw] = useState(0)
   const rootRef = useRef<Group>(null!)
-  const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
+  const handlers = usePoolNodeHost(node, rootRef)
   const sourceValue = useScene((state) => state.nodes[node.sourcePoolId as never])
   const targetValue = useScene((state) => state.nodes[node.targetPoolId as never])
   const editInProgress = useLiveNodeOverrides((state) => Boolean(
@@ -36,13 +35,11 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
     },
     [liveNode, node.sourcePoolId, sourceValue, targetValue],
   )
-  useRegistry(node.id, node.type, rootRef)
-  useEffect(() => {
-    return subscribeWaterfallAnimation((delta) => {
-      for (const effect of geometry.userData.waterEffects ?? []) effect.update(delta)
-      redraw((value) => (value + 1) % 1000000)
-    })
-  }, [geometry])
+  useFrame(({ invalidate }, delta) => {
+    if (!liveNode || editInProgress || node.visible === false) return
+    for (const effect of geometry.userData.waterEffects ?? []) effect.update(delta)
+    invalidate()
+  })
   useEffect(() => () => disposePoolSpilloverVisual(geometry), [geometry])
   return (
     <group

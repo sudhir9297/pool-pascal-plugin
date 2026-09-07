@@ -1,19 +1,18 @@
 'use client'
 
-import { useRegistry, useScene, type AnyNode } from '@pascal-app/core'
-import { useNodeEvents } from '@pascal-app/viewer'
+import { useScene, type AnyNode } from '@pascal-app/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
 import { buildSharedJointGeometry } from '../core/geometry'
 import type { PoolSharedJointNode } from '../core/schema'
 import { PoolNode } from '../../core/schema'
+import { usePoolNodeHost } from '../../editor/node-host'
 
 export default function PoolSharedJointPreview({ node }: { node: PoolSharedJointNode }) {
   const [, redraw] = useState(0)
   const rootRef = useRef<Group>(null!)
-  const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
-  useRegistry(node.id, node.type, rootRef)
+  const handlers = usePoolNodeHost(node, rootRef)
   const geometry = useMemo(() => buildSharedJointGeometry(node), [node])
   const waterEffect = geometry.userData.waterEffect
   const sceneNodes = useScene((state) => state.nodes)

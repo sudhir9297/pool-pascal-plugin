@@ -72,7 +72,7 @@ function sampleBoundary(
   return { point: points[0] ?? [0, 0] as PoolPoint, tangent: [1, 0] as PoolPoint, segmentIndex: 0 }
 }
 
-export function naturalCopingStoneCount(points: PoolPoint[], stoneLength: number) {
+function naturalCopingStoneCount(points: PoolPoint[], stoneLength: number) {
   const { perimeter } = boundaryLengths(points)
   return Math.max(3, Math.round(perimeter / Math.max(0.2, stoneLength)))
 }
