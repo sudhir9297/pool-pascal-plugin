@@ -8,7 +8,7 @@ import {
   SlabNode,
   useScene,
 } from '@pascal-app/core'
-import { draftElevation, featureElevation } from './swimming-pool/design/elevation'
+import { draftElevation, featureElevation } from './design/elevation'
 import { poolPlugin, PoolNode } from './index'
 
 /**

@@ -29,7 +29,7 @@ For equal actual water elevations, render a level connection or another chosen f
 
 Observed before implementation changes on 2026-09-07:
 
-- `getPoolConnectionRegions` in `src/swimming-pool/design/shared-joint.ts` filters exclusively for `pool:shared-joint`. Spillovers therefore do not contribute the regions used to remove overlapping pool shell, floor and water.
-- The pool renderer uses those connection regions for all three removal options in `src/swimming-pool/editor/renderer.tsx`.
-- `src/swimming-pool/spillover/design/placement.ts` clamps the source-to-target water-height difference to at least `0.02`. The spillover schema also sets that minimum. This currently makes an equal-level placement report a positive drop.
+- `getPoolConnectionRegions` in `src/design/shared-joint.ts` filters exclusively for `pool:shared-joint`. Spillovers therefore do not contribute the regions used to remove overlapping pool shell, floor and water.
+- The pool renderer uses those connection regions for all three removal options in `src/editor/renderer.tsx`.
+- `src/spillover/design/placement.ts` clamps the source-to-target water-height difference to at least `0.02`. The spillover schema also sets that minimum. This currently makes an equal-level placement report a positive drop.
 - The existing shallow source opening should remain distinct from overlap removal. Removing a duplicate lower-pool region must not turn the higher basin's top notch into a full-depth hole.

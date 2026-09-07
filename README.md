@@ -51,16 +51,15 @@ modules, so host metadata loading remains safe for SSR.
 
 ```text
 src/
-  swimming-pool/
-    core/      schema, node definition, and geometry
-    pump/      circulation pump schema, geometry, and editor integration
-    drain/     floor-mounted pool drain schema and node definition
-    skimmer/   wall-mounted skimmer schema, geometry, and placement
-    valve/     suction valve schema, geometry, and placement
-    water-feature/waterfall/  rock formation, plunge pool, animated water, and editor controls
-    design/    outlines, depth, coping, entries, and opening sync
-    editor/    panel, tool, preview, renderer, and parametrics
-    shader/    water effect, presets, actions, and texture assets
+  core/      schema, node definition, and geometry
+  pump/      circulation pump schema, geometry, and editor integration
+  drain/     floor-mounted pool drain schema and node definition
+  skimmer/   wall-mounted skimmer schema, geometry, and placement
+  valve/     suction valve schema, geometry, and placement
+  water-feature/waterfall/  rock formation, plunge pool, animated water, and editor controls
+  design/    outlines, depth, coping, entries, and opening sync
+  editor/    panel, tool, preview, renderer, and parametrics
+  shader/    water effect, presets, actions, and texture assets
 ```
 
 See [Create a plugin](https://editor.pascal.app/docs/developers/plugins) for
