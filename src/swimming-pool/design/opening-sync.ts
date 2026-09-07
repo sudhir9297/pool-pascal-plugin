@@ -627,7 +627,9 @@ export function syncPoolSlabOpenings(
         polygon: getConnectionOpeningPolygon(connection),
       }))
       .filter(({ connection }) => connection.parentId === slab.parentId)
-      .filter(({ polygon }) => polygonContainsPolygon(slab.polygon, polygon))
+      .filter(({ connection, polygon }) =>
+        connection.type === 'pool:spillover' || polygonContainsPolygon(slab.polygon, polygon),
+      )
     const managedHoles = [...poolHoles, ...connectionHoles]
     const nextHoles = [...preserved.map(({ polygon }) => polygon), ...managedHoles.map(({ polygon }) => polygon)]
     const nextMetadata = [

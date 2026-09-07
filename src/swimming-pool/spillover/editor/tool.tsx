@@ -118,17 +118,24 @@ export default function PoolSpilloverTool() {
       useEditor.getState().setTool(null)
       useEditor.getState().setMode('select')
     }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onCancel()
+    }
     emitter.on('grid:move', onMove)
     emitter.on('grid:click', onClick)
     emitter.on('node:move' as never, onNodeMove as never)
     emitter.on('node:click' as never, onNodeClick as never)
     emitter.on('tool:cancel', onCancel)
+    window.addEventListener('keydown', onKeyDown)
     return () => {
       emitter.off('grid:move', onMove)
       emitter.off('grid:click', onClick)
       emitter.off('node:move' as never, onNodeMove as never)
       emitter.off('node:click' as never, onNodeClick as never)
       emitter.off('tool:cancel', onCancel)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [choosePool, levelId, sourcePool])
 

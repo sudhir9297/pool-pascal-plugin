@@ -20,7 +20,7 @@ function disposePool(group: Group) {
   })
 }
 
-test.each([[3.5,false],[5,false],[3.5,true],[5,true]] as const)('spillover clears receiving rocks for separation %s, curved=%s', (separation, curved) => {
+test.each([[3.5,false],[5,false],[3.5,true],[5,true]] as const)('spillover stops at the receiving edge for separation %s, curved=%s', (separation, curved) => {
   const polygon = curved ? Array.from({length:64},(_,index) => [2*Math.cos(index*Math.PI/32),2*Math.sin(index*Math.PI/32)]) : [[-2,-2],[2,-2],[2,2],[-2,2]]
   const upper = PoolNode.parse({id:'pool_upper',parentId:'level_a',polygon,position:[0,1,0]})
   const lower = PoolNode.parse({id:'pool_lower',parentId:'level_a',polygon,position:[separation,0,0],shape:curved ? 'spline' : 'custom',copingStyle:'rock',copingWidth:0.5,copingStoneLength:1.8})
@@ -33,15 +33,12 @@ test.each([[3.5,false],[5,false],[3.5,true],[5,true]] as const)('spillover clear
   const receiver = buildPoolGeometry(lower)
   receiver.position.x = separation
   receiver.updateMatrixWorld(true)
-  const coping = receiver.getObjectByName('pool-coping')!
   const sheet = visual.getObjectByName('pool-spillover-water-sheet') as Mesh
   const positions = sheet.geometry.getAttribute('position')
   for (let index=positions.count-41; index<positions.count; index++) {
     const point = new Vector3().fromBufferAttribute(positions,index).applyMatrix4(sheet.matrixWorld)
-    expect(point.x).toBeGreaterThan(separation-2+0.5)
-    expect(point.x).toBeLessThan(separation+2)
-    const ray = new Raycaster(new Vector3(point.x,3,point.z),new Vector3(0,-1,0),0,4)
-    expect(ray.intersectObject(coping,true)).toHaveLength(0)
+    expect(point.x).toBeGreaterThan(separation-2-0.05)
+    expect(point.x).toBeLessThan(separation-2+0.3)
   }
   disposePool(receiver)
   disposePoolSpilloverVisual(visual)

@@ -50,12 +50,13 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
     : rawTargetX
   const landingInset = Math.max(baseLandingInset,
     flowDirection * (sourceBoundaryX - targetX) + node.lipThickness)
+  const touchingConnection = node.connectionMode === 'channel' && node.length <= 0.2
   // Keep separated-pool water within the platform gap. Rock coping may need a
   // little receiving clearance, but it must not stretch the visible sheet by
   // the full coping-dependent inset.
   const waterLandingInset = node.connectionMode === 'overlap'
     ? landingInset
-    : Math.min(landingInset, 0.65)
+    : 0
   // Landing inset extends only the water curtain into the receiving basin;
   // the solid platform and its borders remain exactly the measured gap.
   const channelLength = Math.max(node.lipThickness, flowDirection * (targetX - sourceBoundaryX))
@@ -150,7 +151,9 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   // flow axis. The normal gap calculation then collapses the sheet to the
   // lip, so give it a short outward run into the receiving basin. Separated
   // channels continue to use their measured rim-to-rim distance.
-  const approach = Math.max(node.lipThickness, flowDirection * (targetX - sourceBoundaryX) + waterLandingInset, overlapReach)
+  const approach = touchingConnection
+    ? node.lipThickness
+    : Math.max(node.lipThickness, flowDirection * (targetX - sourceBoundaryX) + waterLandingInset, overlapReach)
   const sheetGeometry = createSpillwayGeometry(
     // Let the water reach both platform edges. The side walls sit beneath
     // those edges and provide the containment instead of narrowing the sheet.
