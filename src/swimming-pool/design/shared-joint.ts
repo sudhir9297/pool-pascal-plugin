@@ -48,6 +48,28 @@ function ensureCounterClockwise(points: PoolPoint[]) {
   return signedArea(points) >= 0 ? points : [...points].reverse()
 }
 
+function normalizeIntersectionPolygon(points: PoolPoint[]) {
+  let normalized = points.filter((point, index) => {
+    const previous = points[(index - 1 + points.length) % points.length]
+    return !previous || Math.hypot(point[0] - previous[0], point[1] - previous[1]) > INTERSECTION_EPSILON
+  })
+  let changed = true
+  while (changed && normalized.length >= 3) {
+    changed = false
+    normalized = normalized.filter((point, index) => {
+      const previous = normalized[(index - 1 + normalized.length) % normalized.length]!
+      const next = normalized[(index + 1) % normalized.length]!
+      const value = Math.abs(
+        (point[0] - previous[0]) * (next[1] - point[1])
+        - (point[1] - previous[1]) * (next[0] - point[0]),
+      )
+      if (value <= INTERSECTION_EPSILON) changed = true
+      return value > INTERSECTION_EPSILON
+    })
+  }
+  return normalized
+}
+
 function clipConvexPolygon(subject: PoolPoint[], clip: PoolPoint[]) {
   let output = subject
   for (let index = 0; index < clip.length && output.length >= 3; index += 1) {
@@ -88,7 +110,9 @@ export function getPoolIntersectionRegions(first: PoolNode, second: PoolNode): P
   const secondTriangles = trianglePolygons(worldPolygon(second))
   return firstTriangles.flatMap((firstTriangle) =>
     secondTriangles.flatMap((secondTriangle) => {
-      const intersection = clipConvexPolygon(firstTriangle, ensureCounterClockwise(secondTriangle))
+      const intersection = normalizeIntersectionPolygon(
+        clipConvexPolygon(firstTriangle, ensureCounterClockwise(secondTriangle)),
+      )
       return Math.abs(signedArea(intersection)) > INTERSECTION_EPSILON ? [intersection] : []
     }),
   )

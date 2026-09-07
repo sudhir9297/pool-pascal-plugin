@@ -17,6 +17,7 @@ export const DEFAULT_POOL_SPILLOVER = {
   targetPoolId: '',
   connectionStyle: 'auto' as const,
   connectionMode: 'overlap' as const,
+  mergedSurface: false,
   sourceOpening: [] as Array<[number, number]>,
   targetOpening: [] as Array<[number, number]>,
   sourceEdge: [] as Array<[number, number]>,
@@ -49,6 +50,7 @@ export function poolSpilloverFloorplan(
   node: PoolSpilloverNode,
   ctx?: GeometryContext,
 ): FloorplanGeometry {
+  if (node.mergedSurface) return { kind: 'group', children: [] }
   const source = node.connectionPath[0]
     ? worldPointToLocal(node, node.connectionPath[0])
     : [node.sourceSide * node.length / 2, 0] as [number, number]

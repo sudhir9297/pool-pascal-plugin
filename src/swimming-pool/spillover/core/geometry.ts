@@ -45,6 +45,16 @@ function buildOverlapSurfaceGeometry(node: PoolSpilloverNode) {
 export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?: WaterfallWaterStyle) {
   const group = new Group()
   group.name = 'pool-spillover'
+  const mergedSurface = node.mergedSurface || (
+    node.connectionMode === 'overlap'
+    && node.intersection.length > 0
+    && node.connectionPath.length >= 2
+    && node.dropHeight <= 0.021
+  )
+  if (mergedSurface) {
+    group.userData.waterEffects = []
+    return group
+  }
   const width = node.effectiveWidth ?? node.width
   const surfaceMaterial = () => new MeshStandardMaterial({ color: node.surfaceColor, roughness: 0.72 })
   const hasConnectionPath = node.connectionPath.length >= 2

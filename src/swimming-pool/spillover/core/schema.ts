@@ -14,6 +14,8 @@ export const PoolSpilloverNode = BaseNode.extend({
   targetPoolId: z.string(),
   connectionStyle: z.enum(['auto', 'direct-spillover', 'watercourse']).default('auto'),
   connectionMode: z.enum(['overlap', 'direct', 'channel']).default('overlap'),
+  /** Same-level intersections share pool-owned water/floor and need no connector mesh. */
+  mergedSurface: z.boolean().default(false),
   sourceOpening: z.array(Point2).default([]),
   targetOpening: z.array(Point2).default([]),
   // Samples are [local Z across the sheet, local X offset from the endpoint].

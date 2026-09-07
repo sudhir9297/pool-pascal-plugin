@@ -66,13 +66,28 @@ describe('pool spillover geometry', () => {
       connectionPath: [[2, 0], [0, 0]],
       intersection: [[[0.5, -0.75], [1.5, -0.75], [1.5, 0.75], [0.5, 0.75]]],
       width: 2.4,
-      dropHeight: 0.02,
+      dropHeight: 0.6,
     }))
     expect(geometry.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
     expect(geometry.getObjectByName('pool-spillover-overlap-wall-left')).toBeUndefined()
     expect(geometry.getObjectByName('pool-spillover-overlap-wall-right')).toBeUndefined()
     const surface = geometry.getObjectByName('pool-spillover-overlap-surface') as Mesh
     expect(surface.geometry.getAttribute('position').count).toBe(6)
+    disposeGeometry(geometry)
+  })
+
+  test('adds no connector meshes for a merged same-level intersection', () => {
+    const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
+      sourcePoolId: 'pool-a',
+      targetPoolId: 'pool-b',
+      connectionMode: 'overlap',
+      mergedSurface: true,
+      intersection: [[[0, -1], [1, -1], [1, 1], [0, 1]]],
+      connectionPath: [[0, 0], [1, 0]],
+      dropHeight: 0.02,
+    }))
+    expect(geometry.children).toHaveLength(0)
+    expect(geometry.userData.waterEffects).toEqual([])
     disposeGeometry(geometry)
   })
 
@@ -144,6 +159,30 @@ describe('pool spillover geometry', () => {
 
     expect(geometry.children.map((child) => child.name)).toEqual(['pool-spillover-water-sheet'])
     expect(geometry.userData.waterEffects).toHaveLength(1)
+    disposeGeometry(geometry)
+  })
+
+  test('keeps channel geometry when intersection metadata is present', () => {
+    const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
+      sourcePoolId: 'pool-upper',
+      targetPoolId: 'pool-lower',
+      connectionMode: 'channel',
+      intersection: [[[0, -1], [1, -1], [1, 1], [0, 1]]],
+      connectionPath: [[0, 0], [1, 0]],
+      length: 1,
+      width: 2,
+      dropHeight: 0.02,
+    }))
+
+    expect(geometry.children.map((child) => child.name)).toEqual([
+      'pool-spillover-crest',
+      'pool-spillover-channel-bed',
+      'pool-spillover-channel-wall-left',
+      'pool-spillover-channel-wall-right',
+      'pool-spillover-channel-outer-border-left',
+      'pool-spillover-channel-outer-border-right',
+      'pool-spillover-water-sheet',
+    ])
     disposeGeometry(geometry)
   })
 

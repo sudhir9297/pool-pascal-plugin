@@ -12,7 +12,7 @@ function worldWaterHeight(pool: PoolNode) {
 }
 
 export type PoolSpilloverPlacement = Pick<PoolSpilloverNode,
-  'landingInset' | 'sourceEdge' | 'targetEdge' | 'position' | 'rotation' | 'sourcePoolId' | 'targetPoolId' | 'connectionMode' | 'sourceOpening' | 'targetOpening' | 'connectionPath' | 'intersection' | 'sourceSide' | 'width' | 'length' | 'dropHeight' | 'waterColor' | 'surfaceColor'
+  'landingInset' | 'sourceEdge' | 'targetEdge' | 'position' | 'rotation' | 'sourcePoolId' | 'targetPoolId' | 'connectionMode' | 'mergedSurface' | 'sourceOpening' | 'targetOpening' | 'connectionPath' | 'intersection' | 'sourceSide' | 'width' | 'length' | 'dropHeight' | 'waterColor' | 'surfaceColor'
 >
 
 export function getPoolWorldPolygon(pool: PoolNode): PoolPoint[] {
@@ -173,6 +173,7 @@ export function resolvePoolSpillover(
       : connectionStyle === 'direct-spillover'
         ? 'direct'
         : intersection.length ? 'overlap' : 'channel',
+    mergedSurface: sameWaterLevel && intersection.length > 0,
     sourceOpening: openingAround(sourcePoint, tangent, width, Math.max(POOL_OPENING_DEPTH, source.shellThickness + 0.05)),
     targetOpening: openingAround(targetPoint, tangent, width, Math.max(POOL_OPENING_DEPTH, target.shellThickness + 0.05)),
     connectionPath: [sourcePoint, targetPoint],

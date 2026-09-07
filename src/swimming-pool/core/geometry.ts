@@ -113,6 +113,7 @@ export type PoolGeometryOptions = {
   overlaps?: PoolOverlap[]
   spilloverNotches?: SpilloverNotch[]
   removeWallRegions?: PoolPoint[][]
+  removeWallCapRegions?: PoolPoint[][]
   removeFloorRegions?: PoolPoint[][]
   removeWaterRegions?: PoolPoint[][]
 }
@@ -218,6 +219,26 @@ function signedArea(points: PoolPoint[]) {
     const next = points[(index + 1) % points.length]
     return next ? area + point[0] * next[1] - next[0] * point[1] : area
   }, 0) / 2
+}
+
+function normalizeClippedPolygon(points: PoolPoint[]) {
+  let normalized = points.filter((point, index) => {
+    const previous = points[(index - 1 + points.length) % points.length]
+    return !previous || Math.hypot(point[0] - previous[0], point[1] - previous[1]) > GEOMETRY_EPSILON
+  })
+  let changed = true
+  while (changed && normalized.length >= 3) {
+    changed = false
+    normalized = normalized.filter((point, index) => {
+      const previous = normalized[(index - 1 + normalized.length) % normalized.length]!
+      const next = normalized[(index + 1) % normalized.length]!
+      const cross = (point[0] - previous[0]) * (next[1] - point[1])
+        - (point[1] - previous[1]) * (next[0] - point[0])
+      if (Math.abs(cross) <= GEOMETRY_EPSILON) changed = true
+      return Math.abs(cross) > GEOMETRY_EPSILON
+    })
+  }
+  return normalized
 }
 
 function clipAtX(points: PoolPoint[], boundary: number, keepRight: boolean) {
@@ -364,7 +385,7 @@ function clipPolygonAgainstEdge(
 
 /** Returns disjoint pieces of a polygon after removing convex overlap regions. */
 function subtractConvexRegions(subject: PoolPoint[], regions: PoolPoint[][]) {
-  let fragments = [subject]
+  let fragments = [normalizeClippedPolygon(subject)]
   for (const sourceRegion of regions) {
     const region = signedArea(sourceRegion) >= 0 ? sourceRegion : [...sourceRegion].reverse()
     let insideFragments = fragments
@@ -374,11 +395,11 @@ function subtractConvexRegions(subject: PoolPoint[], regions: PoolPoint[][]) {
       const edgeEnd = region[(index + 1) % region.length]!
       const nextInsideFragments: PoolPoint[][] = []
       for (const fragment of insideFragments) {
-        const outside = clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, false)
+        const outside = normalizeClippedPolygon(clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, false))
         if (outside.length >= 3 && Math.abs(signedArea(outside)) > GEOMETRY_EPSILON) {
           outsideFragments.push(outside)
         }
-        const inside = clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, true)
+        const inside = normalizeClippedPolygon(clipPolygonAgainstEdge(fragment, edgeStart, edgeEnd, true))
         if (inside.length >= 3 && Math.abs(signedArea(inside)) > GEOMETRY_EPSILON) {
           nextInsideFragments.push(inside)
         }
@@ -415,6 +436,7 @@ function pushFloorFace(
 ) {
   const [first, second, third] = points
   const area = signedArea(points)
+  if (Math.abs(area) <= GEOMETRY_EPSILON) return
   const vertices = [first, second, third].map(([x, z]): Point3 => [
     x,
     -depthAtX(x) - offset,
@@ -493,14 +515,20 @@ function createPoolWallGeometry(
   coveRadius: number,
   coveInner: PoolPoint[],
   removeWallRegions: PoolPoint[][] = [],
+  removeWallCapRegions: PoolPoint[][] = removeWallRegions,
   closeBottom = false,
 ) {
   const positions: number[] = []
 
-  const addWallFace = (boundary: PoolPoint[], reverse: boolean, bottomOffset = 0) => {
+  const addWallFace = (
+    boundary: PoolPoint[],
+    reverse: boolean,
+    regions: PoolPoint[][],
+    bottomOffset = 0,
+  ) => {
     const split = splitBoundaryAtCuts(boundary, cuts)
     for (let index = 0; index < split.length; index += 1) {
-      for (const fragment of visibleSegmentFragments(split[index]!, split[(index + 1) % split.length]!, removeWallRegions)) {
+      for (const fragment of visibleSegmentFragments(split[index]!, split[(index + 1) % split.length]!, regions)) {
         const current = fragment.start
         const next = fragment.end
         const topCurrent: Point3 = [current[0], 0, current[1]]
@@ -521,9 +549,9 @@ function createPoolWallGeometry(
     }
   }
 
-  addWallFace(inner, false, coveRadius)
+  addWallFace(inner, false, removeWallRegions, coveRadius)
   const outerStart = positions.length / 3
-  addWallFace(outer, true)
+  addWallFace(outer, true, removeWallCapRegions)
   const outerEnd = positions.length / 3
 
   if (coveRadius > GEOMETRY_EPSILON) {
@@ -558,6 +586,21 @@ function createPoolWallGeometry(
     for (let index = 0; index < inner.length; index += 1) {
       const nextIndex = (index + 1) % inner.length
       for (const fragment of visibleSegmentFragments(inner[index]!, inner[nextIndex]!, removeWallRegions)) {
+        // Clipping a wall also opens the end of its rounded wall-to-floor
+        // transition. Close that exposed cross-section down to the floor.
+        // The cap shares the cove's sampled arc, depth cuts and tile material.
+        for (const [progress, reverse] of [
+          ...(fragment.startT > GEOMETRY_EPSILON ? [[fragment.startT, true] as const] : []),
+          ...(fragment.endT < 1 - GEOMETRY_EPSILON ? [[fragment.endT, false] as const] : []),
+        ]) {
+          const boundary = interpolatePoolPoint(inner[index]!, inner[nextIndex]!, progress)
+          const floor: ProfiledPoint = [boundary[0], boundary[1], 0]
+          for (let segment = 0; segment < radialSegments; segment += 1) {
+            const a = covePoint(index, nextIndex, progress, segment / radialSegments * Math.PI / 2)
+            const b = covePoint(index, nextIndex, progress, (segment + 1) / radialSegments * Math.PI / 2)
+            addCoveTriangle(floor, reverse ? b : a, reverse ? a : b)
+          }
+        }
         for (let segment = 0; segment < radialSegments; segment += 1) {
           const startAngle = segment / radialSegments * Math.PI / 2
           const endAngle = (segment + 1) / radialSegments * Math.PI / 2
@@ -574,7 +617,7 @@ function createPoolWallGeometry(
 
   for (let index = 0; index < inner.length; index += 1) {
     const nextIndex = (index + 1) % inner.length
-    for (const fragment of visibleSegmentFragments(inner[index]!, inner[nextIndex]!, removeWallRegions)) {
+    for (const fragment of visibleSegmentFragments(inner[index]!, inner[nextIndex]!, removeWallCapRegions)) {
       const innerCurrent = fragment.start
       const innerNext = fragment.end
       const outerCurrent = interpolatePoolPoint(outer[index]!, outer[nextIndex]!, fragment.startT)
@@ -594,16 +637,18 @@ function createPoolWallGeometry(
   const bottomInner = coveRadius > GEOMETRY_EPSILON ? coveInner : inner
   for (let index = 0; closeBottom && index < inner.length; index += 1) {
     const next = (index + 1) % inner.length
-    const a = bottomInner[index]!
-    const b = bottomInner[next]!
-    const c = outer[next]!
-    const d = outer[index]!
-    pushQuad(positions,
-      [a[0], -depthAtX(a[0]), a[1]],
-      [b[0], -depthAtX(b[0]), b[1]],
-      [c[0], -depthAtX(c[0]), c[1]],
-      [d[0], -depthAtX(d[0]), d[1]],
-    )
+    for (const fragment of visibleSegmentFragments(inner[index]!, inner[next]!, removeWallCapRegions)) {
+      const a = interpolatePoolPoint(bottomInner[index]!, bottomInner[next]!, fragment.startT)
+      const b = interpolatePoolPoint(bottomInner[index]!, bottomInner[next]!, fragment.endT)
+      const c = interpolatePoolPoint(outer[index]!, outer[next]!, fragment.endT)
+      const d = interpolatePoolPoint(outer[index]!, outer[next]!, fragment.startT)
+      pushQuad(positions,
+        [a[0], -depthAtX(a[0]), a[1]],
+        [b[0], -depthAtX(b[0]), b[1]],
+        [c[0], -depthAtX(c[0]), c[1]],
+        [d[0], -depthAtX(d[0]), d[1]],
+      )
+    }
   }
 
   const geometry = new BufferGeometry()
@@ -979,7 +1024,9 @@ function createWaterGeometry(points: PoolPoint[], removeWaterRegions: PoolPoint[
       ]) as [PoolPoint, PoolPoint, PoolPoint]
       for (const remaining of subtractConvexRegions(triangle, removeWaterRegions)) {
         for (let faceIndex = 1; faceIndex < remaining.length - 1; faceIndex += 1) {
-          for (const vertex of [remaining[0]!, remaining[faceIndex]!, remaining[faceIndex + 1]!]) {
+          const face = [remaining[0]!, remaining[faceIndex]!, remaining[faceIndex + 1]!] as [PoolPoint, PoolPoint, PoolPoint]
+          if (Math.abs(signedArea(face)) <= GEOMETRY_EPSILON) continue
+          for (const vertex of face) {
             kept.push(vertex[0], sourcePositions.getY(index), vertex[1])
           }
         }
@@ -1072,12 +1119,19 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   // this boundary so every downstream dimension is finite.
   const node = PoolNode.parse(nodeInput)
   const overlapRegions = options.overlaps?.filter(overlap => overlap.trimBasin !== false).flatMap(overlap => overlap.regions) ?? []
+  const overlapWallRegions = options.overlaps
+    ?.filter(overlap => overlap.trimBasin !== false)
+    .flatMap(overlap => overlap.wallRegions ?? overlap.regions) ?? []
+  const overlapWallCapRegions = options.overlaps
+    ?.filter(overlap => overlap.trimBasin !== false)
+    .flatMap(overlap => overlap.wallCapRegions ?? overlap.wallRegions ?? overlap.regions) ?? []
   const overlapWaterRegions = options.overlaps
     ?.filter(overlap => overlap.trimBasin !== false && overlap.preserveWater !== true)
     .flatMap(overlap => overlap.regions) ?? []
   options = {
     ...options,
-    removeWallRegions: [...(options.removeWallRegions ?? []), ...overlapRegions],
+    removeWallRegions: [...(options.removeWallRegions ?? []), ...overlapWallRegions],
+    removeWallCapRegions: [...(options.removeWallCapRegions ?? []), ...overlapWallCapRegions],
     removeFloorRegions: [...(options.removeFloorRegions ?? []), ...overlapRegions],
     removeWaterRegions: [...(options.removeWaterRegions ?? []), ...overlapWaterRegions],
   }
@@ -1142,6 +1196,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       safeCoveRadius,
       outlines.coveInner,
       options.removeWallRegions,
+      options.removeWallCapRegions,
       (options.spilloverNotches?.length ?? 0) > 0,
     ),
     [shellMaterial, outerWallMaterial],
@@ -1300,6 +1355,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       group.add(wall)
     }
     cutOverlapCoping(group,options.overlaps)
+
+
   }
 
   cutPoolSpilloverNotches(group, options.spilloverNotches ?? [], signedArea(inner) > 0)

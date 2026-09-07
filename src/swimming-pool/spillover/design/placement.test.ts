@@ -13,6 +13,7 @@ describe('pool spillover placement', () => {
     expect(placement?.sourcePoolId).toBe(upper.id)
     expect(placement?.targetPoolId).toBe(lower.id)
     expect(placement?.connectionMode).toBe('overlap')
+    expect(placement?.mergedSurface).toBe(false)
     expect(placement?.connectionPath).toEqual([[2, 0], [1.5, 0]])
     expect(placement?.sourceOpening).toHaveLength(4)
     expect(placement?.targetOpening).toHaveLength(4)
@@ -59,6 +60,7 @@ describe('pool spillover placement', () => {
     const placement = resolvePoolSpillover(first, second)
     expect(placement).not.toBeNull()
     expect(placement?.connectionMode).toBe('overlap')
+    expect(placement?.mergedSurface).toBe(true)
     expect(placement?.sourcePoolId).toBe(first.id)
     expect(placement?.sourceEdge).toHaveLength(41)
     expect(placement?.targetEdge).toEqual(placement?.sourceEdge)
@@ -165,6 +167,7 @@ describe('pool spillover placement', () => {
 
     expect(placement).not.toBeNull()
     expect(placement?.connectionMode).toBe('channel')
+    expect(placement?.mergedSurface).toBe(false)
     expect(placement?.sourceOpening).toHaveLength(4)
     expect(placement?.targetOpening).toHaveLength(4)
     expect(placement?.connectionPath).toHaveLength(2)
