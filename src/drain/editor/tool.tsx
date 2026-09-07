@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Mesh, MeshStandardMaterial } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
 import { getPoolDrainPlacement, type PoolDrainPlacement } from '../design/pool-placement'
+import { disposeObject3D } from '../../editor/dispose-object'
 import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
 import { DEFAULT_POOL_DRAIN, PoolDrainNode } from '../core/schema'
 import { buildDrainGeometry } from '../core/geometry'
@@ -32,6 +33,7 @@ export default function PoolDrainTool() {
     })
     return geometry
   }, [])
+  useEffect(() => () => disposeObject3D(ghostGeometry), [ghostGeometry])
   useEffect(() => {
     if (!levelId) { setPlacement(null); return }
     const resolve = (event: GridEvent) => {

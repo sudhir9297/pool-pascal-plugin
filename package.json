@@ -11,6 +11,8 @@
     "url": "https://github.com/pascalorg/plugin-pool/issues"
   },
   "type": "module",
+  "packageManager": "bun@1.3.12",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -22,13 +24,26 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "check-architecture": "bun run scripts/check-architecture.ts",
+    "check-package": "bun run scripts/check-package.ts",
+    "package:release": "bun run scripts/create-release-package.ts",
+    "check-release": "bun run scripts/check-release.ts",
     "check-types": "tsc --noEmit",
     "test": "bun test",
+    "test:coverage": "bun run scripts/test-coverage.ts",
     "build": "bun run scripts/build.ts",
+    "check-build-reproducibility": "bun run scripts/check-build-reproducibility.ts",
+    "verify": "bun run scripts/verify.ts",
+    "release:check": "bun run scripts/release-check.ts",
     "prepack": "bun run build"
   },
   "peerDependencies": {

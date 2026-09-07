@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { getValveConnectionPortIndices, getValveFlowPairs, getValveOpenPortIndices } from './geometry'
+import { Box3, Group } from 'three'
+import { disposeObject3D } from '../../editor/dispose-object'
+import { buildValveGeometry, getValveConnectionPortIndices, getValveFlowPairs, getValveOpenPortIndices } from './geometry'
 import { PoolValveNode } from './schema'
 
 describe('pool valve flow pattern', () => {
@@ -25,5 +27,30 @@ describe('pool valve flow pattern', () => {
 
     expect(getValveOpenPortIndices(valve).size).toBe(0)
     expect(getValveFlowPairs(valve)).toEqual([])
+  })
+
+  test('builds each physical port and adds channels only for active flow paths', () => {
+    const closedNode = PoolValveNode.parse({ variant: 'three-way', flowPattern: 'closed' })
+    const openNode = PoolValveNode.parse({ variant: 'three-way', flowPattern: 'all' })
+    const closed = buildValveGeometry(closedNode)
+    const open = buildValveGeometry(openNode)
+
+    expect(open.children.length - closed.children.length).toBe(3)
+    for (const geometry of [closed, open]) {
+      const bounds = new Box3().setFromObject(geometry)
+      expect(bounds.min.toArray().every(Number.isFinite)).toBe(true)
+      expect(bounds.max.toArray().every(Number.isFinite)).toBe(true)
+      disposeObject3D(geometry)
+    }
+  })
+
+  test('applies the saved handle angle to the lever group', () => {
+    const node = PoolValveNode.parse({ handleAngle: Math.PI * 0.75 })
+    const geometry = buildValveGeometry(node)
+    const lever = geometry.children.find((child) => child instanceof Group) as Group
+
+    expect(lever.rotation.y).toBeCloseTo(node.handleAngle)
+    expect(lever.children).toHaveLength(2)
+    disposeObject3D(geometry)
   })
 })

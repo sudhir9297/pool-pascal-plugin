@@ -33,7 +33,12 @@ bun run check-architecture
 bun run check-types
 bun test
 bun run build
+bun run verify
 ```
+
+`bun run release:check` adds coverage floors, package-content checks, release
+metadata validation, and a high-severity dependency audit. The full process is
+documented in [Testing and release](docs/testing-and-release.md).
 
 ## Host integration
 

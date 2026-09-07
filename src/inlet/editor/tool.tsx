@@ -6,6 +6,7 @@ import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useState } from 'react'
 import type { Material, Mesh } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
+import { disposeObject3D } from '../../editor/dispose-object'
 import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
 import { findNearestInletWall, type InletPlacement } from '../design/placement'
 import { DEFAULT_POOL_INLET, PoolInletNode } from '../core/schema'
@@ -56,6 +57,7 @@ function InletGhost({ placement }: { placement: InletPlacement }) {
     })
     return group
   }, [placement])
+  useEffect(() => () => disposeObject3D(geometry), [geometry])
   const verticalOffset = DEFAULT_POOL_INLET.verticalOffset
   return <primitive object={geometry} position={[placement.position[0], placement.position[1] + verticalOffset, placement.position[2]]} rotation={placement.rotation} />
 }

@@ -5,17 +5,21 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  typecheck:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
       - run: bun install --frozen-lockfile
-      - run: bun run check-architecture
-      - run: bun run check-types
-      - run: bun test
-      - run: bun run build
-      - run: bun audit --audit-level=high
+      - run: bun run release:check

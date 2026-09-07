@@ -6,6 +6,7 @@ import { useViewer } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import { worldPointToPoolLevel } from '../../design/level-coordinates'
+import { disposeObject3D } from '../../editor/dispose-object'
 import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../editor/scene-nodes'
 import { findNearestPoolWall, type SkimmerPlacement } from '../design/placement'
 import { DEFAULT_POOL_SKIMMER, PoolSkimmerNode } from '../core/schema'
@@ -62,6 +63,6 @@ function SkimmerGhost({ placement }: { placement: SkimmerPlacement }) {
     })
     return group
   }, [placement])
-  useEffect(() => () => { geometry.traverse((child) => { const mesh = child as Mesh; if (mesh.isMesh) mesh.geometry.dispose() }) }, [geometry])
+  useEffect(() => () => disposeObject3D(geometry), [geometry])
   return <primitive object={geometry} position={placement.position} rotation={placement.rotation} />
 }

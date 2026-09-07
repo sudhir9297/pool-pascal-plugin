@@ -1,5 +1,8 @@
 node_modules
 .turbo
 dist
+coverage
+release-artifact
+*.tgz
 *.tsbuildinfo
 .DS_Store

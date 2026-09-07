@@ -5,7 +5,9 @@
     "emitDeclarationOnly": true,
     "noEmit": false,
     "preserveSymlinks": true,
+    "rootDir": "src",
     "outDir": "./dist"
   },
+  "include": ["src"],
   "exclude": ["node_modules", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }
