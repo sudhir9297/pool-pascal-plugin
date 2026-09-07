@@ -8,6 +8,7 @@ import {
 } from '@pascal-app/core'
 import { type PoolNode, resolvePoolPolygon } from '../core/schema'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
+import { PoolSpilloverNode } from '../spillover/core/schema'
 import { buildPoolOutlines, outsetPoolPolygon } from './outlines'
 
 export { outsetPoolPolygon as outsetPolygon } from './outlines'
@@ -29,11 +30,14 @@ export type PoolGroundOpeningChanges = {
   delete: AnyNodeId[]
 }
 
-type PoolSceneNode = AnyNode | PoolNode | PoolSharedJointNode
+type PoolConnectionNode = PoolSharedJointNode | PoolSpilloverNode
+type PoolSceneNode = AnyNode | PoolNode | PoolConnectionNode
 
 const COORDINATE_PRECISION = 1e9
 const GEOMETRY_TOLERANCE = 1e-7
-const GROUND_OPENING_HOLE_MARGIN = 0.001
+// Keep helper-slab holes visibly clear of pool/spillover edges. A near-zero
+// margin leaves coplanar side faces that flicker in the renderer.
+const GROUND_OPENING_HOLE_MARGIN = 0.025
 const GROUND_OPENING_METADATA_KEY = 'poolGroundOpeningFor'
 const SLAB_OPENINGS_METADATA_KEY = 'poolManagedOpenings'
 
@@ -383,9 +387,13 @@ function buildPoolGroundOpeningSlab(
   })
 }
 
-function getConnectionOpeningPolygon(connection: PoolSharedJointNode): PolygonPoint2D[] {
-  const halfLength = connection.length / 2 + 0.04
-  const halfWidth = connection.width / 2 + 0.04
+function getConnectionOpeningPolygon(connection: PoolConnectionNode): PolygonPoint2D[] {
+  const clearance = connection.type === 'pool:spillover' ? 0 : 0.04
+  const spilloverWallReach = connection.type === 'pool:spillover'
+    ? connection.lipThickness / 2 + 0.02
+    : 0
+  const halfLength = connection.length / 2 + clearance
+  const halfWidth = connection.width / 2 + spilloverWallReach + clearance
   const rotation = connection.rotation[1] ?? 0
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
@@ -397,7 +405,7 @@ function getConnectionOpeningPolygon(connection: PoolSharedJointNode): PolygonPo
 }
 
 function buildConnectionGroundOpeningSlab(
-  connection: PoolSharedJointNode,
+  connection: PoolConnectionNode,
   nodes: Record<string, PoolSceneNode>,
   id = connectionGroundOpeningId(connection.id),
 ): SlabNode {
@@ -409,7 +417,9 @@ function buildConnectionGroundOpeningSlab(
     visible: connection.visible !== false,
     metadata: { [GROUND_OPENING_METADATA_KEY]: `pool-connection:${connection.id}` },
     polygon,
-    holes: [outsetPoolPolygon(polygon, GROUND_OPENING_HOLE_MARGIN)],
+    // A connection opening must not leave a visible helper-slab rim beside
+    // the spillover; the polygon itself is already the recessed cutout.
+    holes: [polygon],
     holeMetadata: [{ source: 'manual' }],
     elevation: -0.02,
     recessed: true,
@@ -440,7 +450,9 @@ export function syncPoolGroundOpenings(
     .sort((left, right) => left.id.localeCompare(right.id))
   const connections = Object.values(nodes)
     .flatMap((node) => {
-      const parsed = PoolSharedJointNode.safeParse(node)
+      const parsed = PoolSharedJointNode.safeParse(node).success
+        ? PoolSharedJointNode.safeParse(node)
+        : PoolSpilloverNode.safeParse(node)
       return parsed.success ? [parsed.data] : []
     })
     .sort((left, right) => left.id.localeCompare(right.id))
@@ -556,7 +568,9 @@ export function syncPoolSlabOpenings(
     (node): node is SlabNode => node.type === 'slab' && !isPoolGroundOpeningSlab(node),
   )
   const connections = Object.values(nodes).flatMap((node) => {
-    const parsed = PoolSharedJointNode.safeParse(node)
+    const parsed = PoolSharedJointNode.safeParse(node).success
+      ? PoolSharedJointNode.safeParse(node)
+      : PoolSpilloverNode.safeParse(node)
     return parsed.success && parsed.data.visible !== false ? [parsed.data] : []
   })
   const updates: PoolOpeningUpdate[] = []

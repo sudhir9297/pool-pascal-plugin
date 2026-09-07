@@ -1,3 +1,5 @@
+import { cutOverlapCoping } from './overlap-coping'
+import type { PoolOverlap } from '../design/pool-overlap'
 import { cutPoolSpilloverNotches } from './spillover-notch'
 import type { SpilloverNotch } from '../design/spillover-notch'
 import {
@@ -108,6 +110,7 @@ type ProfiledPoint = [x: number, z: number, heightAboveFloor: number]
 const GEOMETRY_EPSILON = 1e-8
 
 export type PoolGeometryOptions = {
+  overlaps?: PoolOverlap[]
   spilloverNotches?: SpilloverNotch[]
   removeWallRegions?: PoolPoint[][]
   removeFloorRegions?: PoolPoint[][]
@@ -152,6 +155,7 @@ function visibleSegmentFragments(
   start: PoolPoint,
   end: PoolPoint,
   regions: PoolPoint[][],
+  keepInside = false,
 ): VisibleSegmentFragment[] {
   if (regions.length === 0) return [{ start, end, startT: 0, endT: 1 }]
   const direction: PoolPoint = [end[0] - start[0], end[1] - start[1]]
@@ -198,7 +202,7 @@ function visibleSegmentFragments(
     const endT = uniqueProgress[index + 1]!
     if (endT - startT <= GEOMETRY_EPSILON) continue
     const midpoint = interpolatePoolPoint(start, end, (startT + endT) / 2)
-    if (pointInAnyPolygon(midpoint, regions)) continue
+    if (pointInAnyPolygon(midpoint, regions) !== keepInside) continue
     fragments.push({
       start: interpolatePoolPoint(start, end, startT),
       end: interpolatePoolPoint(start, end, endT),
@@ -1067,6 +1071,13 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   // materialized defaults added by a newer schema version. Normalize once at
   // this boundary so every downstream dimension is finite.
   const node = PoolNode.parse(nodeInput)
+  const overlapRegions = options.overlaps?.filter(overlap => overlap.trimBasin !== false).flatMap(overlap => overlap.regions) ?? []
+  options = {
+    ...options,
+    removeWallRegions: [...(options.removeWallRegions ?? []), ...overlapRegions],
+    removeFloorRegions: [...(options.removeFloorRegions ?? []), ...overlapRegions],
+    removeWaterRegions: [...(options.removeWaterRegions ?? []), ...overlapRegions],
+  }
   const group = new Group()
   group.name = 'pool-assembly'
   group.position.y = node.finishedDeckElevation
@@ -1254,6 +1265,38 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     )
     coping.name = 'pool-coping'
     group.add(coping)
+  }
+
+  if (options.overlaps?.length) {
+    const positions: number[] = []
+    for (const overlap of options.overlaps.filter(item => item.trimBasin !== false)) {
+      for (let index = 0; index < overlap.footprint.length; index++) {
+        const next = (index + 1) % overlap.footprint.length
+        const a = overlap.footprint[index]!
+        const b = overlap.footprint[next]!
+        for (const fragment of visibleSegmentFragments(a,b,[inner],true)) {
+          const startTop = overlap.topHeights[index]! + (overlap.topHeights[next]!-overlap.topHeights[index]!)*fragment.startT
+          const endTop = overlap.topHeights[index]! + (overlap.topHeights[next]!-overlap.topHeights[index]!)*fragment.endT
+          const [sx,sz] = fragment.start
+          const [ex,ez] = fragment.end
+          const startBottom = -depth.depthAtX(sx)-node.floorThickness
+          const endBottom = -depth.depthAtX(ex)-node.floorThickness
+          if (startTop <= startBottom && endTop <= endBottom) continue
+          pushQuad(positions,[sx,Math.max(startBottom,startTop),sz],[ex,Math.max(endBottom,endTop),ez],
+            [ex,endBottom,ez],[sx,startBottom,sz])
+        }
+      }
+    }
+    if (positions.length) {
+      const geometry = new BufferGeometry()
+      geometry.setAttribute('position',new Float32BufferAttribute(positions,3))
+      addPlanarUvAttribute(geometry)
+      geometry.computeVertexNormals()
+      const wall = new Mesh(geometry,shellMaterial)
+      wall.name = 'pool-overlap-separating-wall'
+      group.add(wall)
+    }
+    cutOverlapCoping(group,options.overlaps)
   }
 
   cutPoolSpilloverNotches(group, options.spilloverNotches ?? [], signedArea(inner) > 0)

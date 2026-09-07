@@ -5,6 +5,7 @@ import { useScene } from '@pascal-app/core'
 import type { Material, Mesh } from 'three'
 import { buildPoolGeometry } from '../core/geometry'
 import type { PoolNode } from '../core/schema'
+import { getPoolOverlaps } from '../design/pool-overlap'
 import { getPoolSpilloverNotches } from '../design/spillover-notch'
 import { getPoolConnectionRegions } from '../design/shared-joint'
 
@@ -14,6 +15,7 @@ export default function PoolPreview({ node }: { node: PoolNode }) {
   const sceneNodes = useScene((state) => state.nodes)
   const pool = useMemo(() => {
     const group = buildPoolGeometry(node, {
+      overlaps: getPoolOverlaps(node, sceneNodes),
       spilloverNotches: getPoolSpilloverNotches(node, sceneNodes),
       removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
       removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),

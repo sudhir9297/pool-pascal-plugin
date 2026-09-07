@@ -19,8 +19,7 @@ export function findCurvedSpillway(first: PoolPoint[], second: PoolPoint[], requ
   const a = center(first)
   const b = center(second)
   const distance = Math.hypot(b[0] - a[0], b[1] - a[1])
-  if (distance < 0.001) return null
-  const normal: PoolPoint = [(b[0] - a[0]) / distance, (b[1] - a[1]) / distance]
+  const normal: PoolPoint = distance < 0.001 ? [1, 0] : [(b[0] - a[0]) / distance, (b[1] - a[1]) / distance]
   const tangent: PoolPoint = [-normal[1], normal[0]]
   const left = first.map((p) => dot(p, tangent))
   const right = second.map((p) => dot(p, tangent))
@@ -35,8 +34,12 @@ export function findCurvedSpillway(first: PoolPoint[], second: PoolPoint[], requ
     const firstHits = crossings(first, normal, tangent, coordinate)
     const secondHits = crossings(second, normal, tangent, coordinate)
     if (!firstHits.length || !secondHits.length) return null
-    const start = Math.max(...firstHits)
-    const end = Math.min(...secondHits)
+    let start = Math.max(...firstHits)
+    let end = Math.min(...secondHits)
+    // A nested basin spills across its own rim into the containing pool;
+    // routing to the containing pool's far rim would cross the upper basin.
+    if (Math.min(...firstHits) > end && start < Math.max(...secondHits)) end = start
+    else if (end > Math.min(...firstHits) && Math.max(...secondHits) < start) start = end
     if (Math.abs(end - start) > 20) return null
     if (samples.length && (end - start) * (samples[0]![2] - samples[0]![1]) < 0) return null
     samples.push([coordinate, start, end])

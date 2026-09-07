@@ -33,4 +33,18 @@ describe('pool spillover interaction', () => {
     expect(resolvePoolSpilloverPair(source, source)).toBeNull()
     expect(resolvePoolSpilloverPair(source, target)?.targetPoolId).toBe(target.id)
   })
+
+  test.each([
+    ['separated', [5, 0, 0] as [number, number, number]],
+    ['intersecting', [2, 0, 0] as [number, number, number]],
+  ])('creates a candidate between %s pools at the same level', (_label, position) => {
+    const source = PoolNode.parse({ id: `pool_same_source_${_label}`, parentId: 'level_a', polygon: rectangle })
+    const target = PoolNode.parse({ id: `pool_same_target_${_label}`, parentId: 'level_a', polygon: rectangle, position })
+    const nodes = { [source.id]: source, [target.id]: target }
+    const candidate = resolvePoolSpilloverCandidate(nodes as never, [target.position[0], 0, target.position[2]], 'level_a', source)
+    expect(candidate.pool?.id).toBe(target.id)
+    expect(candidate.placement).not.toBeNull()
+    expect(candidate.placement?.sourcePoolId).toBe(source.id)
+    expect(candidate.placement?.targetPoolId).toBe(target.id)
+  })
 })

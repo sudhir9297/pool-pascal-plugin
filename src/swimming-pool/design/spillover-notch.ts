@@ -38,7 +38,10 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
       center: [dx * Math.cos(angle) - dz * Math.sin(angle), dx * Math.sin(angle) + dz * Math.cos(angle)] as [number, number],
       rotation: placement.rotation[1] - angle,
       width: placement.connectionMode === 'channel' ? Math.max(0.08, placement.width - connection.lipThickness * 2) : placement.width,
-      depth: Math.max(pool.shellThickness, pool.copingWidth) * 4 + 0.1 + maximum - minimum,
+      // Curvature belongs to the water sheet, not to the wall cut. Including
+      // the edge's along-flow variation here made the CSG cutter grow into a
+      // long triangular notch when intersecting pools used a curved path.
+      depth: Math.max(pool.shellThickness, pool.copingWidth) * 6 + 0.2,
       bottom: pool.designWaterElevation - 0.025,
       top: pool.finishedDeckElevation + pool.copingThickness + 2,
     }]

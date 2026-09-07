@@ -35,7 +35,9 @@ test.each([32, 128, 256])('connects a curved pool across multiple short edges at
   }
   const notches = getPoolSpilloverNotches(upper, {[upper.id]:upper,[lower.id]:lower,[node.id]:node} as never)
   expect(notches).toHaveLength(1)
-  expect(notches[0]!.depth).toBeGreaterThan(upper.copingWidth * 4 + 0.1)
+  // The opening cutter stays tight to the shell; curved edge offsets deform
+  // the water sheet and must not enlarge the wall notch.
+  expect(notches[0]!.depth).toBeCloseTo(upper.copingWidth * 6 + 0.2)
   disposePoolSpilloverVisual(geometry)
 })
 
@@ -69,6 +71,7 @@ test('uses curved edge samples for overlapping round pools', () => {
   expect(placement!.sourceEdge).toHaveLength(41)
   expect(placement!.width).toBeCloseTo(1.2)
   expect(placement!.connectionMode).toBe('overlap')
+  expect(placement!.targetEdge).toEqual(placement!.sourceEdge)
 })
 
 
@@ -95,4 +98,20 @@ test('opens the curved source rim while preserving the wall beneath it', () => {
     mesh.geometry.dispose()
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose()
   })
+})
+
+
+test('a nested higher pool spills outward across its own rim', () => {
+  const upper = PoolNode.parse({id:'pool_nested_upper',parentId:'level_a',polygon:roundPolygon(64),position:[0,1,0]})
+  const lower = PoolNode.parse({id:'pool_nested_lower',parentId:'level_a',polygon:roundPolygon(64).map(([x,z])=>[x*2,z*2]),position:[0,0,0]})
+  const placement = resolvePoolSpillover(upper,lower,'auto',1)!
+  expect(placement).not.toBeNull()
+  expect(placement.connectionMode).toBe('overlap')
+  expect(placement.connectionPath[0]![0]).toBeCloseTo(2)
+  expect(placement.connectionPath[1]![0]).toBeCloseTo(2)
+  expect(placement.sourceSide).toBe(-1)
+  const visual = buildPoolSpilloverGeometry(PoolSpilloverNode.parse(placement))
+  expect(visual.getObjectByName('pool-spillover-water-sheet')).toBeUndefined()
+  expect(visual.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
+  disposePoolSpilloverVisual(visual)
 })

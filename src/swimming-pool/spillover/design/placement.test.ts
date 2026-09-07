@@ -45,6 +45,20 @@ describe('pool spillover placement', () => {
     expect(placement?.connectionMode).toBe('channel')
   })
 
+  test('uses the intersecting curved footprint for pools at the same level', () => {
+    const first = PoolNode.parse({ id: 'pool_same_level_a', parentId: 'level_a', shape: 'custom',
+      polygon: [[-3,-2],[2,-2],[2,2],[-3,2]], position: [0,0,0] })
+    const second = PoolNode.parse({ id: 'pool_same_level_b', parentId: 'level_a', shape: 'custom',
+      polygon: [[-2,-1],[3,-1],[3,1],[-2,1]], position: [2,0,0] })
+    const placement = resolvePoolSpillover(first, second)
+    expect(placement).not.toBeNull()
+    expect(placement?.connectionMode).toBe('overlap')
+    expect(placement?.sourcePoolId).toBe(first.id)
+    expect(placement?.sourceEdge).toHaveLength(41)
+    expect(placement?.targetEdge).toEqual(placement?.sourceEdge)
+    expect(placement?.dropHeight).toBeCloseTo(0.02)
+  })
+
   test('renders an explicit direct spillover without a watercourse bed', () => {
     const upper = PoolNode.parse({ id: 'pool_upper_direct', parentId: 'level_a', position: [0, 1, 0], polygon: rectangle })
     const lower = PoolNode.parse({ id: 'pool_lower_direct', parentId: 'level_a', position: [3.5, 0, 0], polygon: rectangle })

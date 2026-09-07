@@ -3,6 +3,7 @@ import { SlabNode } from '@pascal-app/core'
 import { poolDefinition } from '../core/definition'
 import { PoolNode } from '../core/schema'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
+import { PoolSpilloverNode } from '../spillover/core/schema'
 import { syncPoolGroundOpenings, syncPoolSlabOpenings } from './opening-sync'
 
 describe('swimming pool floor openings', () => {
@@ -80,5 +81,25 @@ describe('swimming pool floor openings', () => {
 
     expect(updates).toHaveLength(1)
     expect(updates[0]?.data.holes).toHaveLength(1)
+  })
+
+  test('creates a recessed ground opening beneath a spillover gap', () => {
+    const spillover = PoolSpilloverNode.parse({
+      id: 'pool-spillover_ground-gap',
+      parentId: 'level_ground',
+      sourcePoolId: 'pool_a',
+      targetPoolId: 'pool_b',
+      position: [2.25, 0, 0],
+      length: 1.25,
+      width: 2,
+    })
+    const changes = syncPoolGroundOpenings({ [spillover.id]: spillover })
+    const helper = changes.create[0]
+
+    expect(helper?.recessed).toBe(true)
+    expect(helper?.polygon).toHaveLength(4)
+    expect(helper?.metadata).toMatchObject({
+      poolGroundOpeningFor: `pool-connection:${spillover.id}`,
+    })
   })
 })

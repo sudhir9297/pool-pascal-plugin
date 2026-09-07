@@ -27,6 +27,9 @@ describe('pool spillover geometry', () => {
     }))
     expect(geometry.children.map((child) => child.name)).toEqual([
       'pool-spillover-crest',
+      'pool-spillover-overlap-surface',
+      'pool-spillover-overlap-wall-left',
+      'pool-spillover-overlap-wall-right',
       'pool-spillover-water-sheet',
     ])
     expect(geometry.userData.waterEffects).toHaveLength(1)
@@ -48,7 +51,9 @@ describe('pool spillover geometry', () => {
     }))
 
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.x).toBeCloseTo(0.21)
-    expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.25)
+    // Overlap connections land just outside the source rim rather than
+    // extending back through the higher basin.
+    expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.03)
     disposeGeometry(geometry)
   })
 
@@ -68,6 +73,8 @@ describe('pool spillover geometry', () => {
       'pool-spillover-channel-bed',
       'pool-spillover-channel-wall-left',
       'pool-spillover-channel-wall-right',
+      'pool-spillover-channel-outer-border-left',
+      'pool-spillover-channel-outer-border-right',
       'pool-spillover-water-sheet',
     ])
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.x).toBeCloseTo(0.585)

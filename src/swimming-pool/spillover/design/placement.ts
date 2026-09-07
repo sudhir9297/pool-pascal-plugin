@@ -1,7 +1,7 @@
 import { getPoolWaterLandingInset } from '../../design/water-landing'
 import { findCurvedSpillway } from './curved-placement'
 import { PoolNode, type PoolPoint, resolvePoolPolygon } from '../../core/schema'
-import { findSharedPoolJoint } from '../../design/shared-joint'
+import { findSharedPoolJoint, getPoolIntersectionRegions } from '../../design/shared-joint'
 import type { PoolSpilloverNode } from '../core/schema'
 
 const MAX_CONNECTION_LENGTH = 20
@@ -108,16 +108,20 @@ export function resolvePoolSpillover(
 ): PoolSpilloverPlacement | null {
   if (first.parentId !== second.parentId) return null
   const sharedJoint = findSharedPoolJoint(first, second)
+  const intersection = sharedJoint?.intersection ?? getPoolIntersectionRegions(first, second)
   const firstPolygon = getPoolWorldPolygon(first)
   const secondPolygon = getPoolWorldPolygon(second)
-  const curved = (firstPolygon.length > 8 || secondPolygon.length > 8 || (!sharedJoint && (firstPolygon.length > 4 || secondPolygon.length > 4)))
+  const sameWaterLevel = Math.abs(worldWaterHeight(first) - worldWaterHeight(second)) <= 0.001
+  const curved = ((intersection.length > 0 && (sameWaterLevel || !sharedJoint))
+    || firstPolygon.length > 8 || secondPolygon.length > 8
+    || (!sharedJoint && (firstPolygon.length > 4 || secondPolygon.length > 4)))
     ? findCurvedSpillway(firstPolygon, secondPolygon, requestedWidth)
     : null
   const joint = curved ? {
     ...curved,
     position: [curved.position[0], 0, curved.position[1]] as [number, number, number],
     rotation: [0, curved.rotation, 0] as [number, number, number],
-    intersection: sharedJoint?.intersection ?? [] as PoolPoint[][],
+    intersection,
   } : sharedJoint ?? findAdjacentSpillway(first, second)
   if (!joint || joint.width < 0.3) return null
   const source = worldWaterHeight(first) >= worldWaterHeight(second) ? first : second
@@ -125,17 +129,28 @@ export function resolvePoolSpillover(
   const sourceIndex = source.id === first.id ? 0 : 1
   const sourcePoint = joint.poolPoints[sourceIndex]!
   const targetPoint = joint.poolPoints[sourceIndex === 0 ? 1 : 0]!
+  const sourceEdge = curved ? (sourceIndex === 0 ? curved.firstEdge : curved.secondEdge) : []
+  // When basins overlap, the receiving rim is inside the source basin's
+  // footprint. Keep the spillway profile identical at both ends so the
+  // outside cutout follows the spillover itself instead of the lower pool's
+  // unrelated outer contour. Separated pools still conform to the target rim.
+  const targetEdge = curved
+    ? (intersection.length ? sourceEdge : (sourceIndex === 0 ? curved.secondEdge : curved.firstEdge))
+    : []
   const availableWidth = joint.width
   const width = Math.min(requestedWidth ?? availableWidth, availableWidth)
   const angle = joint.rotation[1] ?? 0
   const tangent: PoolPoint = [Math.sin(angle), Math.cos(angle)]
   const deltaX = source.position[0] - joint.position[0]
   const deltaZ = source.position[2] - joint.position[2]
-  const sourceSide = (deltaX * Math.cos(angle) - deltaZ * Math.sin(angle)) >= 0 ? 1 : -1
+  const sourceSide = intersection.length
+    ? ((target.position[0] - source.position[0]) * Math.cos(angle)
+      - (target.position[2] - source.position[2]) * Math.sin(angle)) >= 0 ? -1 : 1
+    : (deltaX * Math.cos(angle) - deltaZ * Math.sin(angle)) >= 0 ? 1 : -1
   const dropHeight = Math.max(0.02, worldWaterHeight(source) - worldWaterHeight(target))
   return {
-    sourceEdge: curved ? (sourceIndex === 0 ? curved.firstEdge : curved.secondEdge) : [],
-    targetEdge: curved ? (sourceIndex === 0 ? curved.secondEdge : curved.firstEdge) : [],
+    sourceEdge,
+    targetEdge,
     position: [joint.position[0], worldWaterHeight(source), joint.position[2]],
     rotation: joint.rotation,
     sourcePoolId: source.id,
@@ -144,7 +159,7 @@ export function resolvePoolSpillover(
       ? 'channel'
       : connectionStyle === 'direct-spillover'
         ? 'direct'
-        : sharedJoint ? 'overlap' : 'channel',
+        : intersection.length ? 'overlap' : 'channel',
     sourceOpening: openingAround(sourcePoint, tangent, width, Math.max(POOL_OPENING_DEPTH, source.shellThickness + 0.05)),
     targetOpening: openingAround(targetPoint, tangent, width, Math.max(POOL_OPENING_DEPTH, target.shellThickness + 0.05)),
     connectionPath: [sourcePoint, targetPoint],
