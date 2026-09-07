@@ -9,35 +9,35 @@ import { POOL_STAIR_CATALOG, POOL_STAIR_VARIANTS, type PoolStairVariant } from '
 import { usePoolStairStore } from '../stair/editor/store'
 
 const THUMBNAILS = {
-  pool: new URL('./assets/swimming-pool-thumbnail-v2.png', import.meta.url).href,
-  stairs: new URL('./assets/pool-stairs-thumbnail.png', import.meta.url).href,
-  waterfall: new URL('./assets/waterfall-thumbnail.png', import.meta.url).href,
-  spillover: new URL('./assets/spillover-thumbnail.png', import.meta.url).href,
-  filter: new URL('./assets/filter-thumbnail.png', import.meta.url).href,
-  heater: new URL('./assets/heater-thumbnail.png', import.meta.url).href,
-  pump: new URL('./assets/pump-thumbnail.png', import.meta.url).href,
-  drain: new URL('./assets/drain-thumbnail.png', import.meta.url).href,
-  valve: new URL('./assets/valve-thumbnail.png', import.meta.url).href,
-  skimmer: new URL('./assets/skimmer-thumbnail.png', import.meta.url).href,
-  inlet: new URL('./assets/inlet-thumbnail.png', import.meta.url).href,
+  pool: new URL('./assets/swimming-pool-thumbnail-v2.webp', import.meta.url).href,
+  stairs: new URL('./assets/pool-stairs-thumbnail.webp', import.meta.url).href,
+  waterfall: new URL('./assets/waterfall-thumbnail.webp', import.meta.url).href,
+  spillover: new URL('./assets/spillover-thumbnail.webp', import.meta.url).href,
+  filter: new URL('./assets/filter-thumbnail.webp', import.meta.url).href,
+  heater: new URL('./assets/heater-thumbnail.webp', import.meta.url).href,
+  pump: new URL('./assets/pump-thumbnail.webp', import.meta.url).href,
+  drain: new URL('./assets/drain-thumbnail.webp', import.meta.url).href,
+  valve: new URL('./assets/valve-thumbnail.webp', import.meta.url).href,
+  skimmer: new URL('./assets/skimmer-thumbnail.webp', import.meta.url).href,
+  inlet: new URL('./assets/inlet-thumbnail.webp', import.meta.url).href,
 } as const
 
 const POOL_SHAPE_THUMBNAILS: Record<PoolShape, string> = {
-  rectangle: new URL('./assets/pool-rectangle-thumbnail.png', import.meta.url).href,
-  'lap-rectangle': new URL('./assets/pool-lap-rectangle-thumbnail.png', import.meta.url).href,
-  kidney: new URL('./assets/pool-kidney-thumbnail-v2.png', import.meta.url).href,
-  lagoon: new URL('./assets/pool-lagoon-thumbnail.png', import.meta.url).href,
-  roman: new URL('./assets/pool-roman-thumbnail-v2.png', import.meta.url).href,
-  'l-shape': new URL('./assets/pool-l-shape-thumbnail.png', import.meta.url).href,
-  spline: new URL('./assets/pool-freehand-thumbnail.png', import.meta.url).href,
-  custom: new URL('./assets/pool-custom-thumbnail.png', import.meta.url).href,
+  rectangle: new URL('./assets/pool-rectangle-thumbnail.webp', import.meta.url).href,
+  'lap-rectangle': new URL('./assets/pool-lap-rectangle-thumbnail.webp', import.meta.url).href,
+  kidney: new URL('./assets/pool-kidney-thumbnail-v3.webp', import.meta.url).href,
+  lagoon: new URL('./assets/pool-lagoon-thumbnail.webp', import.meta.url).href,
+  roman: new URL('./assets/pool-roman-thumbnail-v3.webp', import.meta.url).href,
+  'l-shape': new URL('./assets/pool-l-shape-thumbnail.webp', import.meta.url).href,
+  spline: new URL('./assets/pool-freehand-thumbnail.webp', import.meta.url).href,
+  custom: new URL('./assets/pool-custom-thumbnail.webp', import.meta.url).href,
 }
 
 const POOL_STAIR_THUMBNAILS: Record<PoolStairVariant, string> = {
-  extended: new URL('./assets/stair-tall-angled-thumbnail-v3.png', import.meta.url).href,
-  classic: new URL('./assets/stair-round-arch-thumbnail-v3.png', import.meta.url).href,
-  square: new URL('./assets/stair-low-square-thumbnail-v3.png', import.meta.url).href,
-  compact: new URL('./assets/stair-short-compact-thumbnail-v3.png', import.meta.url).href,
+  extended: new URL('./assets/stair-tall-angled-thumbnail-v3.webp', import.meta.url).href,
+  classic: new URL('./assets/stair-round-arch-thumbnail-v3.webp', import.meta.url).href,
+  square: new URL('./assets/stair-low-square-thumbnail-v3.webp', import.meta.url).href,
+  compact: new URL('./assets/stair-short-compact-thumbnail-v3.webp', import.meta.url).href,
 }
 
 export default function PoolPanel() {

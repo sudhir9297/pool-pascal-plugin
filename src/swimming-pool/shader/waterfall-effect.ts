@@ -44,14 +44,14 @@ import {
 } from './water-presets'
 
 const NOISE_URLS = {
-  caustic1: new URL('./assets/water/caustic1.png', import.meta.url).href,
-  caustic2: new URL('./assets/water/caustic2.png', import.meta.url).href,
-  noise1: new URL('./assets/water/noise1.png', import.meta.url).href,
-  noise4: new URL('./assets/water/noise4.png', import.meta.url).href,
-  noise5: new URL('./assets/water/noise5.png', import.meta.url).href,
-  normal1: new URL('./assets/water/normal1.png', import.meta.url).href,
-  normal2: new URL('./assets/water/normal2.png', import.meta.url).href,
-  normal3: new URL('./assets/water/normal3.png', import.meta.url).href,
+  caustic1: new URL('./assets/water/caustic1.webp', import.meta.url).href,
+  caustic2: new URL('./assets/water/caustic2.webp', import.meta.url).href,
+  noise1: new URL('./assets/water/noise1.webp', import.meta.url).href,
+  noise4: new URL('./assets/water/noise4.webp', import.meta.url).href,
+  noise5: new URL('./assets/water/noise5.webp', import.meta.url).href,
+  normal1: new URL('./assets/water/normal1.webp', import.meta.url).href,
+  normal2: new URL('./assets/water/normal2.webp', import.meta.url).href,
+  normal3: new URL('./assets/water/normal3.webp', import.meta.url).href,
 } as const
 const WATERFALL_PRESET_TEXTURES: Record<WaterPreset, {
   mask: keyof typeof NOISE_URLS
