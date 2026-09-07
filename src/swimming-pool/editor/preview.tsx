@@ -5,6 +5,7 @@ import { useScene } from '@pascal-app/core'
 import type { Material, Mesh } from 'three'
 import { buildPoolGeometry } from '../core/geometry'
 import type { PoolNode } from '../core/schema'
+import { getPoolSpilloverNotches } from '../design/spillover-notch'
 import { getPoolConnectionRegions } from '../design/shared-joint'
 
 const NO_RAYCAST = () => {}
@@ -13,6 +14,7 @@ export default function PoolPreview({ node }: { node: PoolNode }) {
   const sceneNodes = useScene((state) => state.nodes)
   const pool = useMemo(() => {
     const group = buildPoolGeometry(node, {
+      spilloverNotches: getPoolSpilloverNotches(node, sceneNodes),
       removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
       removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),
       removeWaterRegions: getPoolConnectionRegions(node, sceneNodes),

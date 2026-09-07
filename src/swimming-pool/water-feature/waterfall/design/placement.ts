@@ -1,3 +1,4 @@
+import { getPoolWaterLandingInset } from '../../../design/water-landing'
 import { resolvePoolPolygon, type PoolNode } from '../../../core/schema'
 import type { WaterPreset } from '../../../shader/water-presets'
 import type { PoolWaterfallNode } from '../core/schema'
@@ -10,6 +11,7 @@ export type WaterfallPlacement = {
   wallIndex: number
   wallT: number
   edgeCurve: Array<[number, number]>
+  landingInset: number
   targetWaterOffset: number
   waterColor: string
   waterPreset: WaterPreset
@@ -118,6 +120,7 @@ export function placementOnPoolBoundary(pool: PoolNode, wallIndex: number, wallT
     wallIndex: index,
     wallT: t,
     edgeCurve: sampleBoundaryCurve(polygon, index, t, width, localAngle, ccw, anchor),
+    landingInset: getPoolWaterLandingInset(pool),
     targetWaterOffset: pool.designWaterElevation - pool.finishedDeckElevation,
     waterColor: pool.waterColor,
     waterPreset: pool.waterPreset,
@@ -142,6 +145,7 @@ export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode 
     wallIndex: placement.wallIndex,
     wallT: placement.wallT,
     edgeCurve: placement.edgeCurve,
+    landingInset: placement.landingInset,
     targetWaterOffset: placement.targetWaterOffset,
     waterColor: placement.waterColor,
     waterPreset: placement.waterPreset,

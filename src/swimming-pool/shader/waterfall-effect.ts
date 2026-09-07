@@ -117,7 +117,7 @@ export class WaterfallWaterEffect {
   private readonly shallowColor = uniform(color('#83eab3'))
   private readonly deepColor = uniform(color('#008ab3'))
 
-  constructor(styleInput: Partial<WaterfallWaterStyle>, flowStrength = 1) {
+  constructor(styleInput: Partial<WaterfallWaterStyle>, flowStrength = 1, foamStrength = 1) {
     const settings = resolveWaterfallStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
     const maskTexture = texture(loadNoise(NOISE_URLS[selected.mask]))
@@ -258,7 +258,7 @@ export class WaterfallWaterEffect {
       .add(brokenContact.max(0.5).sub(0.5))
     const foamColor = mix(this.shallowColor, color('#f2fdff'), 0.86)
     const sparkle = smoothstep(0.9, 0.99, streakNoise).mul(vertical).mul(settings.specularStrength * 0.18)
-    material.colorNode = reflectiveWater.add(foamColor.mul(vec3(brightness.add(sparkle))))
+    material.colorNode = reflectiveWater.add(foamColor.mul(vec3(brightness.add(sparkle))).mul(foamStrength))
     material.opacityNode = float(Math.min(0.92, 0.62 + settings.clarity * 0.09))
       .add(crest.mul(0.08))
       .add(verticalHighlight.mul(0.06))

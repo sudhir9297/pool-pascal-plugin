@@ -15,6 +15,7 @@ export const PoolWaterfallNode = BaseNode.extend({
   wallIndex: z.number().int().min(0).default(0),
   wallT: z.number().min(0).max(1).default(0.5),
   edgeCurve: z.array(z.tuple([z.number(), z.number()])).min(2).default([[-1, 0], [0, 0], [1, 0]]),
+  landingInset: z.number().nonnegative().default(0),
   targetWaterOffset: z.number().finite().default(0),
   waterfallType: z.preprocess(
     (value) => value === 'grotto' ? 'rock-cascade' : value,

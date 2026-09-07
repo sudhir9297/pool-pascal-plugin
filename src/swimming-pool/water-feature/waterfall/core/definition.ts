@@ -11,6 +11,7 @@ export const DEFAULT_POOL_WATERFALL = {
   wallIndex: 0,
   wallT: 0.5,
   edgeCurve: [[-1, 0], [0, 0], [1, 0]] as Array<[number, number]>,
+  landingInset: 0,
   targetWaterOffset: 0,
   waterfallType: 'rock-cascade' as const,
   width: 3.6,

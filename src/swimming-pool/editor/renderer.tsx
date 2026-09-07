@@ -9,6 +9,7 @@ import type { Group } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
 import { buildPoolGeometry } from '../core/geometry'
 import type { PoolNode } from '../core/schema'
+import { getPoolSpilloverNotches } from '../design/spillover-notch'
 import { getPoolConnectionRegions } from '../design/shared-joint'
 import { subscribePoolWaterActions } from '../shader/water-actions'
 import type { PoolWaterEffect } from '../shader/water-effect'
@@ -26,6 +27,7 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const sceneNodes = useScene((state) => state.nodes)
   const pool = useMemo(
     () => buildPoolGeometry(node, {
+      spilloverNotches: getPoolSpilloverNotches(node, sceneNodes),
       removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
       removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),
       removeWaterRegions: getPoolConnectionRegions(node, sceneNodes),

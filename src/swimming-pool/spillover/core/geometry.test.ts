@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { Mesh } from 'three'
+import { Color, type Mesh } from 'three'
+import type { MeshBasicNodeMaterial } from 'three/webgpu'
 import { PoolSpilloverNode } from './schema'
 import { buildPoolSpilloverGeometry } from './geometry'
 
@@ -17,7 +18,7 @@ function disposeGeometry(geometry: ReturnType<typeof buildPoolSpilloverGeometry>
 }
 
 describe('pool spillover geometry', () => {
-  test('builds a crest, falling sheet, and receiving impact', () => {
+  test('builds the flowing sheet without a flat impact overlay', () => {
     const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
       sourcePoolId: 'pool-upper',
       targetPoolId: 'pool-lower',
@@ -27,9 +28,9 @@ describe('pool spillover geometry', () => {
     expect(geometry.children.map((child) => child.name)).toEqual([
       'pool-spillover-crest',
       'pool-spillover-water-sheet',
-      'pool-spillover-impact',
     ])
-    expect(geometry.userData.waterEffects).toHaveLength(2)
+    expect(geometry.userData.waterEffects).toHaveLength(1)
+    expect(geometry.getObjectByName('pool-spillover-impact')).toBeUndefined()
     disposeGeometry(geometry)
   })
 
@@ -48,13 +49,6 @@ describe('pool spillover geometry', () => {
 
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.x).toBeCloseTo(0.21)
     expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.25)
-    const impact = geometry.getObjectByName('pool-spillover-impact') as unknown as {
-      geometry: { type: string; parameters: { width: number; height: number } }
-      position: { x: number }
-    }
-    expect(impact?.position.x).toBeLessThan(-0.25)
-    expect(impact.geometry.type).toBe('PlaneGeometry')
-    expect(impact.geometry.parameters.height).toBeGreaterThan(impact.geometry.parameters.width * 10)
     disposeGeometry(geometry)
   })
 
@@ -72,15 +66,12 @@ describe('pool spillover geometry', () => {
     expect(geometry.children.map((child) => child.name)).toEqual([
       'pool-spillover-crest',
       'pool-spillover-channel-bed',
-      'pool-spillover-channel-water',
       'pool-spillover-channel-wall-left',
       'pool-spillover-channel-wall-right',
       'pool-spillover-water-sheet',
-      'pool-spillover-impact',
     ])
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.x).toBeCloseTo(0.585)
     expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.625)
-    expect(geometry.getObjectByName('pool-spillover-impact')?.position.x).toBeLessThan(-0.625)
     const leftWall = geometry.getObjectByName('pool-spillover-channel-wall-left') as unknown as {
       geometry: { parameters: { height: number } }
       position: { y: number }
@@ -107,12 +98,10 @@ describe('pool spillover geometry', () => {
       dropHeight: 0.5,
     })
     const geometry = buildPoolSpilloverGeometry(node)
-    const sheet = geometry.getObjectByName('pool-spillover-water-sheet') as unknown as {
-      geometry: { parameters: { width: number } }
-    }
-
+    const sheet = geometry.getObjectByName('pool-spillover-water-sheet') as Mesh
+    sheet.geometry.computeBoundingBox()
     expect(node.width).toBe(3)
-    expect(sheet.geometry.parameters.width).toBe(1.25)
+    expect(sheet.geometry.boundingBox!.max.x - sheet.geometry.boundingBox!.min.x).toBeCloseTo(1.25)
     disposeGeometry(geometry)
   })
 
@@ -131,8 +120,8 @@ describe('pool spillover geometry', () => {
 
     expect(geometry.getObjectByName('pool-spillover-channel-bed')).toBeUndefined()
     expect(sheet.geometry.type).toBe('BufferGeometry')
-    expect(sheet.geometry.getAttribute('position').count).toBe(4)
-    expect(sheet.geometry.getAttribute('uv').count).toBe(4)
+    expect(sheet.geometry.getAttribute('position').count).toBeGreaterThan(100)
+    expect(sheet.geometry.getAttribute('uv').count).toBe(sheet.geometry.getAttribute('position').count)
     const invalidMeshes: string[] = []
     geometry.traverse((child) => {
       const mesh = child as Mesh
@@ -158,7 +147,46 @@ describe('pool spillover geometry', () => {
 
     expect(geometry.getObjectByName('pool-spillover-crest')?.position.z).toBeCloseTo(2)
     expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.z).toBeCloseTo(2)
-    expect(geometry.getObjectByName('pool-spillover-impact')?.position.z).toBeCloseTo(2)
+    disposeGeometry(geometry)
+  })
+})
+
+
+describe('spillover water appearance and flow', () => {
+  test('uses the source pool color on the continuous flowing-water material', () => {
+    const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({ sourcePoolId: 'pool_upper', targetPoolId: 'pool_lower', connectionMode: 'channel' }), {
+      waterPreset: 'tropical-lagoon', shallowWaterColor: '#338877', deepWaterColor: '#114455',
+    })
+    const sheet = geometry.getObjectByName('pool-spillover-water-sheet') as Mesh
+    expect(geometry.getObjectByName('pool-spillover-channel-water')).toBeUndefined()
+    expect((sheet.material as MeshBasicNodeMaterial).color.equals(new Color('#338877'))).toBe(true)
+    disposeGeometry(geometry)
+  })
+
+  test.each([-1, 1] as const)('uses a continuous curved sheet clear of the bed with source side %s', (sourceSide) => {
+    const node = PoolSpilloverNode.parse({ sourcePoolId: 'pool_upper', targetPoolId: 'pool_lower', connectionMode: 'channel', sourceSide, dropHeight: 0.6 })
+    const geometry = buildPoolSpilloverGeometry(node)
+    const sheet = geometry.getObjectByName('pool-spillover-water-sheet') as Mesh
+    const positions = sheet.geometry.getAttribute('position')
+    const uv = sheet.geometry.getAttribute('uv')
+    const normals = sheet.geometry.getAttribute('normal')
+    let horizontal = 0
+    let curved = 0
+    for (let index = 0; index < positions.count; index += 1) {
+      expect(Number.isFinite(positions.getY(index))).toBe(true)
+      if (positions.getZ(index) < 0) {
+        horizontal++
+        expect(positions.getY(index) + sheet.position.y).toBeGreaterThan(0.015)
+      }
+      if (normals.getY(index) > 0.1 && normals.getY(index) < 0.9) curved++
+    }
+    expect(horizontal).toBeGreaterThan(0)
+    expect(curved).toBeGreaterThan(0)
+    expect(uv.getY(0)).toBe(0)
+    expect(uv.getY(positions.count - 1)).toBe(1)
+    expect(positions.getY(positions.count - 1) + sheet.position.y).toBeLessThan(-node.dropHeight)
+    expect(sheet.rotation.y).toBe(-sourceSide * Math.PI / 2)
+    expect(geometry.getObjectByName('pool-spillover-channel-water')).toBeUndefined()
     disposeGeometry(geometry)
   })
 })

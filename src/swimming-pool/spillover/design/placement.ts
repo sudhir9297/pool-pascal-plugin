@@ -1,3 +1,5 @@
+import { getPoolWaterLandingInset } from '../../design/water-landing'
+import { findCurvedSpillway } from './curved-placement'
 import { PoolNode, type PoolPoint, resolvePoolPolygon } from '../../core/schema'
 import { findSharedPoolJoint } from '../../design/shared-joint'
 import type { PoolSpilloverNode } from '../core/schema'
@@ -10,7 +12,7 @@ function worldWaterHeight(pool: PoolNode) {
 }
 
 export type PoolSpilloverPlacement = Pick<PoolSpilloverNode,
-  'position' | 'rotation' | 'sourcePoolId' | 'targetPoolId' | 'connectionMode' | 'sourceOpening' | 'targetOpening' | 'connectionPath' | 'intersection' | 'sourceSide' | 'width' | 'length' | 'dropHeight' | 'waterColor' | 'surfaceColor'
+  'landingInset' | 'sourceEdge' | 'targetEdge' | 'position' | 'rotation' | 'sourcePoolId' | 'targetPoolId' | 'connectionMode' | 'sourceOpening' | 'targetOpening' | 'connectionPath' | 'intersection' | 'sourceSide' | 'width' | 'length' | 'dropHeight' | 'waterColor' | 'surfaceColor'
 >
 
 export function getPoolWorldPolygon(pool: PoolNode): PoolPoint[] {
@@ -106,7 +108,17 @@ export function resolvePoolSpillover(
 ): PoolSpilloverPlacement | null {
   if (first.parentId !== second.parentId) return null
   const sharedJoint = findSharedPoolJoint(first, second)
-  const joint = sharedJoint ?? findAdjacentSpillway(first, second)
+  const firstPolygon = getPoolWorldPolygon(first)
+  const secondPolygon = getPoolWorldPolygon(second)
+  const curved = (firstPolygon.length > 8 || secondPolygon.length > 8 || (!sharedJoint && (firstPolygon.length > 4 || secondPolygon.length > 4)))
+    ? findCurvedSpillway(firstPolygon, secondPolygon, requestedWidth)
+    : null
+  const joint = curved ? {
+    ...curved,
+    position: [curved.position[0], 0, curved.position[1]] as [number, number, number],
+    rotation: [0, curved.rotation, 0] as [number, number, number],
+    intersection: sharedJoint?.intersection ?? [] as PoolPoint[][],
+  } : sharedJoint ?? findAdjacentSpillway(first, second)
   if (!joint || joint.width < 0.3) return null
   const source = worldWaterHeight(first) >= worldWaterHeight(second) ? first : second
   const target = source.id === first.id ? second : first
@@ -122,6 +134,8 @@ export function resolvePoolSpillover(
   const sourceSide = (deltaX * Math.cos(angle) - deltaZ * Math.sin(angle)) >= 0 ? 1 : -1
   const dropHeight = Math.max(0.02, worldWaterHeight(source) - worldWaterHeight(target))
   return {
+    sourceEdge: curved ? (sourceIndex === 0 ? curved.firstEdge : curved.secondEdge) : [],
+    targetEdge: curved ? (sourceIndex === 0 ? curved.secondEdge : curved.firstEdge) : [],
     position: [joint.position[0], worldWaterHeight(source), joint.position[2]],
     rotation: joint.rotation,
     sourcePoolId: source.id,
@@ -139,6 +153,7 @@ export function resolvePoolSpillover(
     width,
     length: Math.max(0.1, joint.length),
     dropHeight,
+    landingInset: getPoolWaterLandingInset(target),
     waterColor: source.waterColor,
     surfaceColor: source.copingColor,
   }

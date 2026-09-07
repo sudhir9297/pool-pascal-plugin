@@ -1,3 +1,5 @@
+import { cutPoolSpilloverNotches } from './spillover-notch'
+import type { SpilloverNotch } from '../design/spillover-notch'
 import {
   BufferGeometry,
   CylinderGeometry,
@@ -106,6 +108,7 @@ type ProfiledPoint = [x: number, z: number, heightAboveFloor: number]
 const GEOMETRY_EPSILON = 1e-8
 
 export type PoolGeometryOptions = {
+  spilloverNotches?: SpilloverNotch[]
   removeWallRegions?: PoolPoint[][]
   removeFloorRegions?: PoolPoint[][]
   removeWaterRegions?: PoolPoint[][]
@@ -486,6 +489,7 @@ function createPoolWallGeometry(
   coveRadius: number,
   coveInner: PoolPoint[],
   removeWallRegions: PoolPoint[][] = [],
+  closeBottom = false,
 ) {
   const positions: number[] = []
 
@@ -579,6 +583,23 @@ function createPoolWallGeometry(
         [innerNext[0], 0, innerNext[1]],
       )
     }
+  }
+
+  // Close the underside of the shell so upper-wall boolean cuts produce
+  // a solid sill and jambs instead of leaving the wall interior exposed.
+  const bottomInner = coveRadius > GEOMETRY_EPSILON ? coveInner : inner
+  for (let index = 0; closeBottom && index < inner.length; index += 1) {
+    const next = (index + 1) % inner.length
+    const a = bottomInner[index]!
+    const b = bottomInner[next]!
+    const c = outer[next]!
+    const d = outer[index]!
+    pushQuad(positions,
+      [a[0], -depthAtX(a[0]), a[1]],
+      [b[0], -depthAtX(b[0]), b[1]],
+      [c[0], -depthAtX(c[0]), c[1]],
+      [d[0], -depthAtX(d[0]), d[1]],
+    )
   }
 
   const geometry = new BufferGeometry()
@@ -1107,6 +1128,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       safeCoveRadius,
       outlines.coveInner,
       options.removeWallRegions,
+      (options.spilloverNotches?.length ?? 0) > 0,
     ),
     [shellMaterial, outerWallMaterial],
   )
@@ -1234,6 +1256,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     group.add(coping)
   }
 
+  cutPoolSpilloverNotches(group, options.spilloverNotches ?? [], signedArea(inner) > 0)
   group.userData.waterEffect = waterEffect
   group.userData.outlineWarnings = outlines.warnings
 

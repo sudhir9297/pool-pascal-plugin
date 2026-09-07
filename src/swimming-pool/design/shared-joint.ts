@@ -162,28 +162,14 @@ export function getPoolConnectionRegions(
   const rotation = pool.rotation[1] ?? 0
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
+  // Spillovers carry surface water between separate basins; only shared
+  // joints replace the full-depth shell, floor, and water in their overlap.
   return Object.values(nodes)
-    .filter((node) => ['pool:shared-joint', 'pool:spillover'].includes(String(node.type)))
+    .filter((node) => String(node.type) === 'pool:shared-joint')
     .flatMap((node) => {
-      let regions: PoolPoint[][]
-      if (String(node.type) === 'pool:spillover') {
-        const parsed = PoolSpilloverNode.safeParse(node)
-        if (!parsed.success) return []
-        const connection = parsed.data
-        if (connection.sourcePoolId === pool.id) {
-          regions = connection.sourceOpening.length >= 3
-            ? [connection.sourceOpening]
-            : connection.intersection
-        } else if (connection.targetPoolId === pool.id) {
-          regions = connection.targetOpening.length >= 3
-            ? [connection.targetOpening]
-            : connection.intersection
-        } else return []
-      } else {
-        const parsed = PoolSharedJointNode.safeParse(node)
-        if (!parsed.success || !parsed.data.poolIds.includes(pool.id)) return []
-        regions = parsed.data.intersection
-      }
+      const parsed = PoolSharedJointNode.safeParse(node)
+      if (!parsed.success || !parsed.data.poolIds.includes(pool.id)) return []
+      const regions = parsed.data.intersection
       return regions.map((region) => region.map(([x, z]) => {
         const dx = x - pool.position[0]
         const dz = z - pool.position[2]

@@ -55,24 +55,35 @@ describe('shared pool joints', () => {
     expect(getPoolConnectionPoints(second, nodes as never)).toEqual([[-2.25, 0]])
   })
 
-  test('uses each spillover endpoint opening instead of the full connection footprint', () => {
-    const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
-    const upper = PoolNode.parse({ id: 'pool_opening_upper', parentId: 'level_a', position: [0, 1, 0], polygon: rectangle })
-    const lower = PoolNode.parse({ id: 'pool_opening_lower', parentId: 'level_a', position: [5.25, 0, 0], polygon: rectangle })
-    const placement = resolvePoolSpillover(upper, lower)
-    const spillover = PoolSpilloverNode.parse({
-      id: 'pool-spillover_openings',
-      parentId: 'level_a',
-      ...placement,
-    })
-    const nodes = { [upper.id]: upper, [lower.id]: lower, [spillover.id]: spillover }
+  test.each(['auto', 'direct-spillover', 'watercourse'] as const)(
+    'keeps both pool basins intact for a %s spillover',
+    (connectionStyle) => {
+      const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
+      const upper = PoolNode.parse({ id: 'pool_opening_upper', parentId: 'level_a', position: [0, 1, 0], polygon: rectangle })
+      const lower = PoolNode.parse({ id: 'pool_opening_lower', parentId: 'level_a', position: [3.5, 0, 0], polygon: rectangle })
+      const placement = resolvePoolSpillover(upper, lower, connectionStyle)
+      expect(placement).not.toBeNull()
+      const spillover = PoolSpilloverNode.parse({
+        id: 'pool-spillover_openings',
+        parentId: 'level_a',
+        ...placement,
+      })
+      for (const connection of [spillover, { ...spillover, sourceOpening: [], targetOpening: [] }]) {
+        const nodes = { [upper.id]: upper, [lower.id]: lower, [connection.id]: connection }
+        expect(getPoolConnectionRegions(upper, nodes as never)).toEqual([])
+        expect(getPoolConnectionRegions(lower, nodes as never)).toEqual([])
+      }
+    },
+  )
 
-    const upperX = getPoolConnectionRegions(upper, nodes as never)[0]?.map(([x]) => x) ?? []
-    const lowerX = getPoolConnectionRegions(lower, nodes as never)[0]?.map(([x]) => x) ?? []
-    expect(Math.min(...upperX)).toBeCloseTo(1.75)
-    expect(Math.max(...upperX)).toBeCloseTo(2.25)
-    expect(Math.min(...lowerX)).toBeCloseTo(-2.25)
-    expect(Math.max(...lowerX)).toBeCloseTo(-1.75)
+  test('preserves full-depth openings for shared pool joints', () => {
+    const pool = PoolNode.parse({ id: 'pool_shared_opening', position: [3, 1, 2] })
+    const joint = PoolSharedJointNode.parse({
+      poolIds: [pool.id, 'pool_other'],
+      intersection: [[[3, 2], [4, 2], [4, 3], [3, 3]]],
+    })
+    expect(getPoolConnectionRegions(pool, { [joint.id]: joint } as never))
+      .toEqual([[[0, 0], [1, 0], [1, 1], [0, 1]]])
   })
 
   test('tracks the lower finished deck height', () => {

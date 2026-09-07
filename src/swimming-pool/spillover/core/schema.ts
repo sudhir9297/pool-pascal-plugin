@@ -16,6 +16,9 @@ export const PoolSpilloverNode = BaseNode.extend({
   connectionMode: z.enum(['overlap', 'direct', 'channel']).default('overlap'),
   sourceOpening: z.array(Point2).default([]),
   targetOpening: z.array(Point2).default([]),
+  // Samples are [local Z across the sheet, local X offset from the endpoint].
+  sourceEdge: z.array(Point2).default([]),
+  targetEdge: z.array(Point2).default([]),
   connectionPath: z.array(Point2).default([]),
   intersection: z.array(z.array(Point2)).default([]),
   sourceSide: z.union([z.literal(-1), z.literal(1)]).default(1),
@@ -23,6 +26,7 @@ export const PoolSpilloverNode = BaseNode.extend({
   width: z.number().min(0.3).max(12).default(2),
   effectiveWidth: z.number().min(0.3).max(12).nullable().default(null),
   length: z.number().min(0.1).max(20).default(0.8),
+  landingInset: z.number().nonnegative().default(0),
   dropHeight: z.number().min(0.02).max(6).default(0.25),
   lipThickness: z.number().min(0.02).max(0.3).default(0.08),
   flowStrength: z.number().min(0.2).max(2).default(1),

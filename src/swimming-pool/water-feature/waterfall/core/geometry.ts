@@ -161,11 +161,12 @@ function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
   wall.castShadow = true
   wall.receiveShadow = true
   group.add(wall)
-  const lip = new Mesh(new BoxGeometry(node.width, node.lipThickness, node.depth + 0.16), structure)
-  lip.position.set(0, node.height - node.lipThickness / 2, node.depth / 2 + 0.08)
+  const extension = Math.max(0, getWaterfallLipZ(node) - (node.depth / 2 + node.sheetDepth))
+  const lip = new Mesh(new BoxGeometry(node.width, node.lipThickness, node.depth + 0.16 + extension), structure)
+  lip.position.set(0, node.height - node.lipThickness / 2, node.depth / 2 + 0.08 + extension / 2)
   lip.name = 'waterfall-modern-lip'
   group.add(lip)
-  const fallZ = node.depth / 2 + node.sheetDepth
+  const fallZ = getWaterfallLipZ(node)
   // The open spillway sits just above the solid modern headwall so the
   // horizontal water run remains visible before it rolls over the edge.
   const topY = node.height + node.lipThickness * 0.15
@@ -194,7 +195,7 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   if (!node.poolId) addPondEdgeRocks(group, node, moundRocks.length)
 
   const topY = node.height * (node.waterfallType === 'spillover' ? 0.66 : 0.82)
-  const fallZ = node.depth * 0.24
+  const fallZ = getWaterfallLipZ(node)
   const fallWidth = node.width * 0.3
   // Natural cascades use a recessed void framed by the rocks. The engineered
   // rounded spillway belongs only to the modern variant; showing it here made
@@ -671,7 +672,7 @@ function createRoundedSpillwayPart(
   return mesh
 }
 
-function createSpillwayGeometry(
+export function createSpillwayGeometry(
   width: number,
   height: number,
   approach: number,
@@ -772,7 +773,7 @@ function getSpillwayLandingZ(lipZ: number, sheetDepth: number) {
 }
 
 export function getWaterfallImpactLocalPoint(node: PoolWaterfallNode, across = 0): [number, number] {
-  const lipZ = node.waterfallType === 'modern' ? node.depth / 2 + node.sheetDepth : node.depth * 0.24
+  const lipZ = getWaterfallLipZ(node)
   const flowWidth = node.waterfallType === 'modern'
     ? Math.max(0.24, node.width - 0.08)
     : node.width * 0.3
@@ -798,4 +799,9 @@ function segmentValue(a: readonly [number, number], b: readonly [number, number]
   const dx = b[0] - a[0]
   const slope = Math.abs(dx) > 1e-6 ? (b[1] - a[1]) / dx : 0
   return { z: a[1] + (x - a[0]) * slope, slope }
+}
+
+function getWaterfallLipZ(node: PoolWaterfallNode) {
+  const base = node.waterfallType === 'modern' ? node.depth / 2 + node.sheetDepth : node.depth * 0.24
+  return Math.max(base, node.landingInset ?? 0)
 }
