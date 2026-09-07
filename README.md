@@ -1,4 +1,4 @@
-# Pascal Pool plugin
+# pool-pascal-plugin
 
 The Pascal Pool plugin adds configurable swimming pools with procedural basin
 geometry and animated water. It is a strictly TypeScript package for Pascal
