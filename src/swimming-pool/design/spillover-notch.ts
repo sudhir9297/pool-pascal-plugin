@@ -23,12 +23,15 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
     const other = PoolNode.safeParse(nodes[otherId])
     if (!other.success) return []
     const placement = resolvePoolSpillover(pool, other.data, connection.connectionStyle, connection.width)
-    if (!placement || placement.sourcePoolId !== pool.id) return []
-    const offsets = placement.sourceEdge.map(([, offset]) => offset)
+    if (!placement) return []
+    const endpointIndex = placement.sourcePoolId === pool.id ? 0 : 1
+    const edge = endpointIndex === 0 ? placement.sourceEdge : placement.targetEdge
+    const offsets = edge.map(([, offset]) => offset)
     const minimum = Math.min(0, ...offsets)
     const maximum = Math.max(0, ...offsets)
     const centerOffset = (minimum + maximum) / 2
-    const anchor = placement.connectionPath[0]!
+    const anchor = placement.connectionPath[endpointIndex]
+    if (!anchor) return []
     const point: [number, number] = [anchor[0] + Math.cos(placement.rotation[1]) * centerOffset,
       anchor[1] - Math.sin(placement.rotation[1]) * centerOffset]
     const angle = pool.rotation[1]
@@ -37,7 +40,14 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
     return [{
       center: [dx * Math.cos(angle) - dz * Math.sin(angle), dx * Math.sin(angle) + dz * Math.cos(angle)] as [number, number],
       rotation: placement.rotation[1] - angle,
-      width: placement.connectionMode === 'channel' ? Math.max(0.08, placement.width - connection.lipThickness * 2) : placement.width,
+      // The spillover bed already owns the full resolved width.  Narrowing
+      // this cutter by the lip thickness leaves two strips of the original
+      // pool wall exactly where the water sheet meets the receiving edge.
+      // Those strips read as a solid curtain in the gap, especially when the
+      // two pools are on the same level.  Cut the wall to the same footprint
+      // as the support plane; the lip and outer border provide the visible
+      // edge treatment around that opening.
+      width: placement.width,
       // Curvature belongs to the water sheet, not to the wall cut. Including
       // the edge's along-flow variation here made the CSG cutter grow into a
       // long triangular notch when intersecting pools used a curved path.

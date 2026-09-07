@@ -102,4 +102,26 @@ describe('swimming pool floor openings', () => {
       poolGroundOpeningFor: `pool-connection:${spillover.id}`,
     })
   })
+
+  test('matches the spillover floor opening to the channel-wall footprint', () => {
+    const spillover = PoolSpilloverNode.parse({
+      id: 'pool-spillover_wall-footprint',
+      parentId: 'level_ground',
+      sourcePoolId: 'pool_a',
+      targetPoolId: 'pool_b',
+      position: [0, 0, 0],
+      length: 1.25,
+      width: 2,
+      effectiveWidth: 1.6,
+      lipThickness: 0.08,
+    })
+
+    const helper = syncPoolGroundOpenings({ [spillover.id]: spillover }).create[0]!
+    const xs = helper.polygon.map(([x]) => x)
+    const zs = helper.polygon.map(([, z]) => z)
+    expect(Math.max(...xs)).toBeCloseTo(0.725)
+    expect(Math.min(...xs)).toBeCloseTo(-0.725)
+    expect(Math.max(...zs)).toBeCloseTo(0.8)
+    expect(Math.min(...zs)).toBeCloseTo(-0.8)
+  })
 })

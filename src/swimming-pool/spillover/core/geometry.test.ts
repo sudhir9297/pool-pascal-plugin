@@ -57,6 +57,25 @@ describe('pool spillover geometry', () => {
     disposeGeometry(geometry)
   })
 
+  test('uses the exact intersecting footprint for an overlap support surface', () => {
+    const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
+      position: [1, 1, 0],
+      sourcePoolId: 'pool-upper',
+      targetPoolId: 'pool-lower',
+      connectionMode: 'overlap',
+      connectionPath: [[2, 0], [0, 0]],
+      intersection: [[[0.5, -0.75], [1.5, -0.75], [1.5, 0.75], [0.5, 0.75]]],
+      width: 2.4,
+      dropHeight: 0.02,
+    }))
+    expect(geometry.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
+    expect(geometry.getObjectByName('pool-spillover-overlap-wall-left')).toBeUndefined()
+    expect(geometry.getObjectByName('pool-spillover-overlap-wall-right')).toBeUndefined()
+    const surface = geometry.getObjectByName('pool-spillover-overlap-surface') as Mesh
+    expect(surface.geometry.getAttribute('position').count).toBe(6)
+    disposeGeometry(geometry)
+  })
+
   test('builds a watercourse and places the falling sheet at the receiving end', () => {
     const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
       sourcePoolId: 'pool-upper',
@@ -81,9 +100,26 @@ describe('pool spillover geometry', () => {
     expect(geometry.getObjectByName('pool-spillover-water-sheet')?.position.x).toBeCloseTo(-0.625)
     const leftWall = geometry.getObjectByName('pool-spillover-channel-wall-left') as unknown as {
       geometry: { parameters: { height: number } }
-      position: { y: number }
+      position: { y: number; z: number }
     }
     expect(leftWall.position.y + leftWall.geometry.parameters.height / 2).toBeGreaterThanOrEqual(0.03)
+    const rightWall = geometry.getObjectByName('pool-spillover-channel-wall-right') as unknown as {
+      position: { z: number }
+    }
+    const leftBorder = geometry.getObjectByName('pool-spillover-channel-outer-border-left') as unknown as {
+      geometry: { parameters: { depth: number } }
+      position: { z: number }
+    }
+    const rightBorder = geometry.getObjectByName('pool-spillover-channel-outer-border-right') as unknown as {
+      geometry: { parameters: { depth: number } }
+      position: { z: number }
+    }
+    // The outer face of each rectangular rail reaches the spillover opening
+    // edge (width / 2), while the pool walls themselves remain inset.
+    expect(leftBorder.position.z - leftBorder.geometry.parameters.depth / 2).toBeCloseTo(-1.2)
+    expect(rightBorder.position.z + rightBorder.geometry.parameters.depth / 2).toBeCloseTo(1.2)
+    expect(leftWall.position.z).toBeCloseTo(leftBorder.position.z)
+    expect(rightWall.position.z).toBeCloseTo(rightBorder.position.z)
     const invalidMeshes: string[] = []
     geometry.traverse((child) => {
       const mesh = child as Mesh

@@ -59,10 +59,21 @@ export function initializePoolOpeningSync() {
   let syncing = false
 
   const applyUpdates = (nodes: Record<string, AnyNode>) => {
-    const slabUpdates = syncPoolSlabOpenings(nodes)
-    const groundChanges = syncPoolGroundOpenings(nodes)
-    const connectionChanges = syncSharedPoolJoints(nodes)
     const spilloverChanges = syncPoolSpillovers(nodes)
+    // Resolve spillover endpoints before deriving slab/ground openings. The
+    // stored node can contain the initial placeholder position and length for
+    // one render; using it here leaves the floor cut behind because this sync
+    // pass suppresses its own follow-up notification.
+    const resolvedNodes = { ...nodes }
+    for (const update of spilloverChanges.update) {
+      const current = resolvedNodes[update.id]
+      if (current) resolvedNodes[update.id] = { ...current, ...update.data } as AnyNode
+    }
+    for (const id of spilloverChanges.delete) delete resolvedNodes[id]
+
+    const slabUpdates = syncPoolSlabOpenings(resolvedNodes)
+    const groundChanges = syncPoolGroundOpenings(resolvedNodes)
+    const connectionChanges = syncSharedPoolJoints(resolvedNodes)
     if (
       slabUpdates.length === 0 &&
       groundChanges.create.length === 0 &&

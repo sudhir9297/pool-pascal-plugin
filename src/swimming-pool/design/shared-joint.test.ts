@@ -25,6 +25,19 @@ describe('shared pool joints', () => {
     expect(findSharedPoolJoint(first, second)).toBeNull()
   })
 
+  test('does not generate a full-depth joint for intersecting pools', () => {
+    const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
+    const first = PoolNode.parse({ id: 'pool_intersecting_a', parentId: 'level_a', position: [0, 0, 0], polygon: rectangle })
+    const second = PoolNode.parse({ id: 'pool_intersecting_b', parentId: 'level_a', position: [3.5, 0, 0], polygon: rectangle })
+
+    const changes = syncSharedPoolJoints({
+      [first.id]: first,
+      [second.id]: second,
+    } as never)
+
+    expect(changes.create).toEqual([])
+  })
+
   test('detects the same joint when the second pool is on the opposite side', () => {
     const rectangle = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]]
     const first = PoolNode.parse({ position: [3.5, 0, 0], polygon: rectangle })
@@ -126,6 +139,26 @@ describe('shared pool joints', () => {
 
     expect(changes.create).toEqual([])
     expect(changes.delete).toEqual([jointId])
+  })
+
+  test('does not carve a stale shared joint when a spillover owns the pair', () => {
+    const first = PoolNode.parse({ id: 'pool_stale_joint_a', parentId: 'level_a', position: [0, 0, 0] })
+    const second = PoolNode.parse({ id: 'pool_stale_joint_b', parentId: 'level_a', position: [3.5, 0, 0] })
+    const joint = PoolSharedJointNode.parse({
+      id: 'pool-shared-joint_pool_stale_joint_a_pool_stale_joint_b',
+      poolIds: [first.id, second.id],
+      intersection: [[[1.5, -1.5], [2, -1.5], [2, 1.5], [1.5, 1.5]]],
+    })
+    const spillover = PoolSpilloverNode.parse({
+      parentId: 'level_a',
+      sourcePoolId: first.id,
+      targetPoolId: second.id,
+    })
+
+    expect(getPoolConnectionRegions(first, {
+      [joint.id]: joint,
+      [spillover.id]: spillover,
+    } as never)).toEqual([])
   })
 
   test('renders a water passage, submerged shelf, and seam rocks', () => {

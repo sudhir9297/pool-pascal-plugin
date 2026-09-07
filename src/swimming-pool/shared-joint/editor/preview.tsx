@@ -25,6 +25,14 @@ export default function PoolSharedJointPreview({ node }: { node: PoolSharedJoint
     }
     return null
   }, [node.poolIds, sceneNodes])
+  const hasExplicitSpillover = useMemo(() => Object.values(sceneNodes).some((candidate) => {
+    if (String(candidate.type) !== 'pool:spillover') return false
+    const sourcePoolId = String((candidate as { sourcePoolId?: unknown }).sourcePoolId ?? '')
+    const targetPoolId = String((candidate as { targetPoolId?: unknown }).targetPoolId ?? '')
+    return sourcePoolId && targetPoolId &&
+      sourcePoolId !== targetPoolId &&
+      [sourcePoolId, targetPoolId].sort().join('|') === [...node.poolIds].sort().join('|')
+  }), [node.poolIds, sceneNodes])
   useEffect(() => {
     if (waterEffect && sourceWaterSettings) waterEffect.setSettings(sourceWaterSettings)
   }, [sourceWaterSettings, waterEffect])
@@ -61,5 +69,5 @@ export default function PoolSharedJointPreview({ node }: { node: PoolSharedJoint
       }
     })
   }, [geometry, waterEffect])
-  return <group position={node.position} rotation={node.rotation} ref={rootRef} {...handlers}><primitive object={geometry} /></group>
+  return <group position={node.position} rotation={node.rotation} ref={rootRef} visible={!hasExplicitSpillover} {...handlers}><primitive object={geometry} /></group>
 }

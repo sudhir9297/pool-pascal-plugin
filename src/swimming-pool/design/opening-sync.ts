@@ -388,12 +388,15 @@ function buildPoolGroundOpeningSlab(
 }
 
 function getConnectionOpeningPolygon(connection: PoolConnectionNode): PolygonPoint2D[] {
-  const clearance = connection.type === 'pool:spillover' ? 0 : 0.04
-  const spilloverWallReach = connection.type === 'pool:spillover'
-    ? connection.lipThickness / 2 + 0.02
-    : 0
-  const halfLength = connection.length / 2 + clearance
-  const halfWidth = connection.width / 2 + spilloverWallReach + clearance
+  const isSpillover = connection.type === 'pool:spillover'
+  const clearance = isSpillover ? 0 : 0.04
+  // Match the floor opening to the visible channel-wall footprint. The
+  // side walls and outer borders end at width / 2, while their longitudinal
+  // border extension is lipThickness + 0.02 on each end.
+  const halfLength = connection.length / 2 + (isSpillover ? connection.lipThickness + 0.02 : clearance)
+  const halfWidth = isSpillover
+    ? (connection.effectiveWidth ?? connection.width) / 2
+    : connection.width / 2 + clearance
   const rotation = connection.rotation[1] ?? 0
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
@@ -410,6 +413,12 @@ function buildConnectionGroundOpeningSlab(
   id = connectionGroundOpeningId(connection.id),
 ): SlabNode {
   const polygon = transformPolygonToSiteCoordinates(getConnectionOpeningPolygon(connection), connection.parentId, nodes)
+  // Keep the helper slab's clearing hole slightly larger than its boundary.
+  // Using the exact same polygon for both fields leaves a coplanar ring in
+  // the site/slab triangulation, so the original floor can remain visible
+  // across a separated-pool spillover gap. Pool-owned helpers already use
+  // this pattern via `clearingHole` above.
+  const clearingHole = outsetPoolPolygon(polygon, GROUND_OPENING_HOLE_MARGIN)
   return SlabNodeSchema.parse({
     id,
     name: `Ground opening for ${connection.name ?? connection.id}`,
@@ -417,9 +426,7 @@ function buildConnectionGroundOpeningSlab(
     visible: connection.visible !== false,
     metadata: { [GROUND_OPENING_METADATA_KEY]: `pool-connection:${connection.id}` },
     polygon,
-    // A connection opening must not leave a visible helper-slab rim beside
-    // the spillover; the polygon itself is already the recessed cutout.
-    holes: [polygon],
+    holes: [clearingHole],
     holeMetadata: [{ source: 'manual' }],
     elevation: -0.02,
     recessed: true,

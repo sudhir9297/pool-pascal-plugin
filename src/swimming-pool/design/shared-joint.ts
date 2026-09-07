@@ -164,11 +164,24 @@ export function getPoolConnectionRegions(
   const sin = Math.sin(rotation)
   // Spillovers carry surface water between separate basins; only shared
   // joints replace the full-depth shell, floor, and water in their overlap.
+  // A scene can briefly contain the generated shared joint while an explicit
+  // spillover is being created (or while an older saved scene is being
+  // migrated). In that case the spillover owns the connection and the stale
+  // joint must not carve a second, full-depth chamber through either pool.
+  const spilloverPairs = new Set(Object.values(nodes)
+    .filter((node) => String(node.type) === 'pool:spillover')
+    .flatMap((node) => {
+      const parsed = PoolSpilloverNode.safeParse(node)
+      if (!parsed.success) return []
+      return [sharedConnectionKey(parsed.data.sourcePoolId, parsed.data.targetPoolId)]
+    }))
   return Object.values(nodes)
     .filter((node) => String(node.type) === 'pool:shared-joint')
     .flatMap((node) => {
       const parsed = PoolSharedJointNode.safeParse(node)
       if (!parsed.success || !parsed.data.poolIds.includes(pool.id)) return []
+      const [firstId, secondId] = parsed.data.poolIds
+      if (firstId && secondId && spilloverPairs.has(sharedConnectionKey(firstId, secondId))) return []
       const regions = parsed.data.intersection
       return regions.map((region) => region.map(([x, z]) => {
         const dx = x - pool.position[0]
@@ -176,6 +189,10 @@ export function getPoolConnectionRegions(
         return [dx * cos - dz * sin, dx * sin + dz * cos] as PoolPoint
       }))
     })
+}
+
+function sharedConnectionKey(firstId: string, secondId: string) {
+  return [firstId, secondId].sort().join('|')
 }
 
 /** Detects the closest overlapping, nearly parallel pool-wall pair. */
@@ -313,6 +330,10 @@ export function syncSharedPoolJoints(nodes: Record<string, AnyNode>): SharedPool
       if (first.parentId !== second.parentId) continue
       const id = sharedJointId(first.id, second.id)
       if (explicitSpilloverPairs.has(id)) continue
+      // Intersecting pools are resolved by the spillover tool. A generated
+      // shared joint here would replace the overlap with a full-depth passage
+      // before the user has chosen a spillover, producing a deep chamber.
+      if (getPoolIntersectionRegions(first, second).length > 0) continue
       const joint = findSharedPoolJoint(first, second)
       if (!joint) continue
       expected.set(id, { first, second, joint })

@@ -13,19 +13,27 @@ test.each(['continuous', 'natural-stone', 'rock'] as const)('cuts %s coping and 
   const notches = getPoolSpilloverNotches(upper, nodes as never)
   expect(notches).toHaveLength(1)
   expect(notches[0]!.width).toBe(1)
-  expect(getPoolSpilloverNotches(lower, nodes as never)).toEqual([])
+  expect(getPoolSpilloverNotches(lower, nodes as never)).toHaveLength(1)
   const reversed = { ...lower, position: [5, 2, 0] as [number, number, number] }
   const reversedNodes = { ...nodes, [lower.id]: reversed }
-  expect(getPoolSpilloverNotches(upper, reversedNodes as never)).toEqual([])
+  expect(getPoolSpilloverNotches(upper, reversedNodes as never)).toHaveLength(1)
   expect(getPoolSpilloverNotches(reversed, reversedNodes as never)).toHaveLength(1)
   const normal = buildPoolGeometry(upper)
   const cut = buildPoolGeometry(upper, { spilloverNotches: notches })
+  const receivingNotches = getPoolSpilloverNotches(lower, nodes as never)
+  const receivingCut = buildPoolGeometry(lower, { spilloverNotches: receivingNotches })
   cut.updateMatrixWorld(true)
+  receivingCut.updateMatrixWorld(true)
   const walls = cut.getObjectByName('pool-shell-walls')!
   const ray = new Raycaster(new Vector3(3,-0.05,0), new Vector3(-1,0,0), 0, 2)
   expect(ray.intersectObject(walls).length).toBe(0)
   ray.ray.origin.y = -0.5
   expect(ray.intersectObject(walls).length).toBeGreaterThan(0)
+  const receivingWalls = receivingCut.getObjectByName('pool-shell-walls')!
+  const receivingRay = new Raycaster(new Vector3(-3,-0.05,0), new Vector3(1,0,0), 0, 2)
+  expect(receivingRay.intersectObject(receivingWalls).length).toBe(0)
+  receivingRay.ray.origin.y = -0.5
+  expect(receivingRay.intersectObject(receivingWalls).length).toBeGreaterThan(0)
   ray.ray.origin.set(3,-0.05,0.6)
   expect(ray.intersectObject(walls).length).toBeGreaterThan(0)
   ray.ray.origin.set(2.1,1,0)
@@ -34,10 +42,48 @@ test.each(['continuous', 'natural-stone', 'rock'] as const)('cuts %s coping and 
   expect(ray.intersectObject(walls).length).toBeGreaterThan(0)
   const floor = (root: typeof cut) => (root.getObjectByName('pool-shell-floor') as Mesh).geometry.getAttribute('position').array
   expect(floor(cut)).toEqual(floor(normal))
-  for (const root of [normal,cut]) {
+  for (const root of [normal,cut,receivingCut]) {
     root.userData.waterEffect.dispose()
     root.traverse((object) => { const mesh = object as Mesh; if (mesh.isMesh) mesh.geometry.dispose() })
   }
+})
+
+test('cuts a same-level channel opening to the full support-plane width', () => {
+  const first = PoolNode.parse({
+    id: 'pool_same_level_first', parentId: 'level_a',
+    position: [0, 0, 0], polygon: [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]],
+    coveRadius: 0,
+  })
+  const second = PoolNode.parse({
+    id: 'pool_same_level_second', parentId: 'level_a',
+    position: [5.25, 0, 0], polygon: [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]],
+    coveRadius: 0,
+  })
+  const spillover = PoolSpilloverNode.parse({
+    sourcePoolId: first.id,
+    targetPoolId: second.id,
+    width: 1,
+    connectionStyle: 'watercourse',
+  })
+  const nodes = { [first.id]: first, [second.id]: second, [spillover.id]: spillover }
+  const notches = getPoolSpilloverNotches(first, nodes as never)
+  expect(notches[0]?.width).toBeCloseTo(1)
+
+  const geometry = buildPoolGeometry(first, { spilloverNotches: notches })
+  geometry.updateMatrixWorld(true)
+  const walls = geometry.getObjectByName('pool-shell-walls')!
+  for (const z of [-0.49, 0, 0.49]) {
+    const ray = new Raycaster(new Vector3(2.3, -0.05, z), new Vector3(-1, 0, 0), 0, 1)
+    expect(ray.intersectObject(walls)).toHaveLength(0)
+  }
+  const edgeRay = new Raycaster(new Vector3(2.3, -0.05, 0.6), new Vector3(-1, 0, 0), 0, 1)
+  expect(edgeRay.intersectObject(walls).length).toBeGreaterThan(0)
+
+  geometry.userData.waterEffect.dispose()
+  geometry.traverse((object) => {
+    const mesh = object as Mesh
+    if (mesh.isMesh) mesh.geometry.dispose()
+  })
 })
 
 test.each([false, true])('does not create cutout faces inside a freeform basin, clockwise=%s', (clockwise) => {
