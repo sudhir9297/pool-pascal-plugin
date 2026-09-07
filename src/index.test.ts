@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { poolCatchBasinDefinition, poolHostPanel, poolPlugin, PoolCatchBasinNode, PoolInletNode, PoolNode, PoolPipeNode, PoolSharedJointNode, PoolSkimmerNode, PoolValveNode, PoolPumpNode, PoolFilterNode, PoolWatercourseNode, PoolWaterfallNode, PoolStairNode } from './index'
+import { poolCatchBasinDefinition, poolHostPanel, poolPlugin, PoolCatchBasinNode, PoolInletNode, PoolNode, PoolSharedJointNode, PoolSkimmerNode, PoolValveNode, PoolPumpNode, PoolFilterNode, PoolWatercourseNode, PoolWaterfallNode, PoolStairNode } from './index'
 
 describe('Swimming pool plugin manifest', () => {
   test('exports the stable plugin identity and node kinds', () => {
     expect(poolPlugin.id).toBe('pascal:pool')
     expect(poolPlugin.apiVersion).toBe(1)
-    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:pipe-network', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:catch-basin', 'pool:watercourse', 'pool:heater', 'pool:shared-joint', 'pool:spillover', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
+    expect(poolPlugin.nodes?.map((definition) => definition.kind)).toEqual(['pool:pool', 'pool:skimmer', 'pool:valve', 'pool:pump', 'pool:filter', 'pool:catch-basin', 'pool:watercourse', 'pool:heater', 'pool:shared-joint', 'pool:spillover', 'pool:drain', 'pool:inlet', 'pool:waterfall', 'pool:stair'])
   })
 
   test('associates the Pool panel with the plugin', () => {
@@ -23,10 +23,6 @@ describe('Swimming pool plugin manifest', () => {
     expect(PoolNode.parse({ copingStyle: 'rock' }).copingStyle).toBe('rock')
   })
 
-  test('ships a valid default PVC pipe network', () => {
-    expect(PoolPipeNode.parse({}).type).toBe('pool:pipe-network')
-    expect(PoolPipeNode.parse({}).kitId).toBe('pvc')
-  })
 
   test('ships valid defaults for a pool skimmer', () => {
     expect(PoolSkimmerNode.parse({}).type).toBe('pool:skimmer')

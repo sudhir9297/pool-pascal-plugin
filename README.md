@@ -6,7 +6,7 @@ Plugin API v1.
 
 ## Included feature
 
-The manifest registers pool, PVC pipe-network, skimmer, suction-valve, and
+The manifest registers pool, skimmer, suction-valve, and
 circulation-pump node kinds.
 
 It supports:
@@ -19,8 +19,7 @@ It supports:
 - animated water with Clear, Genshin, and Tropical presets;
 - editable water color, normals, ripples, reflections, refraction, caustics,
   shoreline, rain, breeze, and sun settings.
-- placeable plumbing items with a procedural pump model showing inlet and
-  outlet unions for pipe connections.
+- placeable pool equipment with procedural pump, filter, drain, and valve models.
 - a registered pool drain node ready for geometry and editor integration;
 - a low-poly rock waterfall with an animated curtain, pool impact mist, and modern, rock-cascade, and spillover variants.
 
@@ -54,7 +53,6 @@ modules, so host metadata loading remains safe for SSR.
 src/
   swimming-pool/
     core/      schema, node definition, and geometry
-    pipe/      editable PVC pipe networks
     pump/      circulation pump schema, geometry, and editor integration
     drain/     floor-mounted pool drain schema and node definition
     skimmer/   wall-mounted skimmer schema, geometry, and placement

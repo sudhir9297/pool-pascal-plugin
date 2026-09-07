@@ -85,11 +85,13 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   const channelLength = Math.max(node.lipThickness, Math.abs(targetX - sourceBoundaryX))
   const channelCenter = (sourceBoundaryX + targetX) / 2
   const sourceX = sourceBoundaryX + pathDirection * node.lipThickness / 2
-  const lip = new Mesh(new BoxGeometry(node.lipThickness, node.lipThickness, width, 1, 1, 40), surfaceMaterial())
-  deformGeometry(lip.geometry, (x, y, z) => [x + sampleSpilloverEdge(node.sourceEdge, z), y, z])
-  lip.name = 'pool-spillover-crest'
-  lip.position.set(sourceX, -node.lipThickness / 2, sourceBoundaryZ)
-  group.add(lip)
+  if (!touchingConnection) {
+    const lip = new Mesh(new BoxGeometry(node.lipThickness, node.lipThickness, width, 1, 1, 40), surfaceMaterial())
+    deformGeometry(lip.geometry, (x, y, z) => [x + sampleSpilloverEdge(node.sourceEdge, z), y, z])
+    lip.name = 'pool-spillover-crest'
+    lip.position.set(sourceX, -node.lipThickness / 2, sourceBoundaryZ)
+    group.add(lip)
+  }
 
   const waterEffect = new WaterfallWaterEffect(waterStyle ?? {
     shallowWaterColor: node.waterColor,
@@ -129,7 +131,7 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
     }
   }
 
-  if (node.connectionMode === 'channel') {
+  if (node.connectionMode === 'channel' && !touchingConnection) {
     const bed = new Mesh(new BoxGeometry(channelLength, node.lipThickness, width, 1, 1, 40), surfaceMaterial())
     const channelOffset = (x: number, z: number) => {
       const span = targetX - sourceBoundaryX || 1

@@ -9,9 +9,9 @@ Planned layout:
 ```text
 inlet/
   core/       schema, node definition, and geometry
-  design/     wall placement and pipe connection logic
+  design/     wall placement logic
   editor/     placement tool, preview, and parametrics
 ```
 
 The first inlet node is registered as `pool:inlet`. Its wall position follows
-the linked pool, and its rear socket is ready for PVC pipe connections.
+the linked pool, and its rear socket is modeled as part of the inlet assembly.

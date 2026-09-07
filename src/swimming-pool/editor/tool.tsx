@@ -155,6 +155,7 @@ export default function PoolTool() {
   const latestFreehandPointRef = useRef<Point | null>(null)
   const latestGridEventRef = useRef<GridEvent | null>(null)
   const isFreehandDrawingRef = useRef(false)
+  const pendingFreehandSelectionReturnRef = useRef(false)
   const previousSnappedPointRef = useRef<Point | null>(null)
   const constructionPlaneRef = useRef<HorizontalConstructionPlane | null>(null)
   const previousShapeRef = useRef(shape)
@@ -173,6 +174,7 @@ export default function PoolTool() {
     setPoints([])
     pointsRef.current = []
     isFreehandDrawingRef.current = false
+    pendingFreehandSelectionReturnRef.current = false
     constructionPlaneRef.current = null
     previousSnappedPointRef.current = null
     clearSlabSnapFeedback()
@@ -224,6 +226,7 @@ export default function PoolTool() {
     const resetDraft = () => {
       setDraftPoints([])
       isFreehandDrawingRef.current = false
+      pendingFreehandSelectionReturnRef.current = false
       constructionPlaneRef.current = null
       previousSnappedPointRef.current = null
       clearSlabSnapFeedback()
@@ -233,7 +236,7 @@ export default function PoolTool() {
       useEditor.getState().setTool(null)
       useEditor.getState().setMode('select')
     }
-    const commitFreehandStroke = (rawPoints: Point[]) => {
+    const commitFreehandStroke = (rawPoints: Point[], deferSelectionReturn = false) => {
       const outline = buildFreehandPoolOutline(rawPoints, {
         closeDistance: FREEHAND_CLOSE_DISTANCE,
         simplifyTolerance: FREEHAND_SIMPLIFY_TOLERANCE,
@@ -249,7 +252,8 @@ export default function PoolTool() {
       )
       setSelection({ selectedIds: [poolId] })
       resetDraft()
-      returnToSelection()
+      if (deferSelectionReturn) pendingFreehandSelectionReturnRef.current = true
+      else returnToSelection()
       return true
     }
 
@@ -316,7 +320,12 @@ export default function PoolTool() {
         if (advanced.points.length !== activePoints.length) setDraftPoints(advanced.points)
         if (advanced.closed) {
           isFreehandDrawingRef.current = false
-          commitFreehandStroke([...advanced.closed, advanced.closed[0]!])
+          const committed = commitFreehandStroke([...advanced.closed, advanced.closed[0]!], true)
+          if (!committed) resetDraft()
+          // The close can be detected during pointer movement, before the
+          // browser emits pointerup. Keep that event owned by the drawing
+          // tool so selection cannot start dragging the newly created pool.
+          pendingFreehandSelectionReturnRef.current = true
         }
       }
     }
@@ -415,6 +424,13 @@ export default function PoolTool() {
     }
 
     const onPointerUp = (event: PointerEvent) => {
+      if (pendingFreehandSelectionReturnRef.current) {
+        event.preventDefault()
+        event.stopPropagation()
+        pendingFreehandSelectionReturnRef.current = false
+        returnToSelection()
+        return
+      }
       if (!isSpline || !isFreehandDrawingRef.current) return
       event.preventDefault()
       event.stopPropagation()

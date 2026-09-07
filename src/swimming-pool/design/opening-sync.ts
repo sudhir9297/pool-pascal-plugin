@@ -6,7 +6,7 @@ import {
   type SlabNode,
   polygonContainsPolygon,
 } from '@pascal-app/core'
-import { type PoolNode, resolvePoolPolygon } from '../core/schema'
+import { PoolNode, resolvePoolPolygon } from '../core/schema'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
 import { PoolSpilloverNode } from '../spillover/core/schema'
 import { buildPoolOutlines, outsetPoolPolygon } from './outlines'
@@ -434,6 +434,19 @@ function buildConnectionGroundOpeningSlab(
   })
 }
 
+function needsConnectionGroundOpening(
+  connection: PoolConnectionNode,
+  nodes: Record<string, PoolSceneNode>,
+) {
+  if (connection.type !== 'pool:spillover') return true
+  const source = PoolNode.safeParse(nodes[connection.sourcePoolId])
+  const target = PoolNode.safeParse(nodes[connection.targetPoolId])
+  if (!source.success || !target.success) return true
+  // A raised/lowered pair bridges the gap above the ground plane. Preserve
+  // the ground between them; only same-level spillovers need a floor opening.
+  return Math.abs(source.data.position[1] - target.data.position[1]) <= 0.001
+}
+
 function groundOpeningSlabsEqual(left: SlabNode, right: SlabNode) {
   return left.parentId === right.parentId &&
     left.visible === right.visible &&
@@ -520,6 +533,7 @@ export function syncPoolGroundOpenings(
   }
 
   for (const connection of connections) {
+    if (!needsConnectionGroundOpening(connection, nodes)) continue
     const owner = `pool-connection:${connection.id}`
     const helpers = (helpersByOwner.get(connection.id) ?? helpersByOwner.get(owner) ?? [])
       .sort((left, right) => left.id.localeCompare(right.id))

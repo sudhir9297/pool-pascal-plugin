@@ -7,6 +7,8 @@ export type SpilloverNotch = {
   center: [number, number]
   rotation: number
   width: number
+  /** Optional along-flow boundary samples for curved/free-form pool edges. */
+  edgeProfile?: Array<[across: number, along: number]>
   depth: number
   bottom: number
   top: number
@@ -48,6 +50,9 @@ export function getPoolSpilloverNotches(pool: PoolNode, nodes: Record<string, An
       // as the support plane; the lip and outer border provide the visible
       // edge treatment around that opening.
       width: placement.width,
+      edgeProfile: edge.length > 1
+        ? edge.map(([across, along]) => [across - centerOffset, along] as [number, number])
+        : undefined,
       // Curvature belongs to the water sheet, not to the wall cut. Including
       // the edge's along-flow variation here made the CSG cutter grow into a
       // long triangular notch when intersecting pools used a curved path.

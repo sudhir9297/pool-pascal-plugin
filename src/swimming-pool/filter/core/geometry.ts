@@ -89,7 +89,7 @@ function addHorizontalRing(group: Group, radius: number, y: number, tube: number
  * Connection endpoints in model-local coordinates.
  *
  * The point is the centre of the outer socket face, not the centre of its
- * mesh. The same values drive the visible socket and the pipe drawing tool.
+ * mesh. The same values drive the visible socket and connection port.
  */
 export function getFilterPortsLocal(node: FilterGeometryNode): FilterPort[] {
   const { radius, tankBottom, valveCenterY, valveRadius } = getFilterLayout(node)
@@ -126,7 +126,7 @@ export function getFilterPortsLocal(node: FilterGeometryNode): FilterPort[] {
   return ports
 }
 
-/** Kept as an array API for existing pipe-connection consumers. */
+/** Kept as an array API for connection-port consumers. */
 export function getFilterPortLocalPositions(node: FilterGeometryNode): Vector3[] {
   return getFilterPortsLocal(node).map((port) => port.position.clone())
 }

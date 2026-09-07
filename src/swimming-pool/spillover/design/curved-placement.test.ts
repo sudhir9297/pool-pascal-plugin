@@ -115,3 +115,12 @@ test('a nested higher pool spills outward across its own rim', () => {
   expect(visual.getObjectByName('pool-spillover-overlap-surface')).toBeDefined()
   disposePoolSpilloverVisual(visual)
 })
+
+test('connects a same-level nested basin across the containing rim', () => {
+  const inner = PoolNode.parse({ id: 'pool_nested_same_inner', parentId: 'level_a', polygon: roundPolygon(64), position: [0, 0, 0] })
+  const outer = PoolNode.parse({ id: 'pool_nested_same_outer', parentId: 'level_a', polygon: roundPolygon(64).map(([x, z]) => [x * 2, z * 2]), position: [0, 0, 0] })
+  const placement = resolvePoolSpillover(inner, outer)
+  expect(placement).not.toBeNull()
+  expect(placement!.connectionMode).toBe('overlap')
+  expect(placement!.intersection.length).toBeGreaterThan(0)
+})

@@ -26,15 +26,24 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     [storeNode, liveOverride],
   )
   const sceneNodes = useScene((state) => state.nodes)
+  const spilloverEditInProgress = useLiveNodeOverrides((state) => Object.values(sceneNodes).some((candidate) => {
+    if (String(candidate.type) !== 'pool:spillover') return false
+    const connection = candidate as unknown as { sourcePoolId?: string; targetPoolId?: string; id: string }
+    return (connection.sourcePoolId === node.id || connection.targetPoolId === node.id) && Boolean(state.get(connection.id))
+  }))
+  const suppressSpilloverGeometry = Boolean(liveOverride) || spilloverEditInProgress
   const pool = useMemo(
     () => buildPoolGeometry(node, {
       overlaps: getPoolOverlaps(node, sceneNodes),
-      spilloverNotches: getPoolSpilloverNotches(node, sceneNodes),
+      // Live transforms can leave the committed connection endpoint briefly
+      // stale. Hide its cuts during that frame; the committed sync rebuilds
+      // them once the edit is released.
+      spilloverNotches: suppressSpilloverGeometry ? [] : getPoolSpilloverNotches(node, sceneNodes),
       removeWallRegions: getPoolConnectionRegions(node, sceneNodes),
       removeFloorRegions: getPoolConnectionRegions(node, sceneNodes),
       removeWaterRegions: getPoolConnectionRegions(node, sceneNodes),
     }),
-    [node, sceneNodes],
+    [node, sceneNodes, suppressSpilloverGeometry],
   )
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.

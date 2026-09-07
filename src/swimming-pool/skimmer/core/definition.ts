@@ -19,7 +19,6 @@ export const DEFAULT_POOL_SKIMMER = {
   waterlineOffset: 0,
   suctionDiameter: 0.05,
   showBasket: true,
-  showPipePort: true,
 }
 
 export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {

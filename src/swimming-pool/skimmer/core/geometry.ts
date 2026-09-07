@@ -45,7 +45,6 @@ export function buildSkimmerGeometry(node: PoolSkimmerNode): Group {
   }
 
   // Small exposed socket: the hidden plumbing starts behind this fitting.
-  // Its center is also the pipe tool's magnetic snap point.
   const socketRing = new Mesh(new TorusGeometry(node.suctionDiameter * 0.72, 0.012, 8, 16), socket)
   socketRing.position.set(0, waterY - 0.31, -0.14)
   group.add(socketRing)

@@ -19,7 +19,7 @@ export type PoolFilterData = {
     diameter: number
     bodyHeight: number
   }
-  /** Nominal PVC socket diameter in metres. */
+  /** Nominal socket diameter in metres. */
   connectionDiameter: number
   /** Nominal circulation capacity in cubic metres per hour. */
   flowRate: {

@@ -72,8 +72,8 @@ export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
     { key: 'Esc', label: 'Cancel placement' },
   ],
   presentation: {
-    label: 'PVC suction valve',
-    description: 'Place a 2-way or 3-way PVC ball valve with pipe sockets.',
+    label: 'Suction valve',
+    description: 'Place a 2-way or 3-way ball valve with connection sockets.',
     icon: { kind: 'iconify', name: 'lucide:between-horizontal-start' },
     paletteSection: 'furnish',
   },

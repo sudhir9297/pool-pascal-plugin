@@ -1269,7 +1269,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
 
   if (options.overlaps?.length) {
     const positions: number[] = []
-    for (const overlap of options.overlaps.filter(item => item.trimBasin !== false)) {
+    for (const overlap of options.overlaps.filter(item => item.trimBasin !== false && item.suppressSeparator !== true)) {
       for (let index = 0; index < overlap.footprint.length; index++) {
         const next = (index + 1) % overlap.footprint.length
         const a = overlap.footprint[index]!

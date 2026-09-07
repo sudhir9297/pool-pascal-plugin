@@ -22,6 +22,12 @@ describe('pool spillover placement', () => {
     expect(placement?.length).toBeCloseTo(0.5)
   })
 
+  test('does nothing when same-level pools fully overlap', () => {
+    const first = PoolNode.parse({ id: 'pool_full_overlap_a', parentId: 'level_a', polygon: rectangle })
+    const second = PoolNode.parse({ id: 'pool_full_overlap_b', parentId: 'level_a', polygon: rectangle })
+    expect(resolvePoolSpillover(first, second)).toBeNull()
+  })
+
   test('connects pools whose walls exactly touch', () => {
     const upper = PoolNode.parse({ id: 'pool_upper_touching', parentId: 'level_a', position: [0, 0.8, 0], polygon: rectangle })
     const lower = PoolNode.parse({ id: 'pool_lower_touching', parentId: 'level_a', position: [4, 0, 0], polygon: rectangle })
@@ -162,6 +168,16 @@ describe('pool spillover placement', () => {
     expect(placement?.sourceOpening).toHaveLength(4)
     expect(placement?.targetOpening).toHaveLength(4)
     expect(placement?.connectionPath).toHaveLength(2)
+  })
+
+  test('connects freeform pools whose facing edges touch', () => {
+    const polygon = [[-3,-2],[2,-2],[2,2],[-3,2]]
+    const first = PoolNode.parse({ id: 'pool_freeform_touch_a', parentId: 'level_a', shape: 'custom', polygon })
+    const second = PoolNode.parse({ id: 'pool_freeform_touch_b', parentId: 'level_a', shape: 'custom', polygon, position: [5, 0, 0] })
+    const placement = resolvePoolSpillover(first, second)
+    expect(placement).not.toBeNull()
+    expect(placement?.connectionMode).toBe('channel')
+    expect(placement?.length).toBeCloseTo(0.12)
   })
 
   test('rejects corner-only arrangements without a usable facing run', () => {

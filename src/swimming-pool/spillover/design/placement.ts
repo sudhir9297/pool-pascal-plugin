@@ -27,6 +27,13 @@ export function getPoolWorldPolygon(pool: PoolNode): PoolPoint[] {
 
 function dot(a: PoolPoint, b: PoolPoint) { return a[0] * b[0] + a[1] * b[1] }
 
+function polygonArea(points: PoolPoint[]) {
+  return Math.abs(points.reduce((area, point, index) => {
+    const next = points[(index + 1) % points.length]!
+    return area + point[0] * next[1] - next[0] * point[1]
+  }, 0) / 2)
+}
+
 function openingAround(point: PoolPoint, tangent: PoolPoint, width: number, depth: number): PoolPoint[] {
   const normal: PoolPoint = [-tangent[1], tangent[0]]
   const halfWidth = width / 2
@@ -111,6 +118,12 @@ export function resolvePoolSpillover(
   const intersection = sharedJoint?.intersection ?? getPoolIntersectionRegions(first, second)
   const firstPolygon = getPoolWorldPolygon(first)
   const secondPolygon = getPoolWorldPolygon(second)
+  const intersectionArea = intersection.reduce((area, region) => area + polygonArea(region), 0)
+  const smallerPoolArea = Math.min(polygonArea(firstPolygon), polygonArea(secondPolygon))
+  const poolsFullyOverlap = smallerPoolArea > 1e-6
+    && intersectionArea >= smallerPoolArea * (1 - 1e-5)
+    && Math.abs(polygonArea(firstPolygon) - polygonArea(secondPolygon)) <= smallerPoolArea * 1e-5
+  if (poolsFullyOverlap) return null
   const sameWaterLevel = Math.abs(worldWaterHeight(first) - worldWaterHeight(second)) <= 0.001
   const curved = ((intersection.length > 0 && (sameWaterLevel || !sharedJoint))
     || firstPolygon.length > 8 || secondPolygon.length > 8

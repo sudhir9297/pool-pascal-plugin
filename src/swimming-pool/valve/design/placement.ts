@@ -1,6 +1,5 @@
 import { getValvePortPositions } from '../core/geometry'
 import type { PoolValveNode } from '../core/schema'
-import type { PoolPipeNode } from '../../pipe/core/schema'
 
 export type ValveConnection = {
   valveId: string
@@ -48,20 +47,4 @@ export function findNearestValveConnection(
 
 export function getValveSlotKey(valveId: string, portIndex: number): string {
   return `${valveId}:port:${portIndex}`
-}
-
-export function getOccupiedValveSlots(
-  valves: readonly PoolValveNode[],
-  pipes: readonly PoolPipeNode[],
-  ignoreNetworkId?: string,
-): Set<string> {
-  const occupied = new Set<string>()
-  for (const pipe of pipes) {
-    if (pipe.id === ignoreNetworkId) continue
-    for (const point of pipe.nodes) {
-      const connection = findNearestValveConnection(point.position, valves, 0.08)
-      if (connection) occupied.add(getValveSlotKey(connection.valveId, connection.portIndex))
-    }
-  }
-  return occupied
 }

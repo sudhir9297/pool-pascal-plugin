@@ -1,6 +1,5 @@
 import type { AnyNodeDefinition, Plugin } from '@pascal-app/core'
 import { poolDefinition } from './swimming-pool/core/definition'
-import { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
 import { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 import { poolValveDefinition } from './swimming-pool/valve/core/definition'
 import { poolPumpDefinition } from './swimming-pool/pump/core/definition'
@@ -26,7 +25,6 @@ export const poolPlugin: Plugin = {
   apiVersion: 1,
   nodes: [
     poolDefinition as unknown as AnyNodeDefinition,
-    poolPipeDefinition as unknown as AnyNodeDefinition,
     poolSkimmerDefinition as unknown as AnyNodeDefinition,
     poolValveDefinition as unknown as AnyNodeDefinition,
     poolPumpDefinition as unknown as AnyNodeDefinition,
@@ -62,7 +60,6 @@ export const poolHostPanel: PoolHostPanel = {
 // `document` at module scope and would crash SSR (this barrel is eagerly
 // imported by host bootstraps). Lazy client modules import it directly.
 export { poolDefinition } from './swimming-pool/core/definition'
-export { poolPipeDefinition } from './swimming-pool/pipe/core/definition'
 export { poolSkimmerDefinition } from './swimming-pool/skimmer/core/definition'
 export { poolValveDefinition } from './swimming-pool/valve/core/definition'
 export { poolPumpDefinition } from './swimming-pool/pump/core/definition'
@@ -83,7 +80,6 @@ export { poolWaterfallParametrics } from './swimming-pool/water-feature/waterfal
 export { findNearestWaterfallPlacement, placementOnPoolBoundary, resolveMountedWaterfall } from './swimming-pool/water-feature/waterfall/design/placement'
 export { poolStairDefinition } from './swimming-pool/stair/core/definition'
 export { PoolNode, resolvePoolPolygon } from './swimming-pool/core/schema'
-export { PoolPipeNode } from './swimming-pool/pipe/core/schema'
 export { PoolSkimmerNode } from './swimming-pool/skimmer/core/schema'
 export { poolSkimmerParametrics } from './swimming-pool/skimmer/editor/parametrics'
 export { PoolValveNode } from './swimming-pool/valve/core/schema'
@@ -107,11 +103,10 @@ export { resolvePoolStairMounting } from './swimming-pool/stair/design/mounting'
 export type { PoolStairMounting } from './swimming-pool/stair/design/mounting'
 export { findNearestPoolStairAttachment, poolStairAttachmentOnWall, poolStairAttachmentPatch, resolveMountedPoolStair } from './swimming-pool/stair/design/placement'
 export type { PoolStairAttachment } from './swimming-pool/stair/design/placement'
-export { findNearestInletConnection, findNearestInletWall, getInletPipeConnection, resolveMountedInlet } from './swimming-pool/inlet/design/placement'
+export { findNearestInletWall, resolveMountedInlet } from './swimming-pool/inlet/design/placement'
 export { poolInletParametrics } from './swimming-pool/inlet/editor/parametrics'
 export { buildDrainGeometry, getDrainPortDirection, getDrainPortPosition } from './swimming-pool/drain/core/geometry'
 export { poolDrainParametrics } from './swimming-pool/drain/editor/parametrics'
-export { findNearestDrainConnection, getDrainPipeConnection } from './swimming-pool/drain/design/placement'
 export { getPoolDrainPlacement } from './swimming-pool/drain/design/pool-placement'
 export { poolHeaterParametrics } from './swimming-pool/heater/editor/parametrics'
 export { poolFilterParametrics } from './swimming-pool/filter/editor/parametrics'

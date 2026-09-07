@@ -52,3 +52,33 @@ test.each([[false,0],[true,0],[false,Math.PI/3],[true,Math.PI/3]] as const)('pre
   expect(getPoolOverlaps(moved,{...nodes,[lower.id]:moved} as never)).toEqual([])
   dispose(group)
 })
+
+test('merges a partial same-level overlap across its exact footprint', () => {
+  const first = PoolNode.parse({ id: 'pool_same_a', parentId: 'level_a', polygon: [[-2,-2],[2,-2],[2,2],[-2,2]] })
+  const second = PoolNode.parse({ id: 'pool_same_b', parentId: 'level_a', polygon: [[-2,-2],[2,-2],[2,2],[-2,2]], position: [2,0,0] })
+  const connection = PoolSpilloverNode.parse({ sourcePoolId: first.id, targetPoolId: second.id, width: 1 })
+  const nodes = { [first.id]: first, [second.id]: second, [connection.id]: connection }
+  const firstOverlap = getPoolOverlaps(first, nodes as never)[0]!
+  const secondOverlap = getPoolOverlaps(second, nodes as never)[0]!
+  expect(firstOverlap.trimBasin).toBe(true)
+  expect(secondOverlap.trimBasin).toBe(true)
+  expect(firstOverlap.suppressSeparator).toBe(true)
+  expect(firstOverlap.regions.length).toBeGreaterThan(0)
+  const group = buildPoolGeometry(first, { overlaps: [firstOverlap] })
+  expect(group.getObjectByName('pool-overlap-separating-wall')).toBeUndefined()
+  dispose(group)
+})
+
+test('clips concave same-level intersections into exact fill regions', () => {
+  const concave: PoolPoint[] = [[-3,-2],[2,-2],[2,-1],[0.8,0],[2,1],[2,2],[-3,2]]
+  const first = PoolNode.parse({ id: 'pool_concave_same_a', parentId: 'level_a', shape: 'custom', polygon: concave })
+  const second = PoolNode.parse({ id: 'pool_concave_same_b', parentId: 'level_a', shape: 'custom', polygon: concave, position: [1.2,0,0] })
+  const connection = PoolSpilloverNode.parse({ sourcePoolId: first.id, targetPoolId: second.id, width: 1 })
+  const nodes = { [first.id]: first, [second.id]: second, [connection.id]: connection }
+  const overlap = getPoolOverlaps(first, nodes as never)[0]!
+  expect(overlap.trimBasin).toBe(true)
+  expect(overlap.regions.length).toBeGreaterThan(1)
+  const group = buildPoolGeometry(first, { overlaps: [overlap] })
+  expect(group.getObjectByName('pool-overlap-separating-wall')).toBeUndefined()
+  dispose(group)
+})

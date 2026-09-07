@@ -14,4 +14,4 @@ Sources:
 - [Valtorc Series 400 3-way PVC valve](https://valtorc.com/valves/ball-valves/pvc-cpvc-ball-valves/true-union-3-way-pvc-valve-specs/)
 - [Spears Valves Technical reference](https://parts.spearsmfg.com/sourcebook/VALTECH_VAL_TU2VO_T.pdf)
 
-The implementation is visual and parametric. It models the valve body, union collars, socket centers, stem, handle, and the selected opening pattern; true hydraulic simulation and pipe-network topology will be added separately.
+The implementation is visual and parametric. It models the valve body, union collars, socket centers, stem, handle, and the selected opening pattern; hydraulic simulation is outside the scope of this plugin.

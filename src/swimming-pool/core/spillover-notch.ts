@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, type Group, type Material, Mesh } from 'three'
+import { Box3, BoxGeometry, ExtrudeGeometry, Shape, type BufferGeometry, type Group, type Material, Mesh } from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import type { SpilloverNotch } from '../design/spillover-notch'
 
@@ -15,7 +15,12 @@ export function cutPoolSpilloverNotches(group: Group, notches: SpilloverNotch[],
   for (const mesh of targets) {
     let inwardShell = mesh.name === 'pool-shell-walls' && shellFacesInward
     for (const notch of notches) {
-      const cutterGeometry = new BoxGeometry(notch.depth, notch.top - notch.bottom, notch.width)
+      // Curved shell cuts need the sampled rim profile. Coping is a solid
+      // finished strip, so use the rectangular opening there; feeding the
+      // curved prism into coping CSG can leave a detached triangular cap.
+      const cutterGeometry = buildNotchCutterGeometry(
+        mesh.name === 'pool-shell-walls' ? notch : { ...notch, edgeProfile: undefined },
+      )
       const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material
       const cutter = new Brush(cutterGeometry, material)
       cutter.position.set(notch.center[0], (notch.top + notch.bottom) / 2, notch.center[1])
@@ -36,7 +41,19 @@ export function cutPoolSpilloverNotches(group: Group, notches: SpilloverNotch[],
       }
       const input = new Brush(inputGeometry, mesh.material)
       input.updateMatrixWorld(true)
-      const result = evaluator.evaluate(input, cutter, SUBTRACTION)
+      let result: Brush
+      try {
+        result = evaluator.evaluate(input, cutter, SUBTRACTION) as unknown as Brush
+      } catch {
+        // Live transforms can briefly expose an incomplete CSG mesh. Keep the
+        // last valid shell instead of allowing that transient state to crash
+        // the editor; the committed sync will rebuild the opening afterward.
+        input.disposeCacheData()
+        cutter.disposeCacheData()
+        inputGeometry.dispose()
+        cutterGeometry.dispose()
+        continue
+      }
       result.geometry.applyMatrix4(mesh.matrixWorld.clone().invert())
       mesh.geometry.dispose()
       mesh.geometry = result.geometry
@@ -48,4 +65,33 @@ export function cutPoolSpilloverNotches(group: Group, notches: SpilloverNotch[],
       cutterGeometry.dispose()
     }
   }
+}
+
+function buildNotchCutterGeometry(notch: SpilloverNotch): BufferGeometry {
+  const profile = notch.edgeProfile
+  if (!profile || profile.length < 2) {
+    return new BoxGeometry(notch.depth, notch.top - notch.bottom, notch.width)
+  }
+
+  // Build one closed prism whose near side follows the sampled curved rim.
+  // ExtrudeGeometry starts in X/Y; with this rotation its Y coordinate maps
+  // to local Z and its extrusion maps to local Y. Keep the geometry centred
+  // vertically because the cutter mesh receives the notch midpoint position.
+  const shape = new Shape()
+  const halfDepth = notch.depth / 2
+  const first = profile[0]!
+  shape.moveTo(first[1] - halfDepth, -first[0])
+  for (const [across, along] of profile.slice(1)) shape.lineTo(along - halfDepth, -across)
+  for (const [across, along] of [...profile].reverse()) shape.lineTo(along + halfDepth, -across)
+  shape.closePath()
+  const height = notch.top - notch.bottom
+  const geometry = new ExtrudeGeometry(shape, {
+    bevelEnabled: false,
+    curveSegments: 1,
+    depth: height,
+    steps: 1,
+  })
+  geometry.rotateX(-Math.PI / 2)
+  geometry.translate(0, -height / 2, 0)
+  return geometry
 }

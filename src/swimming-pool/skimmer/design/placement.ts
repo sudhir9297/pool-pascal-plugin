@@ -10,46 +10,6 @@ export type SkimmerPlacement = {
   poolId: string | null
 }
 
-export type SkimmerConnection = {
-  position: [number, number, number]
-  direction: [number, number, number]
-}
-
-const SKIMMER_SOCKET_LOCAL: [number, number, number] = [0, -0.31, -0.14]
-const SKIMMER_SOCKET_DIRECTION_LOCAL: [number, number, number] = [0, 0, -1]
-
-/** The exposed rear socket where the pump-side PVC line starts. */
-export function getSkimmerPipeConnection(node: PoolSkimmerNode): SkimmerConnection {
-  const angle = node.rotation[1]
-  const sin = Math.sin(angle)
-  const cos = Math.cos(angle)
-  const rotatePoint = ([x, y, z]: [number, number, number]): [number, number, number] => [
-    node.position[0] + x * cos + z * sin,
-    node.position[1] + y,
-    node.position[2] - x * sin + z * cos,
-  ]
-  const [x, y, z] = SKIMMER_SOCKET_DIRECTION_LOCAL
-  const direction: [number, number, number] = [x * cos + z * sin, y, -x * sin + z * cos]
-  return { position: rotatePoint(SKIMMER_SOCKET_LOCAL), direction }
-}
-
-export function findNearestSkimmerConnection(point: readonly [number, number, number], skimmers: readonly PoolSkimmerNode[], maxDistance = 0.35): SkimmerConnection | null {
-  let best: SkimmerConnection | null = null
-  let bestDistance = maxDistance
-  for (const skimmer of skimmers) {
-    const connection = getSkimmerPipeConnection(skimmer)
-    // Grid pointer events are usually projected onto the pool/deck plane,
-    // while the actual socket is below the waterline. Use plan distance so
-    // hovering over the skimmer still finds its recessed connection.
-    const distance = Math.hypot(point[0] - connection.position[0], point[2] - connection.position[2])
-    if (distance < bestDistance) {
-      best = connection
-      bestDistance = distance
-    }
-  }
-  return best
-}
-
 function closestPointOnSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number) {
   const dx = bx - ax
   const dz = bz - az

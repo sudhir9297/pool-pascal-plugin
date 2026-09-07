@@ -132,6 +132,21 @@ describe('pool spillover geometry', () => {
     disposeGeometry(geometry)
   })
 
+  test('uses only the water sheet when pools touch edge to edge', () => {
+    const geometry = buildPoolSpilloverGeometry(PoolSpilloverNode.parse({
+      sourcePoolId: 'pool-upper',
+      targetPoolId: 'pool-lower',
+      connectionMode: 'channel',
+      length: 0.1,
+      width: 2.4,
+      dropHeight: 0.6,
+    }))
+
+    expect(geometry.children.map((child) => child.name)).toEqual(['pool-spillover-water-sheet'])
+    expect(geometry.userData.waterEffects).toHaveLength(1)
+    disposeGeometry(geometry)
+  })
+
   test('uses the constrained effective width without losing the desired width', () => {
     const node = PoolSpilloverNode.parse({
       sourcePoolId: 'pool-upper',

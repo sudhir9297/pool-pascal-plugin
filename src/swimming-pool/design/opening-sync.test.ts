@@ -124,4 +124,22 @@ describe('swimming pool floor openings', () => {
     expect(Math.max(...zs)).toBeCloseTo(0.8)
     expect(Math.min(...zs)).toBeCloseTo(-0.8)
   })
+
+  test('keeps the ground intact for a separated spillover at different elevations', () => {
+    const source = PoolNode.parse({
+      ...poolDefinition.defaults(), id: 'pool_raised_source', parentId: 'level_ground', position: [0, 1, 0],
+    })
+    const target = PoolNode.parse({
+      ...poolDefinition.defaults(), id: 'pool_lower_target', parentId: 'level_ground', position: [8, 0, 0],
+    })
+    const spillover = PoolSpilloverNode.parse({
+      id: 'pool-spillover_raised-gap', parentId: 'level_ground', sourcePoolId: source.id, targetPoolId: target.id,
+      length: 2, width: 2,
+    })
+
+    const changes = syncPoolGroundOpenings({
+      [source.id]: source, [target.id]: target, [spillover.id]: spillover,
+    })
+    expect(changes.create.some((node) => node.id.includes('connection-ground'))).toBe(false)
+  })
 })

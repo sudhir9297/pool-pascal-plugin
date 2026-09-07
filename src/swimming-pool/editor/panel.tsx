@@ -7,14 +7,12 @@ import { usePoolStore } from './store'
 import { POOL_SHAPE_OPTIONS, type PoolShape } from '../design/shapes'
 import { POOL_STAIR_CATALOG, POOL_STAIR_VARIANTS, type PoolStairVariant } from '../stair/data/catalog'
 import { usePoolStairStore } from '../stair/editor/store'
-import { usePipeEditStore } from '../pipe/editor/store'
 
 export default function PoolPanel() {
   const shape = usePoolStore((state) => state.shape)
   const copingStyle = usePoolStore((state) => state.copingStyle)
   const stairVariant = usePoolStairStore((state) => state.variant)
   const poolCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pool').length)
-  const pipeCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:pipe-network').length)
   const skimmerCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:skimmer').length)
   const inletCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:inlet').length)
   const valveCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:valve').length)
@@ -26,7 +24,6 @@ export default function PoolPanel() {
   const watercourseCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:watercourse').length)
   const waterfallCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:waterfall').length)
   const spilloverCount = useScene((state) => Object.values(state.nodes).filter((node) => String((node as unknown as { type?: unknown }).type) === 'pool:spillover').length)
-  const continuousDrawing = usePipeEditStore((state) => state.continuousDrawing)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Alt' || event.repeat || event.metaKey || event.ctrlKey || event.shiftKey) return
@@ -108,26 +105,8 @@ export default function PoolPanel() {
       </section>
       <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
         <header className="flex items-center justify-between">
-          <h3 className="font-medium text-sm">Pool plumbing</h3>
-          <span className="text-sidebar-foreground/60 text-xs">{pipeCount} placed</span>
+          <h3 className="font-medium text-sm">Pool equipment</h3>
         </header>
-        <button
-          className="rounded border border-sidebar-border px-3 py-2 text-left text-xs hover:border-primary"
-          onClick={() => {
-            useEditor.getState().setTool('pool:pipe-network')
-            useEditor.getState().setMode('build')
-          }}
-          type="button"
-        >
-          <span className="block font-medium">PVC pipe</span>
-          <span className="text-sidebar-foreground/60">Draw, then extend from the + handle</span>
-        </button>
-        <ToggleControl
-          checked={continuousDrawing}
-          label="Continuous pipe drawing"
-          onChange={usePipeEditStore.getState().setContinuousDrawing}
-        />
-        <p className="text-sidebar-foreground/60 text-[11px]">After each click, continue from the new endpoint. Press C to toggle.</p>
         <button
           className="rounded border border-sidebar-border px-3 py-2 text-left text-xs hover:border-primary"
           onClick={() => { useEditor.getState().setTool('pool:filter'); useEditor.getState().setMode('build') }}
@@ -165,7 +144,7 @@ export default function PoolPanel() {
           onClick={() => { useEditor.getState().setTool('pool:valve'); useEditor.getState().setMode('build') }}
           type="button"
         >
-          <span className="block font-medium">PVC suction valve</span>
+          <span className="block font-medium">Suction valve</span>
           <span className="text-sidebar-foreground/60">{valveCount} placed · click to place</span>
         </button>
         <p className="text-sidebar-foreground/60 text-[11px]">Alt switches the rotation axis · R rotates 90°</p>

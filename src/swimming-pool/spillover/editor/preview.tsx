@@ -1,6 +1,6 @@
 'use client'
 
-import { useRegistry, useScene, type AnyNode } from '@pascal-app/core'
+import { useLiveNodeOverrides, useRegistry, useScene, type AnyNode } from '@pascal-app/core'
 import { useNodeEvents } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Group } from 'three'
@@ -17,13 +17,17 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
   const handlers = useNodeEvents(node as unknown as AnyNode, node.type as never)
   const sourceValue = useScene((state) => state.nodes[node.sourcePoolId as never])
   const targetValue = useScene((state) => state.nodes[node.targetPoolId as never])
+  const editInProgress = useLiveNodeOverrides((state) => Boolean(
+    state.get(node.id) || state.get(node.sourcePoolId) || state.get(node.targetPoolId),
+  ))
   const liveNode = useMemo(() => {
+    if (editInProgress) return null
     const source = PoolNode.safeParse(sourceValue)
     const target = PoolNode.safeParse(targetValue)
     if (!source.success || !target.success) return null
     const update = resolvePoolSpilloverSyncUpdate(node, source.data, target.data)
     return update ? { ...node, ...update } : null
-  }, [node, sourceValue, targetValue])
+  }, [node, sourceValue, targetValue, editInProgress])
   const geometry = useMemo(
     () => {
       if (!liveNode) return new Group()
@@ -45,6 +49,7 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
       ref={rootRef}
       position={liveNode?.position ?? node.position}
       rotation={liveNode?.rotation ?? node.rotation}
+      visible={!editInProgress && Boolean(liveNode)}
       {...handlers}
     >
       <primitive object={geometry} />

@@ -23,7 +23,6 @@ export const PoolSkimmerNode = BaseNode.extend({
   waterlineOffset: z.number().finite().default(0),
   suctionDiameter: z.number().min(0.025).default(0.05),
   showBasket: z.boolean().default(true),
-  showPipePort: z.boolean().default(true),
 })
 
 export type PoolSkimmerNode = z.infer<typeof PoolSkimmerNode>

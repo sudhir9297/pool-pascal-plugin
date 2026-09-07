@@ -12,6 +12,8 @@ export type PoolOverlap = {
   topHeights: number[]
   trimBasin?: boolean
   copingFootprints?: PoolPoint[][]
+  suppressSeparator?: boolean
+  preserveWater?: boolean
 }
 
 /** Only the lower member of an explicit spillover pair yields its footprint. */
@@ -32,17 +34,31 @@ export function getPoolOverlaps(pool: PoolNode, nodes: Record<string, AnyNode>):
     if (!intersectionRegions.length) return []
     const poolHeight = pool.position[1] + pool.designWaterElevation
     const otherHeight = other.position[1] + other.designWaterElevation
-    if (otherHeight <= poolHeight + 0.001) {
+    const rotation = pool.rotation[1] ?? 0
+    const cos = Math.cos(rotation)
+    const sin = Math.sin(rotation)
+    const localRegions = intersectionRegions.map(region => region.map(([x, z]) => {
+      const dx = x - pool.position[0]
+      const dz = z - pool.position[2]
+      return [dx * cos - dz * sin, dx * sin + dz * cos] as PoolPoint
+    }))
+    if (Math.abs(otherHeight - poolHeight) <= 0.001) {
+      // At one water level the two basins should merge across the exact
+      // intersecting footprint. Remove both shells, floors, and coping there;
+      // the spillover surface supplies the finished fill plane.
+      return [{
+        footprint: localRegions[0]!,
+        regions: localRegions,
+        topHeights: [],
+        trimBasin: true,
+        copingFootprints: localRegions,
+        suppressSeparator: true,
+        preserveWater: true,
+      }]
+    }
+    if (otherHeight < poolHeight) {
       // The higher pool keeps its basin, but its coping still needs to stop
       // at the shared intersection edge.
-      const rotation = pool.rotation[1] ?? 0
-      const cos = Math.cos(rotation)
-      const sin = Math.sin(rotation)
-      const localRegions = intersectionRegions.map(region => region.map(([x, z]) => {
-        const dx = x - pool.position[0]
-        const dz = z - pool.position[2]
-        return [dx * cos - dz * sin, dx * sin + dz * cos] as PoolPoint
-      }))
       return [{ footprint: localRegions[0]!, regions: [], topHeights: [], trimBasin: false, copingFootprints: localRegions }]
     }
     seen.add(otherId)
