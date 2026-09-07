@@ -63,9 +63,15 @@ test('merges a partial same-level overlap across its exact footprint', () => {
   expect(firstOverlap.trimBasin).toBe(true)
   expect(secondOverlap.trimBasin).toBe(true)
   expect(firstOverlap.suppressSeparator).toBe(true)
+  expect(firstOverlap.preserveWater).toBe(true)
   expect(firstOverlap.regions.length).toBeGreaterThan(0)
   const group = buildPoolGeometry(first, { overlaps: [firstOverlap] })
   expect(group.getObjectByName('pool-overlap-separating-wall')).toBeUndefined()
+  group.updateMatrixWorld(true)
+  const water = group.getObjectByName('pool-water') as Mesh
+  water.raycast = Mesh.prototype.raycast
+  const ray = new Raycaster(new Vector3(1, 3, 0), new Vector3(0, -1, 0), 0, 8)
+  expect(ray.intersectObject(water)).toHaveLength(1)
   dispose(group)
 })
 

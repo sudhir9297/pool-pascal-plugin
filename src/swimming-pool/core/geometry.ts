@@ -1072,11 +1072,14 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   // this boundary so every downstream dimension is finite.
   const node = PoolNode.parse(nodeInput)
   const overlapRegions = options.overlaps?.filter(overlap => overlap.trimBasin !== false).flatMap(overlap => overlap.regions) ?? []
+  const overlapWaterRegions = options.overlaps
+    ?.filter(overlap => overlap.trimBasin !== false && overlap.preserveWater !== true)
+    .flatMap(overlap => overlap.regions) ?? []
   options = {
     ...options,
     removeWallRegions: [...(options.removeWallRegions ?? []), ...overlapRegions],
     removeFloorRegions: [...(options.removeFloorRegions ?? []), ...overlapRegions],
-    removeWaterRegions: [...(options.removeWaterRegions ?? []), ...overlapRegions],
+    removeWaterRegions: [...(options.removeWaterRegions ?? []), ...overlapWaterRegions],
   }
   const group = new Group()
   group.name = 'pool-assembly'
