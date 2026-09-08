@@ -1,5 +1,7 @@
 import type { NodeDefinition } from '@pascal-app/core'
+import { connectionPorts } from '../../core/connection-ports'
 import { DEFAULT_POOL_SKIMMER, PoolSkimmerNode } from './schema'
+import { getSkimmerPortsLocal } from './ports'
 import { poolSkimmerParametrics } from '../editor/parametrics'
 
 export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
@@ -7,7 +9,7 @@ export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
   schemaVersion: 1,
   schema: PoolSkimmerNode,
   category: 'furnish',
-  distributionRole: 'run',
+  distributionRole: 'terminal',
   snapProfile: 'item',
   defaults: () => ({
     object: 'node',
@@ -25,6 +27,7 @@ export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
     groupable: true,
     snappable: {},
   },
+  ports: (node) => connectionPorts(node, getSkimmerPortsLocal(node)),
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   parametrics: poolSkimmerParametrics,
   tool: () => import('../editor/tool'),

@@ -1,5 +1,7 @@
 import type { NodeDefinition } from '@pascal-app/core'
+import { connectionPorts } from '../../core/connection-ports'
 import { DEFAULT_POOL_DRAIN, PoolDrainNode } from './schema'
+import { getDrainPortsLocal } from './ports'
 import { poolDrainParametrics } from '../editor/parametrics'
 
 export const poolDrainDefinition: NodeDefinition<typeof PoolDrainNode> = {
@@ -7,7 +9,7 @@ export const poolDrainDefinition: NodeDefinition<typeof PoolDrainNode> = {
   schemaVersion: 1,
   schema: PoolDrainNode,
   category: 'furnish',
-  distributionRole: 'run',
+  distributionRole: 'terminal',
   snapProfile: 'item',
   defaults: () => ({
     object: 'node',
@@ -25,6 +27,7 @@ export const poolDrainDefinition: NodeDefinition<typeof PoolDrainNode> = {
     groupable: true,
     snappable: {},
   },
+  ports: (node) => connectionPorts(node, getDrainPortsLocal(node)),
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   parametrics: poolDrainParametrics,
   tool: () => import('../editor/tool'),

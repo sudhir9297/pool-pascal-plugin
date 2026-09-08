@@ -1,13 +1,15 @@
 import type { NodeDefinition } from '@pascal-app/core'
+import { connectionPorts } from '../../core/connection-ports'
 import { poolInletParametrics } from '../editor/parametrics'
 import { DEFAULT_POOL_INLET, PoolInletNode } from './schema'
+import { getInletPortsLocal } from './ports'
 
 export const poolInletDefinition: NodeDefinition<typeof PoolInletNode> = {
   kind: 'pool:inlet',
   schemaVersion: 1,
   schema: PoolInletNode,
   category: 'furnish',
-  distributionRole: 'run',
+  distributionRole: 'terminal',
   snapProfile: 'item',
   defaults: () => ({ object: 'node', parentId: null, visible: true, metadata: {}, ...DEFAULT_POOL_INLET }),
   capabilities: {
@@ -19,6 +21,7 @@ export const poolInletDefinition: NodeDefinition<typeof PoolInletNode> = {
     groupable: true,
     snappable: {},
   },
+  ports: (node) => connectionPorts(node, getInletPortsLocal(node)),
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   parametrics: poolInletParametrics,
   tool: () => import('../editor/tool'),

@@ -67,6 +67,11 @@ export function getPoolWaterResolution(visiblePoolCount: number) {
   return 64
 }
 
+/** Nested simulation render targets are not safe while the host owns an XR framebuffer. */
+export function shouldAdvancePoolWater(immersiveXR: boolean, isWebGPURenderer: boolean) {
+  return !immersiveXR && isWebGPURenderer
+}
+
 /**
  * Water uniforms update in place. This signature contains only properties
  * that require a new Three.js mesh or a different water elevation.

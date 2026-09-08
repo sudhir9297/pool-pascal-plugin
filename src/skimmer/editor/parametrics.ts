@@ -2,6 +2,7 @@ import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolSkimmerNode } from '../core/schema'
 
 export const poolSkimmerParametrics: ParametricDescriptor<PoolSkimmerNode> = {
+  trailingSection: () => import('../../editor/connections'),
   groups: [
     {
       label: 'Skimmer appearance',

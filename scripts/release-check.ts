@@ -6,6 +6,7 @@ const bun = process.execPath
 const releaseTag = process.env.RELEASE_TAG
 
 await runChecks([
+  { label: 'documentation', command: [bun, 'run', 'check-docs'] },
   {
     label: 'release metadata',
     command: [bun, 'run', 'check-release', ...(releaseTag ? ['--tag', releaseTag] : [])],

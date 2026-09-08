@@ -1,15 +1,14 @@
 'use client'
 
-import { useScene } from '@pascal-app/core'
 import { useMemo } from 'react'
 import { GeometryPreview } from '../../editor/geometry-preview'
-import { getPoolNode } from '../../editor/scene-nodes'
+import { useAttachmentPool } from '../../editor/attachment-pool'
 import { buildInletGeometry } from '../core/geometry'
 import type { PoolInletNode } from '../core/schema'
 import { resolveMountedInlet } from '../design/placement'
 
 export default function PoolInletPreview({ node }: { node: PoolInletNode }) {
-  const pool = useScene((state) => getPoolNode(state.nodes, node.poolId))
+  const pool = useAttachmentPool(node.poolId)
   const mountedNode = useMemo(() => resolveMountedInlet(node, pool), [node, pool])
   return <GeometryPreview node={mountedNode} buildGeometry={buildInletGeometry} geometryPosition={[0, mountedNode.verticalOffset, 0]}>
     {mountedNode.showFlow && <FlowArrow length={mountedNode.flowLength} verticalOffset={mountedNode.verticalOffset} />}

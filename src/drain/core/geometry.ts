@@ -1,8 +1,9 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Euler, Group, Mesh, MeshStandardMaterial, TorusGeometry, Vector3 } from 'three'
 import type { PoolDrainNode } from './schema'
+import { getDrainPortsLocal } from './ports'
 
 function getDrainPortLocalPosition(node: Pick<PoolDrainNode, 'bodyDepth'>): Vector3 {
-  return new Vector3(0, -node.bodyDepth * 1.4, 0)
+  return new Vector3(...getDrainPortsLocal({ ...node, diameter: 1 })[0]!.position)
 }
 
 export function getDrainPortDirection(node: Pick<PoolDrainNode, 'rotation'>): Vector3 {

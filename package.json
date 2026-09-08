@@ -24,7 +24,10 @@
   },
   "files": [
     "dist",
+    "docs",
     "README.md",
+    "CONTRIBUTING.md",
+    "CONTEXT.md",
     "CHANGELOG.md",
     "SECURITY.md"
   ],
@@ -33,6 +36,7 @@
     "provenance": true
   },
   "scripts": {
+    "check-docs": "bun run scripts/check-docs.ts",
     "check-architecture": "bun run scripts/check-architecture.ts",
     "check-package": "bun run scripts/check-package.ts",
     "package:release": "bun run scripts/create-release-package.ts",

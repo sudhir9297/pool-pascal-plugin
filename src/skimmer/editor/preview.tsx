@@ -1,15 +1,14 @@
 'use client'
 
-import { useScene } from '@pascal-app/core'
 import { useMemo } from 'react'
 import { GeometryPreview } from '../../editor/geometry-preview'
-import { getPoolNode } from '../../editor/scene-nodes'
+import { useAttachmentPool } from '../../editor/attachment-pool'
 import { buildSkimmerGeometry } from '../core/geometry'
 import type { PoolSkimmerNode } from '../core/schema'
 import { resolveMountedSkimmer } from '../design/placement'
 
 export default function PoolSkimmerPreview({ node }: { node: PoolSkimmerNode }) {
-  const pool = useScene((state) => getPoolNode(state.nodes, node.poolId))
+  const pool = useAttachmentPool(node.poolId)
   const mountedNode = useMemo(() => resolveMountedSkimmer(node, pool), [node, pool])
   return <GeometryPreview node={mountedNode} buildGeometry={buildSkimmerGeometry}>
     {mountedNode.showFlow && <FlowArrows />}

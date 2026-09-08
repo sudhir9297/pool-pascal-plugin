@@ -49,7 +49,7 @@ import {
 import { usePoolStore } from './store'
 import { findSharedPoolJoint } from '../design/shared-joint'
 import { PoolSharedJointNode } from '../shared-joint/core/schema'
-import { countNodesByType, createPoolPluginNode, getPoolNodes } from './scene-nodes'
+import { nextSwimmingPoolName, createPoolPluginNode, getPoolNodes } from './scene-nodes'
 
 type Point = [number, number]
 
@@ -93,12 +93,11 @@ function commitPoolDrawing(
     settings.shellThickness + settings.openingClearance,
   )
   const supportSlabId = constructionPlane?.supportSlabId ?? detectedSlabId
-  const poolCount = countNodesByType(scene.nodes, 'pool:pool')
   const pool = PoolNode.parse({
     ...settings,
     ...placement,
     ...(outlineControlPoints ? { outlineControlPoints } : {}),
-    name: `Swimming Pool ${poolCount + 1}`,
+    name: nextSwimmingPoolName(scene.nodes),
     parentId: levelId,
     polygon,
     position,

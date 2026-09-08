@@ -11,6 +11,7 @@ import {
   Vector3,
 } from 'three'
 import type { PoolHeaterNode } from './schema'
+import { getHeaterConnectionPortsLocal } from './ports'
 
 const UP = new Vector3(0, 1, 0)
 
@@ -26,21 +27,12 @@ export type HeaterPort = {
 export function getHeaterPortsLocal(
   node: Pick<PoolHeaterNode, 'bodyWidth' | 'bodyHeight' | 'bodyDepth' | 'portDiameter'>,
 ): HeaterPort[] {
-  const x = node.bodyWidth / 2 + node.portDiameter * 2.4
-  return [
-    {
-      role: 'inlet',
-      label: 'Cold-water inlet',
-      position: new Vector3(x, node.bodyHeight * 0.29, node.bodyDepth * 0.17),
-      direction: new Vector3(1, 0, 0),
-    },
-    {
-      role: 'outlet',
-      label: 'Heated-water outlet',
-      position: new Vector3(x, node.bodyHeight * 0.17, node.bodyDepth * 0.17),
-      direction: new Vector3(1, 0, 0),
-    },
-  ]
+  return getHeaterConnectionPortsLocal(node).map((port) => ({
+    role: port.id as HeaterPortRole,
+    label: port.id === 'inlet' ? 'Cold-water inlet' : 'Heated-water outlet',
+    position: new Vector3(...port.position),
+    direction: new Vector3(...port.direction),
+  }))
 }
 
 export function getHeaterPortPositions(node: PoolHeaterNode): Vector3[] {

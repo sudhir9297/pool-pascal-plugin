@@ -13,6 +13,8 @@ import {
 } from '../design/opening-sync'
 import { syncSharedPoolJoints } from '../design/shared-joint'
 import { syncPoolSpillovers } from '../spillover/design/sync'
+import { syncAutomaticPoolFittings } from '../design/sync-pool-fittings'
+import { poolAttachmentUpdates } from '../design/pool-attachments'
 
 function isOpeningRelevantNode(node: AnyNode | undefined) {
   const type = node?.type as string | undefined
@@ -21,7 +23,7 @@ function isOpeningRelevantNode(node: AnyNode | undefined) {
 
 function isConnectionRelevantNode(node: AnyNode | undefined) {
   const type = node?.type as string | undefined
-  return type === 'pool:pool' || type === 'pool:shared-joint' || type === 'pool:spillover'
+  return type?.startsWith('pool:') === true
 }
 
 function hasOpeningRelevantChange(
@@ -59,12 +61,20 @@ export function initializePoolOpeningSync() {
   let syncing = false
 
   const applyUpdates = (nodes: Record<string, AnyNode>) => {
-    const spilloverChanges = syncPoolSpillovers(nodes)
+    const fittingChanges = syncAutomaticPoolFittings(nodes)
+    const fittingNodes = { ...nodes }
+    for (const node of fittingChanges.create) fittingNodes[node.id] = node as unknown as AnyNode
+    for (const update of fittingChanges.update) {
+      fittingNodes[update.id] = { ...fittingNodes[update.id], ...update.data } as AnyNode
+    }
+    for (const id of fittingChanges.delete) delete fittingNodes[id]
+    const attachmentUpdates = poolAttachmentUpdates(fittingNodes)
+    const spilloverChanges = syncPoolSpillovers(fittingNodes)
     // Resolve spillover endpoints before deriving slab/ground openings. The
     // stored node can contain the initial placeholder position and length for
     // one render; using it here leaves the floor cut behind because this sync
     // pass suppresses its own follow-up notification.
-    const resolvedNodes = { ...nodes }
+    const resolvedNodes = { ...fittingNodes }
     for (const update of spilloverChanges.update) {
       const current = resolvedNodes[update.id]
       if (current) resolvedNodes[update.id] = { ...current, ...update.data } as AnyNode
@@ -84,21 +94,25 @@ export function initializePoolOpeningSync() {
       connectionChanges.delete.length === 0
       && spilloverChanges.update.length === 0
       && spilloverChanges.delete.length === 0
+      && attachmentUpdates.length === 0
+      && fittingChanges.create.length === 0
+      && fittingChanges.update.length === 0
+      && fittingChanges.delete.length === 0
     ) return
 
     syncing = true
     pauseSceneHistory(useScene)
     try {
       useScene.getState().applyNodeChanges({
-        create: groundChanges.create.map((node) => ({
+        create: [...groundChanges.create, ...fittingChanges.create].map((node) => ({
           node: node as unknown as AnyNode,
           parentId: node.parentId ?? undefined,
         })).concat(connectionChanges.create.map((node) => ({
           node: node as unknown as AnyNode,
           parentId: node.parentId ?? undefined,
         }))) as unknown as never,
-        update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update, ...spilloverChanges.update] as never,
-        delete: [...groundChanges.delete, ...connectionChanges.delete, ...spilloverChanges.delete] as never,
+        update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update, ...spilloverChanges.update, ...fittingChanges.update, ...attachmentUpdates] as never,
+        delete: [...groundChanges.delete, ...connectionChanges.delete, ...spilloverChanges.delete, ...fittingChanges.delete] as never,
       })
     } finally {
       resumeSceneHistory(useScene)

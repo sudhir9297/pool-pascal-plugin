@@ -5,6 +5,7 @@ const projectDirectory = fileURLToPath(new URL('../', import.meta.url))
 const bun = process.execPath
 
 await runChecks([
+  { label: 'documentation', command: [bun, 'run', 'check-docs'] },
   { label: 'architecture', command: [bun, 'run', 'check-architecture'] },
   { label: 'types', command: [bun, 'run', 'check-types'] },
   { label: 'tests', command: [bun, 'test'] },

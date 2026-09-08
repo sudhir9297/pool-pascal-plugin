@@ -12,14 +12,10 @@ import {
   Vector3,
 } from 'three'
 import type { PoolPumpNode } from './schema'
+import { getPumpPortsLocal, PUMP_BASE_LIFT } from './ports'
 
 const Y_AXIS = new Vector3(0, 1, 0)
 const Z_AXIS = new Vector3(0, 0, 1)
-
-/** Stored pump positions follow the host's floor surface; this is the model's base lift. */
-const PUMP_BASE_LIFT = 0.27
-
-const PUMP_PORT_DIRECTIONS = [new Vector3(0, 0, 1), new Vector3(0, 1, 0)] as const
 
 function identify<T extends Mesh>(mesh: T, name: string, role = 'body'): T {
   mesh.name = name
@@ -72,15 +68,7 @@ function addPortFace(
 export function getPumpPortLocalPositions(
   node: Pick<PoolPumpNode, 'bodyDepth' | 'bodyHeight' | 'diameter'>,
 ): Vector3[] {
-  const inletY = -node.bodyHeight * 0.53 + node.bodyHeight * 1.05 * 0.63
-  const inletZ = node.bodyDepth / 2 + Math.max(0.12, node.diameter * 2.6)
-  const outletY = Math.max(node.bodyHeight * 0.72, node.bodyHeight * 0.52 + node.diameter * 0.9)
-
-  // Port order is part of the public connection contract: inlet first, outlet second.
-  return [
-    new Vector3(0, inletY + PUMP_BASE_LIFT, inletZ),
-    new Vector3(0, outletY + PUMP_BASE_LIFT, -node.bodyDepth * 0.025),
-  ]
+  return getPumpPortsLocal(node).map((port) => new Vector3(...port.position))
 }
 
 export function getPumpPortPositions(node: PoolPumpNode): Vector3[] {
@@ -108,7 +96,9 @@ export function buildPumpGeometry(node: PoolPumpNode): Group {
   const height = node.bodyHeight
   const depth = node.bodyDepth
   const pipeRadius = node.diameter / 2
-  const ports = getPumpPortLocalPositions(node).map((port) => port.clone().setY(port.y - PUMP_BASE_LIFT))
+  const portDefinitions = getPumpPortsLocal(node)
+  const ports = portDefinitions.map((port) => new Vector3(...port.position).setY(port.position[1] - PUMP_BASE_LIFT))
+  const portDirections = portDefinitions.map((port) => new Vector3(...port.direction))
 
   // Long molded rails keep the full assembly above the host floor.
   const railY = -PUMP_BASE_LIFT + height * 0.08
@@ -199,12 +189,12 @@ export function buildPumpGeometry(node: PoolPumpNode): Group {
   addCylinder(
     group,
     'inlet-union',
-    inletPort.clone().addScaledVector(PUMP_PORT_DIRECTIONS[0], -node.diameter * 1.8),
+    inletPort.clone().addScaledVector(portDirections[0]!, -node.diameter * 1.8),
     inletPort,
     pipeRadius * 1.95,
     blackEdge,
   )
-  addPortFace(group, 'pump-port-inlet-face', inletPort, PUMP_PORT_DIRECTIONS[0], pipeRadius, inletMaterial)
+  addPortFace(group, 'pump-port-inlet-face', inletPort, portDirections[0]!, pipeRadius, inletMaterial)
 
   // Rounded volute bridges the strainer pot into the motor shaft.
   const volute = identify(new Mesh(new SphereGeometry(1, 32, 20), blackSoft), 'volute-housing')
@@ -230,12 +220,12 @@ export function buildPumpGeometry(node: PoolPumpNode): Group {
   addCylinder(
     group,
     'outlet-union',
-    outletPort.clone().addScaledVector(PUMP_PORT_DIRECTIONS[1], -node.diameter * 1.8),
+    outletPort.clone().addScaledVector(portDirections[1]!, -node.diameter * 1.8),
     outletPort,
     pipeRadius * 1.95,
     blackEdge,
   )
-  addPortFace(group, 'pump-port-outlet-face', outletPort, PUMP_PORT_DIRECTIONS[1], pipeRadius, outletMaterial)
+  addPortFace(group, 'pump-port-outlet-face', outletPort, portDirections[1]!, pipeRadius, outletMaterial)
 
   // Teal motor shell with longitudinal cooling ribs.
   const motorRadius = Math.min(width * 0.29, height * 0.37)

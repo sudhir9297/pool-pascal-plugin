@@ -2,6 +2,7 @@ import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolFilterNode } from '../core/schema'
 
 export const poolFilterParametrics: ParametricDescriptor<PoolFilterNode> = {
+  trailingSection: () => import('../../editor/connections'),
   groups: [
     {
       label: 'Filter settings',

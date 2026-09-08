@@ -56,6 +56,7 @@ export const poolHostPanel: PoolHostPanel = {
 // `document` at module scope and would crash SSR (this barrel is eagerly
 // imported by host bootstraps). Lazy client modules import it directly.
 export { poolDefinition } from './core/definition'
+export { planDwvConnection } from './core/dwv-connection'
 export { poolSkimmerDefinition } from './skimmer/core/definition'
 export { poolValveDefinition } from './valve/core/definition'
 export { poolPumpDefinition } from './pump/core/definition'

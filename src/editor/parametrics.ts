@@ -1,7 +1,9 @@
+import PoolFittingSummary from './fitting-summary'
+import { planPoolFittings } from '../design/pool-fitting-layout'
 import type { ParametricDescriptor } from '@pascal-app/core'
 import { POOL_ENTRY_FEATURES } from '../design/entry-features'
 import { POOL_FLOOR_PROFILES } from '../design/depth-profile'
-import { POOL_SHAPES, isDrawnPoolShape } from '../design/shapes'
+import { POOL_SHAPES, createPoolShapePolygon, isDrawnPoolShape } from '../design/shapes'
 import { triggerPoolWaterAction } from '../shader/water-actions'
 import { WATER_PRESETS, getWaterPresetSettings } from '../shader/water-presets'
 import type { PoolNode } from '../core/schema'
@@ -9,7 +11,20 @@ import { POOL_FINISHES } from '../design/pool-finishes'
 import { POOL_VISUAL_PRESETS, getPoolVisualPreset } from '../design/visual-presets'
 
 export const poolParametrics: ParametricDescriptor<PoolNode> = {
+  invariants: [(node) => node.automaticFittings
+    ? planPoolFittings(node).issues.map((msg) => ({ msg, severity: 'warning' as const }))
+    : []],
   groups: [
+    {
+      label: 'Automatic fittings · planning estimates',
+      fields: [
+        { key: 'automaticFittings', kind: 'boolean' },
+        { key: 'fittingSummary', kind: 'custom', component: PoolFittingSummary, visibleIf: (node) => node.automaticFittings },
+        { key: 'turnoverHours', kind: 'number', unit: 'h', min: 1, max: 24, step: 1, visibleIf: (node) => node.automaticFittings },
+        { key: 'fittingFlowRate', kind: 'number', unit: 'm³/h (0 = estimate)', min: 0, max: 10000, step: 1, visibleIf: (node) => node.automaticFittings },
+        { key: 'drainFlowCapacity', kind: 'number', unit: 'm³/h per outlet', min: 1, max: 1000, step: 1, visibleIf: (node) => node.automaticFittings },
+      ],
+    },
     {
       label: 'Pool geometry',
       fields: [
@@ -70,7 +85,12 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     { label: 'Reset surface', onClick: (node) => triggerPoolWaterAction(node.id, 'reset') },
   ],
   derive: (next, patch) => {
-    const derived = 'visualPreset' in patch ? getPoolVisualPreset(next.visualPreset) : {}
+    const derived = {
+      ...('visualPreset' in patch ? getPoolVisualPreset(next.visualPreset) : {}),
+      ...(!isDrawnPoolShape(next.shape) && ('length' in patch || 'width' in patch || 'shape' in patch)
+        ? { polygon: createPoolShapePolygon(next.shape, next.length, next.width), outlineControlPoints: [] }
+        : {}),
+    }
     return 'waterPreset' in patch
       ? { ...derived, ...getWaterPresetSettings(next.waterPreset) }
       : derived

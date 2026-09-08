@@ -2,6 +2,7 @@ import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolValveNode } from '../core/schema'
 
 export const poolValveParametrics: ParametricDescriptor<PoolValveNode> = {
+  trailingSection: () => import('../../editor/connections'),
   groups: [
     {
       label: 'Valve settings',

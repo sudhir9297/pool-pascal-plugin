@@ -1,10 +1,9 @@
 'use client'
 
-import { useScene } from '@pascal-app/core'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh } from 'three'
-import { getPoolNode } from '../../../editor/scene-nodes'
+import { useAttachmentPool } from '../../../editor/attachment-pool'
 import { usePoolNodeHost } from '../../../editor/node-host'
 import type {
   WaterfallBubbleCloudEffect,
@@ -26,7 +25,7 @@ type WaterfallEffect =
 export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode }) {
   const rootRef = useRef<Group>(null!)
   const handlers = usePoolNodeHost(node, rootRef)
-  const pool = useScene((state) => getPoolNode(state.nodes, node.poolId))
+  const pool = useAttachmentPool(node.poolId)
   const mounted = useMemo(() => resolveMountedWaterfall(node, pool), [node, pool])
   const geometry = useMemo(() => buildWaterfallGeometry(mounted), [mounted])
   const effects = useMemo(() => {

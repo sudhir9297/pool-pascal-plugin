@@ -12,13 +12,15 @@ import {
   Vector3,
 } from 'three'
 import type { PoolFilterNode } from './schema'
+import {
+  FILTER_FLOOR_CLEARANCE,
+  getFilterConnectionPortsLocal,
+  type FilterPortRole,
+} from './ports'
 
 const Y_AXIS = new Vector3(0, 1, 0)
 
-/** The model starts this far above its placement plane to avoid z-fighting. */
-export const FILTER_FLOOR_CLEARANCE = 0.012
-
-export type FilterPortRole = 'inlet' | 'outlet' | 'waste'
+export { FILTER_FLOOR_CLEARANCE, type FilterPortRole } from './ports'
 
 export type FilterPort = {
   role: FilterPortRole
@@ -92,38 +94,12 @@ function addHorizontalRing(group: Group, radius: number, y: number, tube: number
  * mesh. The same values drive the visible socket and connection port.
  */
 export function getFilterPortsLocal(node: FilterGeometryNode): FilterPort[] {
-  const { radius, tankBottom, valveCenterY, valveRadius } = getFilterLayout(node)
-  const sideExtent = Math.max(radius * 0.9, valveRadius + node.portDiameter * 3.2)
-  const sideLift = Math.min(node.bodyHeight * 0.035, 0.035)
-  const ports: FilterPort[] = [
-    {
-      role: 'inlet',
-      label: 'Pump inlet',
-      position: new Vector3(-sideExtent, valveCenterY - sideLift, 0),
-      direction: new Vector3(-1, 0, 0),
-    },
-    {
-      role: 'outlet',
-      label: 'Pool return',
-      position: new Vector3(sideExtent, valveCenterY + sideLift, 0),
-      direction: new Vector3(1, 0, 0),
-    },
-  ]
-
-  if (node.technology !== 'cartridge') {
-    const wasteY = Math.max(
-      tankBottom + node.bodyHeight * 0.035,
-      FILTER_FLOOR_CLEARANCE + node.portDiameter * 1.7,
-    )
-    ports.push({
-      role: 'waste',
-      label: 'Waste / backwash',
-      position: new Vector3(0, wasteY, radius + node.portDiameter * 1.7),
-      direction: new Vector3(0, 0, 1),
-    })
-  }
-
-  return ports
+  return getFilterConnectionPortsLocal(node).map((port) => ({
+    role: port.id,
+    label: port.label,
+    position: new Vector3(...port.position),
+    direction: new Vector3(...port.direction),
+  }))
 }
 
 export function getFilterPortPositions(node: PoolFilterNode): Vector3[] {

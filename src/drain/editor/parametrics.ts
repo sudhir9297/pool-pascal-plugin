@@ -2,6 +2,7 @@ import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolDrainNode } from '../core/schema'
 
 export const poolDrainParametrics: ParametricDescriptor<PoolDrainNode> = {
+  trailingSection: () => import('../../editor/connections'),
   groups: [
     {
       label: 'Drain settings',

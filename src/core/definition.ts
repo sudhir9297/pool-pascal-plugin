@@ -165,10 +165,11 @@ export function poolFloorplan(node: PoolNode, ctx?: GeometryContext): FloorplanG
 
 export const poolDefinition: PoolDefinition = {
   kind: 'pool:pool',
-  schemaVersion: 23,
+  schemaVersion: 24,
   schema: PoolNode,
   category: 'furnish',
   snapProfile: 'item',
+  relations: { hosts: ['pool:skimmer', 'pool:inlet', 'pool:drain', 'pool:stair', 'pool:waterfall'], cascadeDelete: 'descendants' },
   defaults: () => ({
     object: 'node', parentId: null, visible: true, metadata: {},
     position: [0, 0, 0], rotation: [0, 0, 0], ...DEFAULT_POOL,

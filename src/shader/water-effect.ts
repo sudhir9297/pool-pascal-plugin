@@ -193,6 +193,21 @@ function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
   }
 }
 
+/**
+ * XR-safe water presentation without viewport-copy or nested render-target nodes.
+ * The animated desktop material cannot share Three's immersive output target.
+ */
+export function createImmersiveXRPoolWaterMaterial(settings: Partial<WaterSettings>) {
+  const resolved = resolveWaterSettings(settings)
+  return new MeshBasicNodeMaterial({
+    color: resolved.waterColor,
+    depthWrite: false,
+    opacity: 0.72,
+    side: FrontSide,
+    transparent: true,
+  })
+}
+
 type TextureNodeLike = ReturnType<typeof texture> & { value: Texture }
 
 function makeTarget(resolution: number) {

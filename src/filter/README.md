@@ -1,12 +1,39 @@
-# Pool filter data
+# Pool filter feature
 
-This directory contains the filter catalog, node schema, procedural Three.js
-model, connection ports, placement tool, and editor controls.
+This vertical slice implements the `pool:filter` node, its representative model
+catalog, procedural geometry, editor integration, and connection ports.
+
+## Behavior
+
+Supported technologies are `cartridge`, `sand`, and `diatomaceous-earth`. The
+default catalog entry is `sand-standard-600`. Choosing a catalog entry supplies
+the technology, tank dimensions, connection diameter, descriptive flow range,
+and filtration area. The node can then retain editable geometry values.
+
+Catalog ratings are reference metadata. The feature does not size a filter from
+pool volume, turnover target, plumbing loss, or local requirements.
 
 ## Data layout
 
-Each catalog entry should describe one filter model and keep physical values in
-SI units (metres, cubic metres per hour, and square metres). Add manufacturer
-or product-specific details to the optional `metadata` object. Geometry-driving
-values belong in `tank` and `connectionDiameter`, so changing catalog models
-updates the visible model and connection ports together.
+Keep each catalog entry data-only and use SI units:
+
+- Dimensions and connection diameters in metres
+- Flow ranges in cubic metres per hour
+- Filtration area in square metres
+
+Geometry-driving values belong in `tank` and `connectionDiameter`, so changing a
+catalog model updates the visible tank and connection ports together. Optional
+manufacturer or maintenance details belong in `metadata` and must not control
+geometry.
+
+## Layout
+
+```text
+filter/
+  core/       schema, definition, geometry, and connection ports
+  data/       catalog entries and data-only types
+  editor/     placement, preview, parametrics, and rendering adapter
+```
+
+Add catalog tests when changing identifiers or values. Add geometry and port
+tests when a catalog field begins to affect the rendered model.

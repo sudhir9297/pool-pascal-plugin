@@ -114,7 +114,22 @@ const forbidden = publishedPaths.filter((path) => (
   || /\.test\.[cm]?[jt]sx?$/.test(path)
 ))
 invariant(forbidden.length === 0, `Package contains forbidden files: ${forbidden.join(', ')}`)
-for (const required of ['LICENSE', 'README.md', 'CHANGELOG.md', 'SECURITY.md', 'package.json', 'dist/index.js', 'dist/index.d.ts']) {
+for (const required of [
+  'LICENSE',
+  'README.md',
+  'CONTRIBUTING.md',
+  'CONTEXT.md',
+  'CHANGELOG.md',
+  'SECURITY.md',
+  'docs/README.md',
+  'docs/architecture.md',
+  'docs/node-reference.md',
+  'docs/public-api.md',
+  'docs/testing-and-release.md',
+  'package.json',
+  'dist/index.js',
+  'dist/index.d.ts',
+]) {
   invariant(publishedPaths.includes(required), `Package is missing ${required}`)
 }
 

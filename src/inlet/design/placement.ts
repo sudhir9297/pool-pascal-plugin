@@ -7,6 +7,6 @@ export const findNearestInletWall = findNearestSkimmerWall
 
 export function resolveMountedInlet(node: PoolInletNode, pool: PoolNode | null | undefined): PoolInletNode {
   if (!pool || node.poolId !== pool.id) return node
-  const placement = placementOnPoolWall(pool, node.wallIndex, node.wallT)
+  const placement = placementOnPoolWall(node.parentId === pool.id ? { ...pool, position: [0, 0, 0], rotation: [0, 0, 0] } : pool, node.wallIndex, node.wallT)
   return placement ? { ...node, position: placement.position, rotation: placement.rotation } : node
 }

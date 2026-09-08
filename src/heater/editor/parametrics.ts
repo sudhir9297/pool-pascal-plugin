@@ -2,6 +2,7 @@ import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolHeaterNode } from '../core/schema'
 
 export const poolHeaterParametrics: ParametricDescriptor<PoolHeaterNode> = {
+  trailingSection: () => import('../../editor/connections'),
   groups: [
     {
       label: 'Heater settings',

@@ -23,7 +23,7 @@ export default function PoolInletTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const pools = getPoolNodes(useScene.getState().nodes)
+      const pools = getPoolNodes(useScene.getState().nodes, levelId)
       return findNearestInletWall([x, z], pools)
     }
     const onMove = (event: GridEvent) => {

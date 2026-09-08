@@ -6,6 +6,7 @@ import {
   getPoolGeometrySignature,
   getPoolRippleUv,
   getPoolWaterResolution,
+  shouldAdvancePoolWater,
   selectPoolRenderNodes,
 } from './pool-render-state'
 
@@ -14,6 +15,12 @@ function pool(id: string) {
 }
 
 describe('pool render state', () => {
+  test('does not run nested water render passes during immersive XR', () => {
+    expect(shouldAdvancePoolWater(true, true)).toBe(false)
+    expect(shouldAdvancePoolWater(false, true)).toBe(true)
+    expect(shouldAdvancePoolWater(false, false)).toBe(false)
+  })
+
   test('ignores unrelated scene nodes but retains connected pools and connections', () => {
     const first = pool('pool_first')
     const second = pool('pool_second')

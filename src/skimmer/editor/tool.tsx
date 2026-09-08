@@ -24,7 +24,7 @@ export default function PoolSkimmerTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const poolNodes = getPoolNodes(useScene.getState().nodes)
+      const poolNodes = getPoolNodes(useScene.getState().nodes, levelId)
       const next = findNearestPoolWall([x, z], poolNodes)
       setPlacement(next)
       if (cursorRef.current && next) cursorRef.current.position.set(next.position[0], next.position[1], next.position[2])
@@ -34,7 +34,7 @@ export default function PoolSkimmerTool() {
       const local = worldPointToPoolLevel(level, event.position)
       const step = isGridSnapActive() ? useEditor.getState().gridSnapStep : 0
       const [x, z] = snapPointToGrid([local[0], local[2]], step)
-      const poolNodes = getPoolNodes(useScene.getState().nodes)
+      const poolNodes = getPoolNodes(useScene.getState().nodes, levelId)
       const next = findNearestPoolWall([x, z], poolNodes)
       if (!next) return
       const count = countNodesByType(useScene.getState().nodes, 'pool:skimmer')

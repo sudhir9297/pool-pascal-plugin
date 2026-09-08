@@ -153,6 +153,7 @@ export function placementOnPoolBoundary(pool: PoolNode, wallIndex: number, wallT
 
 export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode | null | undefined): PoolWaterfallNode {
   if (!pool || node.poolId !== pool.id) return node
+  if (node.parentId === pool.id) pool = { ...pool, position: [0, 0, 0], rotation: [0, 0, 0] }
   const dimensions = node.autoSizeOnPool && node.waterfallType === 'modern'
     ? getMountedWaterfallDimensions(pool, node.wallIndex)
     : null

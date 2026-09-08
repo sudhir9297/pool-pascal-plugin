@@ -13,15 +13,20 @@ import { getPoolOverlaps } from '../design/pool-overlap'
 import { getPoolSpilloverNotches } from '../design/spillover-notch'
 import { getPoolConnectionRegions } from '../design/shared-joint'
 import { subscribePoolWaterActions } from '../shader/water-actions'
-import type { PoolWaterEffect } from '../shader/water-effect'
+import {
+  createImmersiveXRPoolWaterMaterial,
+  type PoolWaterEffect,
+} from '../shader/water-effect'
 import {
   countPools,
   getPoolGeometrySignature,
   getPoolRippleUv,
   getPoolWaterResolution,
   selectPoolRenderNodes,
+  shouldAdvancePoolWater,
 } from './pool-render-state'
 import { usePoolNodeHost } from './node-host'
+import { AttachmentPoolContext } from './attachment-pool'
 
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const ref = useRef<Group>(null!)
@@ -50,24 +55,27 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     return (connection.sourcePoolId === node.id || connection.targetPoolId === node.id) && Boolean(state.get(connection.id))
   }))
   const suppressSpilloverGeometry = Boolean(liveOverride) || spilloverEditInProgress
-  const pool = useMemo(
-    () => buildPoolGeometry(geometryNode, {
-      overlaps: getPoolOverlaps(geometryNode, sceneNodes),
-      // Live transforms can leave the committed connection endpoint briefly
-      // stale. Hide its cuts during that frame; the committed sync rebuilds
-      // them once the edit is released.
-      spilloverNotches: suppressSpilloverGeometry ? [] : getPoolSpilloverNotches(geometryNode, sceneNodes),
-      removeWallRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
-      removeFloorRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
-      removeWaterRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
-      waterResolution,
-    }),
-    [geometryNode, sceneNodes, suppressSpilloverGeometry, waterResolution],
-  )
+  const pool = useMemo(() => buildPoolGeometry(geometryNode, {
+    overlaps: getPoolOverlaps(geometryNode, sceneNodes),
+    // Live transforms can leave the committed connection endpoint briefly
+    // stale. Hide its cuts during that frame; the committed sync rebuilds
+    // them once the edit is released.
+    spilloverNotches: suppressSpilloverGeometry
+      ? []
+      : getPoolSpilloverNotches(geometryNode, sceneNodes),
+    removeWallRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+    removeFloorRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+    removeWaterRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
+    waterResolution,
+  }), [geometryNode, sceneNodes, suppressSpilloverGeometry, waterResolution])
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.
   const handlers = usePoolNodeHost(node, ref)
   const waterEffect = pool.userData.waterEffect as PoolWaterEffect
+  const immersiveWaterMaterial = useMemo(
+    () => createImmersiveXRPoolWaterMaterial({ waterColor: node.waterColor }),
+    [node.waterColor],
+  )
   const localWaterBounds = useMemo(
     () => new Box3().setFromObject(pool).getBoundingSphere(new Sphere()),
     [pool],
@@ -98,12 +106,25 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   useFrame(({ camera, gl, invalidate }, delta) => {
     const root = ref.current
     if (!root || node.visible === false) return
+    const immersiveXR = Boolean(
+      (gl as unknown as { xr?: { isPresenting?: boolean } }).xr?.isPresenting,
+    )
+    const water = pool.getObjectByName('pool-water') as Mesh | undefined
+    if (water) {
+      const nextMaterial = immersiveXR ? immersiveWaterMaterial : waterEffect.material
+      if (water.material !== nextMaterial) water.material = nextMaterial
+    }
     root.updateWorldMatrix(true, false)
     viewProjection.current.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     viewFrustum.current.setFromProjectionMatrix(viewProjection.current)
     worldWaterBounds.current.copy(localWaterBounds).applyMatrix4(root.matrixWorld)
     if (!viewFrustum.current.intersectsSphere(worldWaterBounds.current)) return
-    if ((gl as unknown as { isWebGPURenderer?: boolean }).isWebGPURenderer) {
+    if (
+      shouldAdvancePoolWater(
+        immersiveXR,
+        Boolean((gl as unknown as { isWebGPURenderer?: boolean }).isWebGPURenderer),
+      )
+    ) {
       waterEffect.update(gl as unknown as WebGPURenderer, delta)
     }
     // Keep demand-driven hosts rendering while animated uniforms and the
@@ -134,6 +155,11 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   }, [node.id])
 
   useEffect(
+    () => () => immersiveWaterMaterial.dispose(),
+    [immersiveWaterMaterial],
+  )
+
+  useEffect(
     () => () => {
       waterEffect.dispose()
       pool.traverse((child) => {
@@ -157,9 +183,9 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
       onPointerUp={onPointerUp}
     >
       <primitive object={pool} />
-      {node.children?.map((childId) => (
+      <AttachmentPoolContext.Provider value={node}>{node.children?.map((childId) => (
         <NodeRenderer key={`${node.id}:${childId}`} nodeId={childId as never} />
-      ))}
+      ))}</AttachmentPoolContext.Provider>
     </group>
   )
 }

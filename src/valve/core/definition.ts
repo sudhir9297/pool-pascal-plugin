@@ -1,6 +1,8 @@
 import { useEditor } from '@pascal-app/editor'
 import { useScene, type AnyNode, type NodeDefinition } from '@pascal-app/core'
+import { connectionPorts } from '../../core/connection-ports'
 import { DEFAULT_POOL_VALVE, PoolValveNode } from './schema'
+import { getValvePortsLocal } from './ports'
 import { poolValveParametrics } from '../editor/parametrics'
 
 export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
@@ -8,7 +10,7 @@ export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
   schemaVersion: 1,
   schema: PoolValveNode,
   category: 'furnish',
-  distributionRole: 'run',
+  distributionRole: 'fitting',
   snapProfile: 'item',
   defaults: () => ({
     object: 'node',
@@ -18,7 +20,7 @@ export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
     ...DEFAULT_POOL_VALVE,
   }),
   capabilities: {
-    movable: { axes: ['x', 'y', 'z'], gridSnap: true },
+    movable: { axes: ['x', 'y', 'z'], gridSnap: true, cursorAttached: true, portSnap: { systems: ['waste'] } },
     rotatable: { axes: ['x', 'y', 'z'] },
     selectable: { hitVolume: 'bbox' },
     duplicable: true,
@@ -26,6 +28,7 @@ export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
     groupable: true,
     snappable: {},
   },
+  ports: (node) => connectionPorts(node, getValvePortsLocal(node)),
   keyboardActions: {
     axisCycling: true,
     r: {

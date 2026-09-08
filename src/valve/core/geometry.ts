@@ -1,5 +1,6 @@
 import { CylinderGeometry, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry, Vector3 } from 'three'
 import type { PoolValveNode } from './schema'
+import { getValvePortsLocal } from './ports'
 
 const AXIS = new Vector3(0, 1, 0)
 
@@ -13,9 +14,7 @@ function addCylinder(group: Group, start: Vector3, end: Vector3, radius: number,
 
 /** The 3-way body is a horizontal T: left, right, and a common front port. */
 function getValvePortLocalPositions(node: Pick<PoolValveNode, 'variant'>): Vector3[] {
-  return node.variant === 'two-way'
-    ? [new Vector3(0, 0, -0.28), new Vector3(0, 0, 0.28)]
-    : [new Vector3(-0.28, 0, 0), new Vector3(0.28, 0, 0), new Vector3(0, 0, -0.28)]
+  return getValvePortsLocal({ ...node, diameter: 1 }).map((port) => new Vector3(...port.position))
 }
 
 /**

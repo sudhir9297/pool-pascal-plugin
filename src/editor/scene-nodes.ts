@@ -1,5 +1,7 @@
 import { useScene, type AnyNode } from '@pascal-app/core'
-import type { PoolNode } from '../core/schema'
+import { PoolNode } from '../core/schema'
+import { createDefaultPoolAttachments } from '../design/default-pool-attachments'
+import { resolvePoolAttachment } from '../design/pool-attachments'
 
 export const POOL_PLUGIN_NODE_TYPES = [
   'pool:pool',
@@ -41,11 +43,36 @@ export function countNodesByType(nodes: Record<string, unknown>, type: PoolPlugi
   return count
 }
 
+export function nextSwimmingPoolName(nodes: Record<string, unknown>) {
+  const used = new Set(Object.values(nodes).flatMap((value) => {
+    if (!value || typeof value !== 'object') return []
+    const name = (value as { name?: unknown }).name
+    return typeof name === 'string' ? [name.toLowerCase()] : []
+  }))
+  let number = 1
+  while (used.has(`swimming pool ${number}`)) number += 1
+  return `Swimming pool ${number}`
+}
+
 export function createPoolPluginNode(
   node: { id: string; type: PoolPluginNodeType },
   parentId: string,
 ) {
-  useScene.getState().createNode(node as unknown as AnyNode, parentId as never)
+  if (node.type === 'pool:pool') {
+    const pool = PoolNode.parse({ ...node, automaticFittings: true })
+    const children = createDefaultPoolAttachments(pool)
+    useScene.getState().applyNodeChanges({
+      create: [
+        { node: pool as unknown as AnyNode, parentId: parentId as never },
+        ...children.map((child) => ({ node: child as unknown as AnyNode, parentId: pool.id as never })),
+      ],
+    })
+    return
+  }
+  const poolId = (node as { poolId?: string }).poolId
+  const pool = getPoolNode(useScene.getState().nodes, poolId)
+  const attached = pool ? resolvePoolAttachment(node, pool) : null
+  useScene.getState().createNode((attached ?? node) as unknown as AnyNode, (attached?.parentId ?? parentId) as never)
 }
 
 export function getPoolNode(nodes: Record<string, unknown>, id: string | null | undefined) {

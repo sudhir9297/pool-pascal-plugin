@@ -1,17 +1,38 @@
-# PVC valve research
+# PVC valve model
 
-Initial valve modeling is based on common thermoplastic pool and process-piping designs:
+Research checked 2026-09-07. Implementation status was reconciled with the code
+on 2026-09-08.
 
-- A 2-way ball valve has one inlet and one outlet and is used for shutoff.
-- A 3-way ball valve adds a third port for diverting or mixing flow.
-- 3-way valves are commonly specified with an L-port or T-port ball. The external body can be the same, while the internal passage pattern changes with the handle position. The first model therefore uses one 3-way body and leaves the internal flow pattern for a later behavior pass.
-- A typical horizontal T-port valve has four useful positions: left-to-right, common-to-left, all three ports, and common-to-right. Each quarter-turn changes which passages line up.
-- True-union ends are a useful fit for this plugin because each side presents a distinct PVC socket/union connection that can be connected to a pipe run.
+## Model basis
 
-Sources:
+- A two-way valve has two sockets and represents shutoff with `open` and `closed`
+  states.
+- A three-way valve has left, right, and branch sockets for diverting or mixing.
+- True-union-style collars make each socket readable as a connection point.
+- The external body remains the same while the selected internal path changes.
+
+## Implemented flow patterns
+
+| Variant | Saved pattern | Visible connection |
+| --- | --- | --- |
+| Two-way | `open` | Left to right |
+| Two-way | `closed` | None |
+| Three-way | `left-right` | Left to right |
+| Three-way | `left-branch` | Left to branch |
+| Three-way | `right-branch` | Right to branch |
+| Three-way | `all` or `open` | All three pairs |
+| Three-way | `closed` | None |
+
+The selected pattern changes socket highlighting and the visible internal path.
+All physical sockets remain available as pipe connection points because valve
+state must not change the plumbing topology.
+
+The model includes the body, union collars, sockets, bonnet, stem, handle, and
+internal path. It does not simulate pressure, valve losses, actuator behavior,
+mixing ratios, or hydraulic state.
+
+## Sources
 
 - [Hayward Flow Control LA1300TE](https://www.haywardflowcontrol.com/en_us/products/thermoplastic-valves/ball-valves/three-way-true-union-ball-valves/la1300te)
-- [Valtorc Series 400 3-way PVC valve](https://valtorc.com/valves/ball-valves/pvc-cpvc-ball-valves/true-union-3-way-pvc-valve-specs/)
-- [Spears Valves Technical reference](https://parts.spearsmfg.com/sourcebook/VALTECH_VAL_TU2VO_T.pdf)
-
-The implementation is visual and parametric. It models the valve body, union collars, socket centers, stem, handle, and the selected opening pattern; hydraulic simulation is outside the scope of this plugin.
+- [Valtorc Series 400 three-way PVC valve](https://valtorc.com/valves/ball-valves/pvc-cpvc-ball-valves/true-union-3-way-pvc-valve-specs/)
+- [Spears valves technical reference](https://parts.spearsmfg.com/sourcebook/VALTECH_VAL_TU2VO_T.pdf)
