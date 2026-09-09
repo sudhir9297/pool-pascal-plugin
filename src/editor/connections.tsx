@@ -73,7 +73,6 @@ function ConnectionForm({ nodeId, local, index }: { nodeId: Parameters<typeof fi
       </select>
     </label>
     {destination && !plan && <p className="px-3 py-1 text-xs text-muted-foreground" role="status">These socket sizes or systems do not match. An adapter is needed.</p>}
-    {plan && <p className="px-3 py-1 text-xs text-muted-foreground">PVC · {plan.diameter.toFixed(2)}″ · Below-floor route with elbows</p>}
     <ActionGroup>
       <ActionButton className="disabled:pointer-events-none disabled:opacity-40" disabled={!plan} label="Create pipe" onClick={create} />
     </ActionGroup>

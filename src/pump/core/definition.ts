@@ -2,6 +2,7 @@ import type { NodeDefinition } from '@pascal-app/core'
 import { connectionPorts } from '../../core/connection-ports'
 import { getPumpPortsLocal } from './ports'
 import { DEFAULT_POOL_PUMP, PoolPumpNode } from './schema'
+import { insertionDeletionHooks } from '../../editor/insertion-deletion'
 
 export const poolPumpDefinition: NodeDefinition<typeof PoolPumpNode> = {
   kind: 'pool:pump',
@@ -22,6 +23,7 @@ export const poolPumpDefinition: NodeDefinition<typeof PoolPumpNode> = {
   },
   ports: (node) => connectionPorts(node, getPumpPortsLocal(node)),
   parametrics: {
+    ...insertionDeletionHooks,
     groups: [{ label: 'Transform', fields: [{ key: 'position', kind: 'vec3' }, { key: 'rotation', kind: 'vec3' }] }],
     trailingSection: () => import('../../editor/connections'),
   },

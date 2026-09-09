@@ -46,13 +46,17 @@ export function routePipe(
   start: RoutePoint, end: RoutePoint, startDirection: RoutePoint, endDirection: RoutePoint,
   obstacles: RouteObstacle[], lead: number, fittingLeg: number,
   belowY?: number,
+  allowComplex = true,
+  endLead = lead,
+  maxY = Infinity,
 ): RoutePoint[] | null {
   const directions = [new Vector3(...startDirection), new Vector3(...endDirection)]
   if (directions.some((d) => !Number.isFinite(d.length()) || d.length() < EPS)) return null
   directions.forEach((d) => d.normalize())
   const endpoints = [start, end]
   const tips = endpoints.map((point, index) => {
-    let length = lead
+    const approach = index === 1 ? endLead : lead
+    let length = approach
     const direction = directions[index]!
     for (const box of obstacles) {
       if (!contains(box, point) || !(index === 0 ? box.startHost : box.endHost)) continue
@@ -61,7 +65,7 @@ export function routePipe(
         if (Math.abs(component) < EPS) return []
         return [((component > 0 ? box.max[axis]! : box.min[axis]!) - point[axis]!) / component]
       })
-      length = Math.max(length, Math.min(...exits) + lead)
+      length = Math.max(length, Math.min(...exits) + approach)
     }
     return new Vector3(...point).addScaledVector(direction, length).toArray() as RoutePoint
   })
@@ -77,10 +81,11 @@ export function routePipe(
   }
   let best: RoutePoint[] | null = null, bestCost = Infinity
   const consider = (middle: RoutePoint[]) => {
+    if (middle.some(point => point[1] > maxY + EPS)) return
     if (!clear(middle)) return
     const route = simplify([start, ...middle, end])
     const vectors = route.slice(1).map((p, i) => new Vector3(...p).sub(new Vector3(...route[i]!)))
-    if (vectors.some((v, i) => v.length() < fittingLeg * ((i > 0 ? 1 : 0) + (i < vectors.length - 1 ? 1 : 0)) + 0.05)) return
+    if (vectors.some((v, i) => v.length() + EPS < fittingLeg * ((i > 0 ? 1 : 0) + (i < vectors.length - 1 ? 1 : 0)) + 0.05)) return
     for (let i = 1; i < vectors.length; i++) {
       const dot = vectors[i - 1]!.clone().normalize().dot(vectors[i]!.clone().normalize())
       const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI
@@ -123,6 +128,7 @@ export function routePipe(
   for (let axis = 0; axis < 3; axis++) {
     const margin = Math.max(lead, fittingLeg * 2 + 0.05)
     const lanes = new Set(obstacles.flatMap((box) => [box.min[axis]! - margin, box.max[axis]! + margin]))
+    if (axis === 1 && Number.isFinite(maxY)) lanes.add(maxY)
     lanes.add(Math.min(tips[0]![axis]!, tips[1]![axis]!) - margin)
     lanes.add(Math.max(tips[0]![axis]!, tips[1]![axis]!) + margin)
     const midpoint = (tips[0]![axis]! + tips[1]![axis]!) / 2
@@ -130,6 +136,22 @@ export function routePipe(
       const a: RoutePoint = [...tips[0]!], b: RoutePoint = [...tips[1]!]
       a[axis] = lane; b[axis] = lane
       for (const order of orders) consider([tips[0]!, ...orthogonal(a, b, order), tips[1]!])
+    }
+  }
+  if (!best && allowComplex) {
+    const margin = Math.max(lead, fittingLeg * 2 + 0.05)
+    for (const [first, second] of [[0, 1], [0, 2], [1, 2]]) {
+      const lanes = (axis: number) => [...new Set([...obstacles.flatMap(box => [box.min[axis]! - margin, box.max[axis]! + margin]), ...(axis === 1 ? [maxY, tips[0]![1], tips[1]![1], (tips[0]![1] + tips[1]![1]) / 2] : [])])]
+        .filter(Number.isFinite).sort((a, b) => Math.abs(a - tips[0]![axis]!) - Math.abs(b - tips[0]![axis]!)).slice(0, 12)
+      for (const x of lanes(first!)) for (const y of lanes(second!)) {
+        const a: RoutePoint = [...tips[0]!], b: RoutePoint = [...tips[1]!]
+        a[first!] = b[first!] = x
+        a[second!] = b[second!] = y
+        for (const entry of orders) for (const exit of orders) {
+          consider([...orthogonal(tips[0]!, a, entry), b, ...orthogonal(b, tips[1]!, exit)])
+          if (best) return best
+        }
+      }
     }
   }
   return best

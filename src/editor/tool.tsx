@@ -39,6 +39,7 @@ import { findPoolHostSlabId, localizePoolPolygon } from '../design/opening-sync'
 import { worldPointToPoolLevel } from '../design/level-coordinates'
 import { PoolLevelPreviewGroup } from './level-preview-group'
 import { PoolNode } from '../core/schema'
+import { isPlacementRotationKey, rotatePlanPoint } from './placement-rotation'
 import {
   createPoolShapePolygon,
   getPoolPolygonDimensions,
@@ -170,6 +171,8 @@ export default function PoolTool() {
   const isDrawnShape = isDrawnPoolShape(shape)
 
   const [points, setPoints] = useState<Point[]>([])
+  const [placementYaw, setPlacementYaw] = useState(0)
+  const placementYawRef = useRef(0)
   const [cursorPosition, setCursorPosition] = useState<Point>([0, 0])
   const [snappedCursorPosition, setSnappedCursorPosition] = useState<Point>([0, 0])
   const [levelY, setLevelY] = useState(0)
@@ -184,11 +187,11 @@ export default function PoolTool() {
   const previousShapeRef = useRef(shape)
   const presetPoints = useMemo(() => {
     if (isDrawnShape) return []
-    return createPoolShapePolygon(shape, length, width).map(([x, z]): Point => [
+    return createPoolShapePolygon(shape, length, width).map(point => rotatePlanPoint(point, placementYaw)).map(([x, z]): Point => [
       x + snappedCursorPosition[0],
       z + snappedCursorPosition[1],
     ])
-  }, [isDrawnShape, length, shape, snappedCursorPosition, width])
+  }, [isDrawnShape, length, shape, snappedCursorPosition, width, placementYaw])
   const floorplanDraftPoints = useMemo(() => points, [points])
 
   useEffect(() => {
@@ -377,7 +380,7 @@ export default function PoolTool() {
           resolveEventConstructionPlane(event, pointedSurfaceFor(event)),
           clickPoint,
         )
-        const translated = createPoolShapePolygon(shape, length, width).map(
+        const translated = createPoolShapePolygon(shape, length, width).map(point => rotatePlanPoint(point, placementYawRef.current)).map(
           ([x, z]): Point => [x + clickPoint[0], z + clickPoint[1]],
         )
         triggerSFX('sfx:structure-build-start')
@@ -472,12 +475,27 @@ export default function PoolTool() {
       resetDraft()
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isPlacementRotationKey(event)) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (isDrawnShape) {
+          const anchor = pointsRef.current[0]
+          if (anchor) setDraftPoints(pointsRef.current.map(([x, z]) => {
+            const rotated = rotatePlanPoint([x - anchor[0], z - anchor[1]], Math.PI / 2)
+            return [rotated[0] + anchor[0], rotated[1] + anchor[1]]
+          }))
+        } else {
+          placementYawRef.current = (placementYawRef.current + Math.PI / 2) % (Math.PI * 2)
+          setPlacementYaw(placementYawRef.current)
+        }
+        return
+      }
       if (event.key !== 'Enter') return
       event.preventDefault()
       finishCustomDrawing()
     }
 
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('pointerup', onPointerUp, true)
     emitter.on('grid:move', onGridMove)
@@ -485,7 +503,7 @@ export default function PoolTool() {
     emitter.on('grid:double-click', finishCustomDrawing)
     emitter.on('tool:cancel', onCancel)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('pointerup', onPointerUp, true)
       emitter.off('grid:move', onGridMove)

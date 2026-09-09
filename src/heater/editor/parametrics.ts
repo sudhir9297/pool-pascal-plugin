@@ -1,7 +1,9 @@
 import type { ParametricDescriptor } from '@pascal-app/core'
 import type { PoolHeaterNode } from '../core/schema'
+import { insertionDeletionHooks } from '../../editor/insertion-deletion'
 
 export const poolHeaterParametrics: ParametricDescriptor<PoolHeaterNode> = {
+  ...insertionDeletionHooks,
   trailingSection: () => import('../../editor/connections'),
   groups: [
     {

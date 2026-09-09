@@ -25,6 +25,7 @@ const THUMBNAILS = {
 } as const
 
 const POOL_SHAPE_THUMBNAILS: Record<PoolShape, string> = {
+  circle: new URL('./assets/pool-circle-thumbnail.webp', import.meta.url).href,
   rectangle: new URL('./assets/pool-rectangle-thumbnail.webp', import.meta.url).href,
   'lap-rectangle': new URL('./assets/pool-lap-rectangle-thumbnail.webp', import.meta.url).href,
   kidney: new URL('./assets/pool-kidney-thumbnail-v3.webp', import.meta.url).href,
@@ -101,7 +102,6 @@ export default function PoolPanel() {
         </div>
         <span className="text-sidebar-foreground/60 text-xs">{menu === 'stair-types' ? stairCount : poolCount} placed</span>
       </header>}
-      {menu === 'pool-types' && <p className="text-sidebar-foreground/60 text-xs">Choose a pool type, then draw it on the ground. Custom and freeform modes stay editable after placement.</p>}
       {menu === 'pool-types' && <PresetGrid selected={shape} onPick={(value) => { usePoolStore.getState().setShape(value); activate() }} />}
       {menu === 'pool-types' && <section className="flex flex-col gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 p-3">
         <h3 className="font-medium text-sm">Pool settings</h3>
@@ -132,8 +132,8 @@ export default function PoolPanel() {
           }}
         />
       </section>}
-      {menu === 'pool-types' && <SliderControl label="Length" min={0.5} max={100} step={0.1} unit="m" value={length} onChange={usePoolStore.getState().setLength} />}
-      {menu === 'pool-types' && <SliderControl label="Width" min={0.5} max={100} step={0.1} unit="m" value={width} onChange={usePoolStore.getState().setWidth} />}
+      {menu === 'pool-types' && <SliderControl label={shape === 'circle' ? 'Diameter' : 'Length'} min={0.5} max={100} step={0.1} unit="m" value={length} onChange={usePoolStore.getState().setLength} />}
+      {menu === 'pool-types' && shape !== 'circle' && <SliderControl label="Width" min={0.5} max={100} step={0.1} unit="m" value={width} onChange={usePoolStore.getState().setWidth} />}
       {menu === 'root' && <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
         <h3 className="font-medium text-sm uppercase tracking-wide text-sidebar-foreground/60">Natural water features</h3>
         <div className="grid grid-cols-2 gap-2">
@@ -152,7 +152,6 @@ export default function PoolPanel() {
           <CatalogCard count={skimmerCount} image={THUMBNAILS.skimmer} label="Pool skimmer" onClick={() => activateTool('pool:skimmer')} />
           <CatalogCard count={inletCount} image={THUMBNAILS.inlet} label="Pool return inlet" onClick={() => activateTool('pool:inlet')} />
         </div>
-        <p className="text-sidebar-foreground/60 text-[11px]">Alt switches the rotation axis · R rotates 90°</p>
       </section>}
     </div>
   )

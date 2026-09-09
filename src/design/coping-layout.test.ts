@@ -62,4 +62,23 @@ describe('rock coping layout', () => {
     })
     expect(naturalStoneLayout.every((stone) => !stone.cornerPoint)).toBe(true)
   })
+
+  test('lays circular rock borders as smooth stations, not polygon corners', () => {
+    const points: [number, number][] = Array.from({ length: 32 }, (_, index) => {
+      const angle = index / 32 * Math.PI * 2
+      return [Math.cos(angle) * 3, Math.sin(angle) * 3]
+    })
+    const layout = layoutNaturalCopingStones(points, {
+      width: 0.38,
+      thickness: 0.08,
+      stoneLength: 0.75,
+      jointWidth: 0.006,
+      irregularity: 0.75,
+      seed: 9733,
+      rockLike: true,
+      smoothBoundary: true,
+    })
+    expect(layout.length).toBeGreaterThan(10)
+    expect(layout.every((stone) => !stone.cornerPoint)).toBe(true)
+  })
 })

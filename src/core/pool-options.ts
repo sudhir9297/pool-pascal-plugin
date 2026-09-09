@@ -1,5 +1,6 @@
 export const POOL_SHAPES = [
   'rectangle',
+  'circle',
   'lap-rectangle',
   'kidney',
   'lagoon',

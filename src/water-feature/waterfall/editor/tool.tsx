@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../../editor/scene-nodes'
 import { worldPointToPoolLevel } from '../../../design/level-coordinates'
+import { isPlacementRotationKey } from '../../../editor/placement-rotation'
 import { buildWaterfallGeometry } from '../core/geometry'
 import { DEFAULT_POOL_WATERFALL, PoolWaterfallNode } from '../core/schema'
 import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, type WaterfallPlacement } from '../design/placement'
@@ -24,6 +25,8 @@ export default function PoolWaterfallTool() {
 
   useEffect(() => {
     if (!levelId) return
+    let yaw = 0
+    let lastMove: GridEvent | null = null
     const getPlacement = (event: GridEvent) => {
       const level = sceneRegistry.nodes.get(levelId as never)
       const local = worldPointToPoolLevel(level, event.position)
@@ -31,9 +34,10 @@ export default function PoolWaterfallTool() {
       const point = snapPointToGrid([local[0], local[2]], step)
       const pools = getPoolNodes(useScene.getState().nodes, levelId)
       return findNearestWaterfallPlacement(point, pools, DEFAULT_POOL_WATERFALL.width)
-        ?? createStandaloneWaterfallPlacement([point[0], local[1], point[1]], ghostNode)
+        ?? createStandaloneWaterfallPlacement([point[0], local[1], point[1]], { ...ghostNode, rotation: [0, yaw, 0] })
     }
     const onMove = (event: GridEvent) => {
+      lastMove = event
       const next = getPlacement(event)
       setPlacement(next)
       if (!cursorRef.current) return
@@ -79,10 +83,19 @@ export default function PoolWaterfallTool() {
       useEditor.getState().setTool(null)
       useEditor.getState().setMode('select')
     }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isPlacementRotationKey(event)) return
+      event.preventDefault()
+      event.stopPropagation()
+      yaw = (yaw + Math.PI / 2) % (Math.PI * 2)
+      if (lastMove) onMove(lastMove)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
     emitter.on('grid:move', onMove)
     emitter.on('grid:click', place)
     emitter.on('tool:cancel', cancel)
     return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
       emitter.off('grid:move', onMove)
       emitter.off('grid:click', place)
       emitter.off('tool:cancel', cancel)

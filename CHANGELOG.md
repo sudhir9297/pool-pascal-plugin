@@ -8,6 +8,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Placing a pool pump, heater, or filter over a DWV waste pipe now splits the
+  run and connects its inlet and outlet with routed pipes and elbows in one
+  undoable edit. The filter backwash port remains separate. Short, blocked,
+  vertical, and wall-attached target runs reject equipment insertion.
 - Reworked setup, API, node, architecture, contribution, testing, release, and
   research documentation to match the implemented package.
 - Added automated checks for local documentation links and documented option

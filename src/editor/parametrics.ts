@@ -1,4 +1,4 @@
-import PoolFittingSummary from './fitting-summary'
+import { ConnectInlets, ConnectSkimmers, ConnectDrains } from './connect-pool-pipes'
 import { planPoolFittings } from '../design/pool-fitting-layout'
 import type { ParametricDescriptor } from '@pascal-app/core'
 import { POOL_ENTRY_FEATURES } from '../design/entry-features'
@@ -15,11 +15,13 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     ? planPoolFittings(node).issues.map((msg) => ({ msg, severity: 'warning' as const }))
     : []],
   groups: [
+    { label: 'Inlet pipes', fields: [{ key: 'inletPipes', kind: 'custom', component: ConnectInlets }] },
+    { label: 'Drain pipes', fields: [{ key: 'drainPipes', kind: 'custom', component: ConnectDrains }] },
+    { label: 'Skimmer pipes', fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
     {
-      label: 'Automatic fittings · planning estimates',
+      label: 'Automatic fittings',
       fields: [
         { key: 'automaticFittings', kind: 'boolean' },
-        { key: 'fittingSummary', kind: 'custom', component: PoolFittingSummary, visibleIf: (node) => node.automaticFittings },
         { key: 'turnoverHours', kind: 'number', unit: 'h', min: 1, max: 24, step: 1, visibleIf: (node) => node.automaticFittings },
         { key: 'fittingFlowRate', kind: 'number', unit: 'm³/h (0 = estimate)', min: 0, max: 10000, step: 1, visibleIf: (node) => node.automaticFittings },
         { key: 'drainFlowCapacity', kind: 'number', unit: 'm³/h per outlet', min: 1, max: 1000, step: 1, visibleIf: (node) => node.automaticFittings },

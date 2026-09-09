@@ -1302,6 +1302,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       seed: node.copingSeed,
       rockLike: node.copingStyle === 'rock',
       smoothBoundary: node.shape === 'spline'
+        || node.shape === 'circle'
         || node.shape === 'kidney'
         || node.shape === 'lagoon'
         || node.shape === 'roman',

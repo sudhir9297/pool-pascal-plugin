@@ -35,22 +35,25 @@ export function runtimeConnections(nodes: readonly ConnectionNode[]) {
       if (a.id !== b.id) edges.get(key(node.id, a.id))!.add(key(node.id, b.id))
     }
   }
-  return {
-    isOccupied: (nodeId: string, portId: string) => occupied.has(key(nodeId, portId)),
-    connectedTo(nodeId: string, portId: string) {
+  const network = (nodeId: string, portId: string) => {
+      const pipeIds = new Set<string>()
       const start = key(nodeId, portId), visited = new Set([start]), queue = [start]
-      const result: Array<{ id: string; other: { nodeId: string; portId: string } }> = []
+      const endpoints: Array<{ id: string; other: { nodeId: string; portId: string } }> = []
       for (let i = 0; i < queue.length; i++) {
         for (const next of edges.get(queue[i]!) ?? []) {
           if (visited.has(next)) continue
           visited.add(next)
           const socket = byId.get(next)!
           if (!['pipe-segment', 'pipe-fitting'].includes(socket.node.type)) {
-            if (socket.node.id !== nodeId) result.push({ id: next, other: { nodeId: socket.node.id, portId: socket.port.id } })
-          } else queue.push(next)
+            if (socket.node.id !== nodeId) endpoints.push({ id: next, other: { nodeId: socket.node.id, portId: socket.port.id } })
+          } else { pipeIds.add(socket.node.id); queue.push(next) }
         }
       }
-      return result
-    },
+      return { pipeIds: [...pipeIds], endpoints }
+  }
+  return {
+    network,
+    isOccupied: (nodeId: string, portId: string) => occupied.has(key(nodeId, portId)),
+    connectedTo: (nodeId: string, portId: string) => network(nodeId, portId).endpoints,
   }
 }

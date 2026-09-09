@@ -1,5 +1,6 @@
 import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, TorusGeometry } from 'three'
 import type { PoolSkimmerNode } from './schema'
+import { getSkimmerPortsLocal } from './ports'
 
 /**
  * Builds a recognizable cutaway skimmer. Local +Z is the pool-facing mouth;
@@ -23,8 +24,6 @@ export function buildSkimmerGeometry(node: PoolSkimmerNode): Group {
     return mesh
   }
 
-  // Only the user-facing trim is modeled. The concealed housing, basket and
-  // suction plumbing belong inside the wall and are intentionally omitted.
   addBox((w - mw) / 2, mh + wall * 2, wall, -(w + mw) / 4, waterY, wall / 2, rim)
   addBox((w - mw) / 2, mh + wall * 2, wall, (w + mw) / 4, waterY, wall / 2, rim)
   addBox(mw, wall, wall, 0, waterY + mh / 2 + wall / 2, wall / 2, rim)
@@ -44,13 +43,29 @@ export function buildSkimmerGeometry(node: PoolSkimmerNode): Group {
     for (let index = -2; index <= 2; index += 1) addBox(0.008, basketHeight * 0.8, 0.018, index * basketWidth * 0.18, waterY - mh - 0.06, 0.045, basketMaterial)
   }
 
-  // Small exposed socket: the hidden plumbing starts behind this fitting.
-  const socketRing = new Mesh(new TorusGeometry(node.suctionDiameter * 0.72, 0.012, 8, 16), socket)
-  socketRing.position.set(0, waterY - 0.31, -0.14)
+  const port = getSkimmerPortsLocal(node)[0]!
+  const lipThickness = Math.min(0.008, node.suctionDiameter * 0.16)
+  const outletRadius = node.suctionDiameter / 2 + lipThickness * 2
+  const collarHeight = 0.06
+  const neckBottom = port.position[1] + collarHeight * 0.75
+  const neckTop = Math.max(waterY - mh / 2 - wall / 2, neckBottom + wall)
+  const collectorRadius = Math.max(outletRadius, Math.min(mw * 0.32, node.bodyDepth * 0.38))
+  const throat = addBox(collectorRadius * 2, wall, node.bodyDepth / 2, 0, neckTop, -node.bodyDepth / 4, white)
+  throat.name = 'suction-throat'
+  const neck = new Mesh(new CylinderGeometry(collectorRadius, outletRadius, neckTop - neckBottom, 24, 1, true), white)
+  neck.name = 'suction-outlet-neck'
+  neck.position.set(port.position[0], (neckTop + neckBottom) / 2, port.position[2])
+  group.add(neck)
+
+  // Keep all collar geometry above the connection plane so the pipe meets a free face.
+  const socketRing = new Mesh(new TorusGeometry(node.suctionDiameter / 2 + lipThickness, lipThickness, 8, 24), socket)
+  socketRing.name = 'suction-socket-ring'
+  socketRing.rotation.x = Math.PI / 2
+  socketRing.position.set(port.position[0], port.position[1] + lipThickness, port.position[2])
   group.add(socketRing)
-  const socketOpening = new Mesh(new CylinderGeometry(node.suctionDiameter / 2, node.suctionDiameter / 2, 0.018, 16), socket)
-  socketOpening.rotation.x = Math.PI / 2
-  socketOpening.position.set(0, waterY - 0.31, -0.145)
+  const socketOpening = new Mesh(new CylinderGeometry(outletRadius, outletRadius, collarHeight, 24, 1, true), socket)
+  socketOpening.name = 'suction-socket-opening'
+  socketOpening.position.set(port.position[0], port.position[1] + collarHeight / 2, port.position[2])
   group.add(socketOpening)
 
   return group

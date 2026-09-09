@@ -10,6 +10,11 @@ import {
 } from './shapes'
 
 describe('pool shapes', () => {
+  test('circular pools keep a constant radius even with unequal dimensions', () => {
+    const points = createPoolShapePolygon('circle', 6, 4)
+    for (const [x, z] of points) expect(Math.hypot(x, z)).toBeCloseTo(3, 8)
+    expect(isPoolPolygonPlaceable(points)).toBe(true)
+  })
   test('creates every preset at its requested dimensions', () => {
     for (const shape of POOL_SHAPES) {
       const dimensions = DEFAULT_POOL_SHAPE_DIMENSIONS[shape]

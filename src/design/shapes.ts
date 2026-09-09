@@ -7,6 +7,7 @@ export const POOL_SHAPE_OPTIONS: ReadonlyArray<{
   value: PoolShape
 }> = [
   { label: 'Rectangle', value: 'rectangle' },
+  { label: 'Circular', value: 'circle' },
   { label: 'Lap rectangle', value: 'lap-rectangle' },
   { label: 'Kidney', value: 'kidney' },
   { label: 'Lagoon', value: 'lagoon' },
@@ -21,6 +22,7 @@ export const DEFAULT_POOL_SHAPE_DIMENSIONS: Record<PoolShape, {
   width: number
 }> = {
   rectangle: { length: 8, width: 4 },
+  circle: { length: 6, width: 6 },
   'lap-rectangle': { length: 12, width: 2.5 },
   kidney: { length: 8, width: 4.5 },
   lagoon: { length: 9, width: 5.5 },
@@ -250,6 +252,8 @@ export function createPoolShapePolygon(
   const length = Math.max(MIN_DIMENSION, requestedLength)
   const width = Math.max(MIN_DIMENSION, requestedWidth)
   switch (shape) {
+    case 'circle':
+      return ellipse(length, length)
     case 'kidney':
       return kidney(length, width)
     case 'lagoon':

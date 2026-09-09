@@ -1,4 +1,6 @@
-import type { NodeDefinition } from '@pascal-app/core'
+import { useScene, type NodeDefinition } from '@pascal-app/core'
+import { PoolNode } from '../../core/schema'
+import { resolveMountedSkimmer } from '../design/placement'
 import { connectionPorts } from '../../core/connection-ports'
 import { DEFAULT_POOL_SKIMMER, PoolSkimmerNode } from './schema'
 import { getSkimmerPortsLocal } from './ports'
@@ -27,7 +29,11 @@ export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
     groupable: true,
     snappable: {},
   },
-  ports: (node) => connectionPorts(node, getSkimmerPortsLocal(node)),
+  ports: (node) => {
+    const pool = PoolNode.safeParse(node.poolId ? useScene.getState().nodes[node.poolId as never] : null)
+    const mounted = resolveMountedSkimmer(node, pool.success ? pool.data : null)
+    return connectionPorts(mounted, getSkimmerPortsLocal(mounted))
+  },
   renderer: { kind: 'parametric', module: () => import('../editor/preview') },
   parametrics: poolSkimmerParametrics,
   tool: () => import('../editor/tool'),
