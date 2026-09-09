@@ -45,6 +45,7 @@
     "test": "bun test",
     "test:coverage": "bun run scripts/test-coverage.ts",
     "build": "bun run scripts/build.ts",
+    "prepare": "bun run build",
     "check-build-reproducibility": "bun run scripts/check-build-reproducibility.ts",
     "verify": "bun run scripts/verify.ts",
     "release:check": "bun run scripts/release-check.ts",
