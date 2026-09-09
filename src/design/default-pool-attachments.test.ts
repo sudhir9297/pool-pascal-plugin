@@ -131,16 +131,12 @@ describe('automatic pool fittings', () => {
       }
     }
   })
-  test('rectangular skimmers share one wall and returns share the opposite wall', () => {
+  test('rectangular skimmers share one wall and returns use the perimeter', () => {
     for (const [length, width] of [[8, 4], [20, 12], [12, 20]]) {
       const plan = planPoolFittings(resized(PoolNode.parse({}), length!, width!))
       expect(new Set(plan.skimmers.map((station) => station.wallIndex)).size).toBe(1)
-      expect(new Set(plan.inlets.map((station) => station.wallIndex)).size).toBe(1)
-      expect(plan.skimmers[0]!.wallIndex).not.toBe(plan.inlets[0]!.wallIndex)
-      const first = plan.skimmers[0]!.point
-      const last = plan.skimmers.at(-1)!.point
-      const axis = first[0] === last[0] ? 1 : 0
-      expect(first[axis]! + last[axis]!).toBeCloseTo(0, 8)
+      expect(new Set(plan.inlets.map((station) => station.wallIndex)).size).toBeGreaterThan(1)
+      expect(plan.inlets.every((inlet) => plan.skimmers.every((skimmer) => Math.hypot(inlet.point[0] - skimmer.point[0], inlet.point[1] - skimmer.point[1]) >= 1.524))).toBe(true)
     }
   })
 
@@ -165,7 +161,7 @@ describe('automatic pool fittings', () => {
     const pool = PoolNode.parse({ polygon: [...PoolNode.parse({}).polygon].reverse() })
     const plan = planPoolFittings(pool)
     expect(plan.skimmers.every(({ point }) => point[0] === 4)).toBe(true)
-    expect(plan.inlets.every(({ point }) => point[0] === -4)).toBe(true)
+    expect(new Set(plan.inlets.map(({ wallIndex }) => wallIndex)).size).toBeGreaterThan(1)
     expect(plan.drains).toEqual([[-0.5, 0], [0.5, 0]])
   })
 

@@ -79,10 +79,30 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     { label: 'Transform', fields: [{ key: 'position', kind: 'vec3' }] },
   ],
   actions: [
-    { label: 'Big splash', onClick: (node) => triggerPoolWaterAction(node.id, 'splash') },
-    { label: 'Calm water', onClick: (node) => triggerPoolWaterAction(node.id, 'calm') },
-    { label: 'Storm water', onClick: (node) => triggerPoolWaterAction(node.id, 'storm') },
-    { label: 'Reset surface', onClick: (node) => triggerPoolWaterAction(node.id, 'reset') },
+    {
+      label: 'Big splash',
+      iconSrc: 'https://api.iconify.design/lucide/waves.svg?color=%230284c7',
+      enabledIf: (node) => node.visible,
+      onClick: (node) => triggerPoolWaterAction(node.id, 'splash'),
+    },
+    {
+      label: 'Calm water',
+      iconSrc: 'https://api.iconify.design/lucide/waves.svg?color=%2306478f',
+      enabledIf: (node) => node.visible,
+      onClick: (node) => triggerPoolWaterAction(node.id, 'calm'),
+    },
+    {
+      label: 'Storm water',
+      iconSrc: 'https://api.iconify.design/lucide/cloud-lightning.svg?color=%237c3aed',
+      enabledIf: (node) => node.visible,
+      onClick: (node) => triggerPoolWaterAction(node.id, 'storm'),
+    },
+    {
+      label: 'Reset water',
+      iconSrc: 'https://api.iconify.design/lucide/rotate-ccw.svg?color=%23475569',
+      enabledIf: (node) => node.visible,
+      onClick: (node) => triggerPoolWaterAction(node.id, 'reset'),
+    },
   ],
   derive: (next, patch) => {
     const derived = {

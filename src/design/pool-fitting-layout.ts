@@ -91,7 +91,7 @@ function computePoolFittings(pool: PoolNode) {
       return { wallIndex, wallT, point: [a[0] + wallT * dx, a[1] + wallT * dz] }
     })
     for (const candidate of [...projections, ...boundary]) {
-      if (side && !onSide(candidate, side)) continue
+      if (side === 1 && !onSide(candidate, side)) continue
       if (side < 0 && skimmerPoints.some((point) => distance(point, candidate.point) < POOL_FITTING_RULES.inletSkimmerClearance)) continue
       const score = distance(candidate.point, target)
       if (score >= bestDistance || occupied.some((point) => distance(point, candidate.point) < POOL_FITTING_RULES.wallClearance)) continue
@@ -109,8 +109,9 @@ function computePoolFittings(pool: PoolNode) {
     if (station) { skimmers.push(station); skimmerPoints.push(station.point) }
   }
   for (let i = 0; i < counts.inlet; i++) {
-    const t = (i + 0.5) / counts.inlet
-    const station = placeNear(alongX ? [minX + (maxX - minX) * t, minZ] : [minX, minZ + (maxZ - minZ) * t], -1)
+    // Returns are spread around the complete perimeter to promote uniform
+    // circulation. Skimmers remain grouped on their designated wall.
+    const station = placeNear(at((i + 0.5) * perimeter / counts.inlet).point, -1)
     if (station) inlets.push(station)
   }
   // Access does not displace the two circulation groups.
