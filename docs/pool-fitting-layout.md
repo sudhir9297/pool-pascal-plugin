@@ -1,4 +1,4 @@
-# Pool fitting layout research
+# Pool fitting layout
 
 Checked 8 September 2026. These references support automatic **planning estimates**. They do not establish a complete hydraulic design or compliance with the rules at a particular project location.
 

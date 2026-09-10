@@ -118,4 +118,4 @@ For Pascal's host contract, see
 
 New pools calculate skimmers, return inlets and floor drains from their water area, perimeter and circulation estimate, with one access stair. Changing the dimensions recalculates both counts and placement. Pool options show the counts and let you change turnover time, specify flow, or set the selected drain's flow capacity. Disable **Automatic fittings** to edit the generated layout manually. Existing saved pools remain manual until enabled.
 
-The defaults are planning estimates based on manufacturer guidance and published design benchmarks. See [fitting layout rules and sources](docs/pool-fitting-layout-research.md) for the calculations, spacing, assumptions and limitations.
+The defaults are planning estimates based on manufacturer guidance and published design benchmarks. See [fitting layout rules and sources](docs/pool-fitting-layout.md) for the calculations, spacing, assumptions and limitations.

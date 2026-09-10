@@ -17,15 +17,7 @@ Start with the document that matches the task.
 - [Security policy](../SECURITY.md)
 - [Changelog](../CHANGELOG.md)
 
-## Design research
+## Modeling reference
 
-These notes record the source material, modeling decisions, and implementation
-status behind selected visual features. They are not construction specifications.
-
-- [Intersecting pools and spillovers](intersecting-pool-spillover-research.md)
-- [Pool interior finishes](pool-interior-finishes-research.md)
-- [Pool skimmer model](pool-skimmer-research.md)
-- [PVC valve model](pvc-valve-research.md)
-
-The implementation and node schemas remain the source of truth when a research
-note and current code differ.
+- [Fitting layout rules and limits](pool-fitting-layout.md)
+- [Pipe routing behavior and limits](pool-pipe-routing.md)

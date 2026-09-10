@@ -2,7 +2,7 @@ import { ShapeUtils, Vector2 } from 'three'
 import { resolvePoolPolygon, type PoolNode } from '../core/schema'
 import { getPoolDepthResolver } from './depth-profile'
 
-// Planning assumptions and source limits: docs/pool-fitting-layout-research.md.
+// Planning assumptions and source limits: docs/pool-fitting-layout.md.
 export const POOL_FITTING_RULES = {
   skimmerArea: 25,
   inletArea: 27.870912,
