@@ -6,6 +6,7 @@ import { getInletPortsLocal } from './ports'
 
 export const poolInletDefinition: NodeDefinition<typeof PoolInletNode> = {
   kind: 'pool:inlet',
+  affordanceTools: { move: () => import('../../editor/move-fitting-tool') },
   schemaVersion: 1,
   schema: PoolInletNode,
   category: 'furnish',

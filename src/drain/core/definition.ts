@@ -6,6 +6,7 @@ import { poolDrainParametrics } from '../editor/parametrics'
 
 export const poolDrainDefinition: NodeDefinition<typeof PoolDrainNode> = {
   kind: 'pool:drain',
+  affordanceTools: { move: () => import('../../editor/move-fitting-tool') },
   schemaVersion: 1,
   schema: PoolDrainNode,
   category: 'furnish',

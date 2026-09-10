@@ -5,7 +5,6 @@ import { PoolSpilloverNode } from '../spillover/core/schema'
 import { buildPoolOutlines, outsetPoolPolygon } from './outlines'
 import { getPoolDepthResolver } from './depth-profile'
 import { getPoolIntersectionRegions } from './shared-joint'
-
 function polygonArea(points: PoolPoint[]) {
   return Math.abs(points.reduce((area, point, index) => {
     const next = points[(index + 1) % points.length]!
@@ -187,9 +186,11 @@ export function getPoolOverlaps(pool: PoolNode, nodes: Record<string, AnyNode>):
       }]
     }
     if (otherHeight < poolHeight) {
-      // The higher pool keeps its basin, but its coping still needs to stop
-      // at the shared intersection edge.
-      return [{ footprint: localRegions[0]!, regions: [], topHeights: [], trimBasin: false, copingFootprints: localRegions }]
+      // The lower basin lies beneath this rim, so its footprint must not
+      // shave the raised coping. Only the spillover mouth cuts this rim.
+      // An explicit empty list also prevents the coping cutter from falling
+      // back to the intersection footprint.
+      return [{ footprint: localRegions[0]!, regions: [], topHeights: [], trimBasin: false, copingFootprints: [] }]
     }
     seen.add(otherId)
     const polygon = resolvePoolPolygon(other)

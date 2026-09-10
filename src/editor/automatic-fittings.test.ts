@@ -41,7 +41,7 @@ test('scene subscription reconciles resize and restored snapshots', () => {
     const next = { ...initial, ...patch }
     useScene.getState().applyNodeChanges({ update: [{ id: pool.id as never, data: { ...patch, ...poolParametrics.derive!(next, patch) } as Partial<AnyNode> }] })
     const larger = PoolNode.parse((useScene.getState().nodes as Record<string, unknown>)[pool.id])
-    expect(larger.children.length).toBeGreaterThan(initial.children.length)
+    expect(larger.children.length).toBe(initial.children.length)
     expect(syncAutomaticPoolFittings(useScene.getState().nodes)).toEqual({ create: [], update: [], delete: [] })
     const largerNodes = useScene.getState().nodes
     useScene.setState({ nodes: initialNodes })
@@ -50,6 +50,15 @@ test('scene subscription reconciles resize and restored snapshots', () => {
     expect(restored.children).toHaveLength(9)
     useScene.setState({ nodes: largerNodes })
     expect(PoolNode.parse((useScene.getState().nodes as Record<string, unknown>)[pool.id]).children).toHaveLength(larger.children.length)
+    const deletedIds = Object.values(useScene.getState().nodes)
+      .filter(node => ['pool:skimmer', 'pool:drain'].includes(String(node.type))).map(node => node.id)
+    useScene.getState().applyNodeChanges({ delete: deletedIds })
+    for (const id of deletedIds) expect(useScene.getState().nodes[id]).toBeUndefined()
+    const saved = JSON.parse(JSON.stringify(useScene.getState().nodes))
+    stop()
+    useScene.setState({ nodes: saved })
+    stop = initializePoolOpeningSync()
+    for (const id of deletedIds) expect(useScene.getState().nodes[id]).toBeUndefined()
   } finally {
     stop()
     useScene.setState(before)

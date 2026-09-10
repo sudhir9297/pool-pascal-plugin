@@ -26,6 +26,23 @@ function apply(nodes: Record<string, unknown>) {
 }
 
 describe('automatic pool fittings', () => {
+  test('generated fittings keep manually chosen anchors during sync and resize', () => {
+    const pool = PoolNode.parse({ automaticFittings: true })
+    const children = createDefaultPoolAttachments(pool).map(node => {
+      if (node.type === 'pool:drain') return { ...node, floorAnchor: [0.3, 0.6] as [number, number] }
+      if ('wallT' in node) return { ...node, wallIndex: 2, wallT: 0.3 }
+      return node
+    })
+    for (const host of [pool, resized(pool, 16, 8)]) {
+      const nodes = apply(Object.fromEntries([host, ...children].map(node => [node.id, node])))
+      for (const child of children) {
+        const result = nodes[child.id] as typeof child
+        if (child.type === 'pool:drain') expect(result).toMatchObject({ floorAnchor: [0.3, 0.6] })
+        else if ('wallT' in child) expect(result).toMatchObject({ wallIndex: 2, wallT: 0.3 })
+      }
+      expect(syncAutomaticPoolFittings(nodes)).toEqual({ create: [], update: [], delete: [] })
+    }
+  })
   test('creates dimension-based fittings in one scene operation', () => {
     const before = useScene.getState()
     try {
@@ -45,7 +62,7 @@ describe('automatic pool fittings', () => {
     } finally { useScene.setState(before) }
   })
 
-  test('resizing adds and removes generated slots, keeps edits and manual fittings, then settles', () => {
+  test('resizing updates existing slots without adding missing fittings, then settles', () => {
     const pool = PoolNode.parse({ automaticFittings: true })
     const children = createDefaultPoolAttachments(pool)
     const custom = resolvePoolAttachment(PoolInletNode.parse({ poolId: pool.id, parentId: pool.id }), pool)!
@@ -53,8 +70,8 @@ describe('automatic pool fittings', () => {
     const large = resized(pool, 20, 12)
     const nodes = Object.fromEntries([large, ...children.slice(1), edited, custom].map((node) => [node.id, node]))
     const grown = apply(nodes)
-    expect(Object.values(grown).filter((node) => (node as { type: string }).type === 'pool:skimmer')).toHaveLength(10)
-    expect(Object.values(grown).filter((node) => (node as { type: string }).type === 'pool:drain').length).toBeGreaterThan(2)
+    expect(Object.values(grown).filter((node) => (node as { type: string }).type === 'pool:skimmer')).toHaveLength(2)
+    expect(Object.values(grown).filter((node) => (node as { type: string }).type === 'pool:drain')).toHaveLength(2)
     expect(grown[edited.id]).toMatchObject({ name: 'My skimmer', showFlow: true })
     expect(grown[custom.id]).toEqual(custom)
     expect(syncAutomaticPoolFittings(grown)).toEqual({ create: [], update: [], delete: [] })

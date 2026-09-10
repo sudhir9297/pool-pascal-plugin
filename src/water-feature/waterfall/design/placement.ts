@@ -2,6 +2,7 @@ import { getPoolWaterLandingInset } from '../../../design/water-landing'
 import { resolvePoolPolygon, type PoolNode } from '../../../core/schema'
 import type { WaterPreset } from '../../../shader/water-presets'
 import type { PoolWaterfallNode } from '../core/schema'
+import { DEFAULT_POOL_ROCK_COLOR } from '../../../design/rock-colors'
 
 export type WaterfallPlacement = {
   position: [number, number, number]
@@ -161,6 +162,9 @@ export function resolveMountedWaterfall(node: PoolWaterfallNode, pool: PoolNode 
   return placement ? {
     ...node,
     ...(dimensions ?? {}),
+    rockColor: node.rockColor === '#7f817d' || node.rockColor === DEFAULT_POOL_ROCK_COLOR
+      ? pool.copingStyle === 'rock' ? DEFAULT_POOL_ROCK_COLOR : pool.copingColor
+      : node.rockColor,
     position: placement.position,
     rotation: placement.rotation,
     poolId: placement.poolId,

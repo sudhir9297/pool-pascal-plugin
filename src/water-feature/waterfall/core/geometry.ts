@@ -8,6 +8,7 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
+  Vector3,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
@@ -135,9 +136,23 @@ export function buildWaterfallGeometry(node: PoolWaterfallNode) {
     Object.entries(node).filter(([, value]) => value !== undefined),
   )
   const normalized = PoolWaterfallNode.parse(definedNode)
-  if (normalized.waterfallType === 'modern') return buildModernWaterfallGeometry(normalized)
-  if (normalized.waterfallType === 'spillover') return buildSpilloverWaterfallGeometry(normalized)
-  return buildRockWaterfallGeometry(normalized)
+  const group = normalized.waterfallType === 'modern' ? buildModernWaterfallGeometry(normalized)
+    : normalized.waterfallType === 'spillover' ? buildSpilloverWaterfallGeometry(normalized)
+    : buildRockWaterfallGeometry(normalized)
+  // Rock facets used baked random shades in addition to scene lighting.
+  // Use one base color, as on the border; lighting provides the shading.
+  group.traverse(object => {
+    if (!(object instanceof Mesh) || !object.name.startsWith('waterfall-rock')) return
+    object.geometry.deleteAttribute('color')
+    const materials = Array.isArray(object.material) ? object.material : [object.material]
+    for (const material of materials) {
+      if (!(material instanceof MeshStandardMaterial)) continue
+      material.vertexColors = false
+      material.color.set(normalized.rockColor)
+      material.roughness = 0.88
+    }
+  })
+  return group
 }
 
 function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
@@ -355,7 +370,7 @@ function addNaturalCavity(
   const boxHeight = openingHeight + frame * 2
   const depth = Math.max(0.16, node.lipThickness * 2.8)
   const centerY = waterY - node.height * 0.14
-  const sourceZ = lipZ - approach
+  const sourceZ = lipZ - approach - 0.16
   const cavityRoot = new Group()
   cavityRoot.name = 'waterfall-natural-cavity'
 
@@ -371,14 +386,14 @@ function addNaturalCavity(
     side: DoubleSide,
   })
 
-  const back = new Mesh(new BoxGeometry(boxWidth, boxHeight, depth), frameMaterial)
+  const back = new Mesh(new BoxGeometry(boxWidth, boxHeight, depth, 16), frameMaterial)
   back.name = 'waterfall-natural-cavity-box'
   back.position.set(0, centerY, sourceZ - depth * 0.42)
   back.castShadow = true
   back.receiveShadow = true
   cavityRoot.add(back)
 
-  const hole = new Mesh(new BoxGeometry(openingWidth, openingHeight, depth * 0.12), holeMaterial)
+  const hole = new Mesh(new BoxGeometry(openingWidth, openingHeight, depth * 0.12, 16), holeMaterial)
   hole.name = 'waterfall-natural-cavity-hole'
   hole.position.set(0, centerY, sourceZ - depth * 0.94)
   hole.receiveShadow = true
@@ -391,7 +406,7 @@ function addNaturalCavity(
     [(openingWidth + frame) / 2 - frame / 2, centerY, frame, openingHeight],
   ] as const
   for (const [index, [x, y, width, height]] of bars.entries()) {
-    const bar = new Mesh(new BoxGeometry(width, height, depth * 1.12), frameMaterial)
+    const bar = new Mesh(new BoxGeometry(width, height, depth * 1.12, 16), frameMaterial)
     bar.name = `waterfall-natural-cavity-frame-${index}`
     bar.position.set(x, y, sourceZ)
     bar.castShadow = true
@@ -399,6 +414,7 @@ function addNaturalCavity(
     cavityRoot.add(bar)
   }
 
+  conformSpillwayToBoundary(cavityRoot, node.edgeCurve)
   group.add(cavityRoot)
 }
 
@@ -409,7 +425,8 @@ function addNaturalChannel(
   waterY: number,
   lipZ: number,
 ) {
-  const approach = getSpillwayApproach(node.depth)
+  // Extend the back under the recessed housing without moving the outlet.
+  const approach = getSpillwayApproach(node.depth) + 0.16
   const channelWidth = Math.max(0.2, waterWidth * 1.1)
   const channelDepth = Math.max(0.18, approach + node.lipThickness * 0.8)
   const thickness = Math.max(0.045, node.lipThickness * 0.7)
@@ -617,7 +634,8 @@ function addSpillwayBox(
 ) {
   const box = new Group()
   box.name = 'waterfall-spillway-box'
-  const approach = getSpillwayApproach(node.depth)
+  // Recess the back into the rock contact surface; leave lipZ unchanged.
+  const approach = getSpillwayApproach(node.depth) + 0.16
   const wallThickness = Math.max(0.065, node.lipThickness * 0.9)
   const boxWidth = waterWidth + wallThickness * 3.4
   const boxHeight = Math.max(0.3, node.lipThickness * 4)
@@ -731,7 +749,34 @@ function addSpillwayBox(
   sill.receiveShadow = true
   box.add(sill)
 
+  conformSpillwayToBoundary(box, node.edgeCurve)
   group.add(box)
+}
+
+/** Bend every joined housing part in one coordinate frame, including the liner. */
+export function conformSpillwayToBoundary(
+  housing: Group,
+  curve: readonly (readonly [number, number])[],
+) {
+  if (curve.length < 2) return
+  const point = new Vector3()
+  housing.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    object.updateMatrix()
+    const inverse = object.matrix.clone().invert()
+    const positions = object.geometry.getAttribute('position')
+    for (let index = 0; index < positions.count; index++) {
+      point.fromBufferAttribute(positions, index).applyMatrix4(object.matrix)
+      // Match the same X-dependent displacement used by rocks and water.
+      point.z += sampleEdgeCurve(curve, point.x).z
+      point.applyMatrix4(inverse)
+      positions.setXYZ(index, point.x, point.y, point.z)
+    }
+    positions.needsUpdate = true
+    object.geometry.computeVertexNormals()
+    object.geometry.computeBoundingBox()
+    object.geometry.computeBoundingSphere()
+  })
 }
 
 function createRoundedSpillwayPart(
@@ -742,7 +787,7 @@ function createRoundedSpillwayPart(
   radius: number,
   material: MeshStandardMaterial,
 ) {
-  const geometry = new RoundedBoxGeometry(width, height, depth, 2, Math.min(radius, width * 0.2, height * 0.2, depth * 0.2))
+  const geometry = new RoundedBoxGeometry(width, height, depth, 8, Math.min(radius, width * 0.2, height * 0.2, depth * 0.2))
   const mesh = new Mesh(geometry, material)
   mesh.name = name
   mesh.castShadow = true

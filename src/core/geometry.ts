@@ -493,11 +493,15 @@ function createPoolFloorGeometry(
   for (let index = 0; index < boundary.length; index += 1) {
     const current = boundary[index]!
     const next = boundary[(index + 1) % boundary.length]!
-    const topCurrent: Point3 = [current[0], -depthAtX(current[0]), current[1]]
-    const topNext: Point3 = [next[0], -depthAtX(next[0]), next[1]]
-    const bottomCurrent: Point3 = [current[0], topCurrent[1] - floorThickness, current[1]]
-    const bottomNext: Point3 = [next[0], topNext[1] - floorThickness, next[1]]
-    pushQuad(positions, topCurrent, topNext, bottomNext, bottomCurrent)
+    // The slab edge must be clipped with its top and bottom faces. Otherwise
+    // an overlap leaves a detached floor-thickness strip along the old rim.
+    for (const { start, end } of visibleSegmentFragments(current, next, removeFloorRegions)) {
+      const topCurrent: Point3 = [start[0], -depthAtX(start[0]), start[1]]
+      const topNext: Point3 = [end[0], -depthAtX(end[0]), end[1]]
+      const bottomCurrent: Point3 = [start[0], topCurrent[1] - floorThickness, start[1]]
+      const bottomNext: Point3 = [end[0], topNext[1] - floorThickness, end[1]]
+      pushQuad(positions, topCurrent, topNext, bottomNext, bottomCurrent)
+    }
   }
 
   const geometry = new BufferGeometry()

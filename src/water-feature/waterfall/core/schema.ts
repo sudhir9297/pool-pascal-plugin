@@ -2,6 +2,7 @@ import { BaseNode, nodeType, objectId } from '@pascal-app/core'
 import { z } from 'zod'
 import { WATER_PRESETS, WATER_PRESET_SETTINGS } from '../../../core/water-presets'
 import { Point2Schema, Point3Schema } from '../../../core/schema-primitives'
+import { DEFAULT_POOL_ROCK_COLOR } from '../../../design/rock-colors'
 
 export const DEFAULT_POOL_WATERFALL = {
   position: [0, 0, 0] as [number, number, number],
@@ -22,7 +23,7 @@ export const DEFAULT_POOL_WATERFALL = {
   rockSeed: 7311,
   poolRockSeed: null,
   structureColor: '#6f7b78',
-  rockColor: '#7f817d',
+  rockColor: DEFAULT_POOL_ROCK_COLOR,
   waterPreset: WATER_PRESET_SETTINGS['crystal-clear'].waterPreset,
   shallowWaterColor: WATER_PRESET_SETTINGS['crystal-clear'].shallowWaterColor,
   deepWaterColor: WATER_PRESET_SETTINGS['crystal-clear'].deepWaterColor,
@@ -60,7 +61,7 @@ export const PoolWaterfallNode = BaseNode.extend({
   rockSeed: z.number().int().default(7311),
   poolRockSeed: z.number().int().nullable().default(null),
   structureColor: z.string().default('#6f7b78'),
-  rockColor: z.string().default('#7f817d'),
+  rockColor: z.string().default(DEFAULT_POOL_ROCK_COLOR),
   waterPreset: z.preprocess((value) => {
     if (value === 'clear') return 'crystal-clear'
     if (value === 'genshin') return 'vivid-aqua'

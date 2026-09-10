@@ -1,11 +1,12 @@
+import { createSolidSubtractor } from './solid-subtraction'
 import { Box3, BoxGeometry, ExtrudeGeometry, Shape, type BufferGeometry, type Group, type Material, Mesh } from 'three'
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
+import { Brush } from 'three-bvh-csg'
 import type { SpilloverNotch } from '../design/spillover-notch'
 
 /** Cut only the upper shell and coping; leave the water and floor untouched. */
 export function cutPoolSpilloverNotches(group: Group, notches: SpilloverNotch[], shellFacesInward: boolean) {
   if (notches.length === 0) return
-  const evaluator = new Evaluator()
+  const subtract = createSolidSubtractor()
   group.updateMatrixWorld(true)
   const targets: Mesh[] = []
   for (const child of group.children) {
@@ -43,7 +44,7 @@ export function cutPoolSpilloverNotches(group: Group, notches: SpilloverNotch[],
       input.updateMatrixWorld(true)
       let result: Brush
       try {
-        result = evaluator.evaluate(input, cutter, SUBTRACTION) as unknown as Brush
+        result = subtract(input, cutter) as unknown as Brush
       } catch {
         // Live transforms can briefly expose an incomplete CSG mesh. Keep the
         // last valid shell instead of allowing that transient state to crash

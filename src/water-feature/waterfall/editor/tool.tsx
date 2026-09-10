@@ -8,9 +8,11 @@ import type { Group, Material, Mesh } from 'three'
 import { countNodesByType, createPoolPluginNode, getPoolNodes } from '../../../editor/scene-nodes'
 import { worldPointToPoolLevel } from '../../../design/level-coordinates'
 import { isPlacementRotationKey } from '../../../editor/placement-rotation'
+import { PoolLevelPreviewGroup } from '../../../editor/level-preview-group'
+import { useAttachmentPool } from '../../../editor/attachment-pool'
 import { buildWaterfallGeometry } from '../core/geometry'
 import { DEFAULT_POOL_WATERFALL, PoolWaterfallNode } from '../core/schema'
-import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, type WaterfallPlacement } from '../design/placement'
+import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, resolveMountedWaterfall, type WaterfallPlacement } from '../design/placement'
 
 export default function PoolWaterfallTool() {
   const cursorRef = useRef<Group>(null)
@@ -94,7 +96,11 @@ export default function PoolWaterfallTool() {
     emitter.on('grid:move', onMove)
     emitter.on('grid:click', place)
     emitter.on('tool:cancel', cancel)
+    const unsubscribe = useScene.subscribe((state, previous) => {
+      if (state.nodes !== previous.nodes && lastMove) onMove(lastMove)
+    })
     return () => {
+      unsubscribe()
       window.removeEventListener('keydown', onKeyDown, true)
       emitter.off('grid:move', onMove)
       emitter.off('grid:click', place)
@@ -104,21 +110,24 @@ export default function PoolWaterfallTool() {
   }, [ghostNode, levelId, setSelection])
 
   return (
-    <group>
+    <PoolLevelPreviewGroup>
       <CursorSphere color={placement ? '#22c55e' : '#f97316'} ref={cursorRef} />
       {placement && <WaterfallGhost node={ghostNode} placement={placement} />}
-    </group>
+    </PoolLevelPreviewGroup>
   )
 }
 
 function WaterfallGhost({ node, placement }: { node: PoolWaterfallNode; placement: WaterfallPlacement }) {
+  const pool = useAttachmentPool(placement.poolId)
+  const mounted = useMemo(() => resolveMountedWaterfall(PoolWaterfallNode.parse({
+    ...node,
+    ...placement,
+    autoSizeOnPool: true,
+    receivingPoolEnabled: placement.poolId === null,
+    showFlow: false,
+  }), pool), [node, placement, pool])
   const geometry = useMemo(() => {
-    const group = buildWaterfallGeometry(PoolWaterfallNode.parse({
-      ...node,
-      ...placement,
-      receivingPoolEnabled: placement.poolId === null,
-      showFlow: false,
-    }))
+    const group = buildWaterfallGeometry(mounted)
     group.traverse((child) => {
       const mesh = child as Mesh
       if (!mesh.isMesh) return
@@ -130,7 +139,7 @@ function WaterfallGhost({ node, placement }: { node: PoolWaterfallNode; placemen
       }
     })
     return group
-  }, [node, placement])
+  }, [mounted])
   useEffect(() => () => {
     const materials = new Set<Material>()
     geometry.traverse((child) => {
@@ -142,5 +151,5 @@ function WaterfallGhost({ node, placement }: { node: PoolWaterfallNode; placemen
     })
     for (const material of materials) material.dispose()
   }, [geometry])
-  return <primitive object={geometry} position={placement.position} rotation={placement.rotation} />
+  return <primitive object={geometry} position={mounted.position} rotation={mounted.rotation} />
 }

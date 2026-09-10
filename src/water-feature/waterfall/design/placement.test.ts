@@ -5,6 +5,30 @@ import { PoolWaterfallNode } from '../core/schema'
 import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, getMountedWaterfallDimensions, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
 
 describe('pool waterfall placement', () => {
+  test('default and legacy waterfall rocks match border colors without replacing custom colors', () => {
+    const pool = PoolNode.parse({ copingStyle: 'rock' })
+    for (const rockColor of ['#7f817d', '#b8b6af']) {
+      const node = PoolWaterfallNode.parse({ poolId: pool.id, rockColor })
+      expect(resolveMountedWaterfall(node, pool).rockColor).toBe('#b8b6af')
+      expect(resolveMountedWaterfall(node, { ...pool, copingStyle: 'continuous', copingColor: '#abcdef' }).rockColor).toBe('#abcdef')
+    }
+    const custom = PoolWaterfallNode.parse({ poolId: pool.id, rockColor: '#ff0000' })
+    expect(resolveMountedWaterfall(custom, pool).rockColor).toBe('#ff0000')
+  })
+  test('placement and pool-child rendering agree after pool height changes', () => {
+    for (const elevation of [-1, 0, 2.5]) {
+      const pool = PoolNode.parse({ position: [0, elevation, 0], finishedDeckElevation: 0.4, designWaterElevation: 0.2 })
+      const placement = findNearestWaterfallPlacement([4.1, 0], [pool], 1.2)!
+      const draft = PoolWaterfallNode.parse({ ...placement, autoSizeOnPool: true, waterfallType: 'modern' })
+      const ghost = resolveMountedWaterfall(draft, pool)
+      const child = resolveMountedWaterfall({ ...draft, parentId: pool.id }, pool)
+      expect(ghost.position[1]).toBeCloseTo(elevation + 0.4)
+      expect(child.position[1] + pool.position[1]).toBeCloseTo(ghost.position[1])
+      expect(ghost.position[1] + ghost.targetWaterOffset).toBeCloseTo(elevation + 0.2)
+      expect(child.height).toBe(ghost.height)
+      expect(child.edgeCurve).toEqual(ghost.edgeCurve)
+    }
+  })
   test('snaps to the pool edge, faces inward, and inherits the water surface', () => {
     const pool = PoolNode.parse({
       id: 'pool_waterfall_edge',

@@ -20,6 +20,7 @@ import {
   type PoolStairAttachment,
 } from '../design/placement'
 import PoolStairGhost from './ghost'
+import { PoolLevelPreviewGroup } from '../../editor/level-preview-group'
 
 export default function MovePoolStairTool({ node }: { node: PoolStairNode }) {
   const levelId = useViewer((state) => state.selection.levelId)
@@ -65,7 +66,7 @@ export default function MovePoolStairTool({ node }: { node: PoolStairNode }) {
 
     const commit = () => {
       const next = attachmentRef.current
-      if (finished || !hasMovedRef.current || !next) return
+      if (finished || !hasMovedRef.current || !next || useScene.getState().readOnly) return
       finished = true
       finishHistory()
       useScene.getState().updateNode(node.id as never, {
@@ -120,5 +121,5 @@ export default function MovePoolStairTool({ node }: { node: PoolStairNode }) {
     }
   }, [exitMoveMode, levelId, node.id])
 
-  return attachment ? <PoolStairGhost node={previewNode} placement={attachment} /> : null
+  return attachment ? <PoolLevelPreviewGroup><PoolStairGhost node={previewNode} placement={attachment} /></PoolLevelPreviewGroup> : null
 }

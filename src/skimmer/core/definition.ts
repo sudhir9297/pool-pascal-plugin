@@ -8,6 +8,7 @@ import { poolSkimmerParametrics } from '../editor/parametrics'
 
 export const poolSkimmerDefinition: NodeDefinition<typeof PoolSkimmerNode> = {
   kind: 'pool:skimmer',
+  affordanceTools: { move: () => import('../../editor/move-fitting-tool') },
   schemaVersion: 1,
   schema: PoolSkimmerNode,
   category: 'furnish',

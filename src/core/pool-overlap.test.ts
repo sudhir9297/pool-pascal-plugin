@@ -41,6 +41,11 @@ test.each([[false,0],[true,0],[false,Math.PI/3],[true,Math.PI/3]] as const)('pre
   water.raycast=Mesh.prototype.raycast
   expect(ray.intersectObject(water)).toHaveLength(0)
   expect(ray.intersectObject(group.getObjectByName('pool-shell-floor')!)).toHaveLength(0)
+  const floorEdgeRay = new Raycaster(new Vector3(-2.5, -2 - lower.floorThickness / 2, 0), new Vector3(1, 0, 0), 0, 0.8)
+  expect(floorEdgeRay.intersectObject(group.getObjectByName('pool-shell-floor')!)).toHaveLength(0)
+  floorEdgeRay.ray.origin.x = 2.5
+  floorEdgeRay.ray.direction.x = -1
+  expect(floorEdgeRay.intersectObject(group.getObjectByName('pool-shell-floor')!).length).toBeGreaterThan(0)
   ray.ray.origin.x=-2
   expect(ray.intersectObject(group.getObjectByName('pool-coping')!,true)).toHaveLength(0)
   ray.ray.origin.x=0

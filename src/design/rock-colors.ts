@@ -1,9 +1,10 @@
 import { Color } from 'three'
+export const DEFAULT_POOL_ROCK_COLOR = '#b8b6af'
 
 // A restrained cool gray-beige pool-rock family. The small range keeps the
 // coping cohesive while avoiding a repeated, perfectly uniform material.
 const POOL_ROCK_COLORS = [
-  '#b8b6af',
+  DEFAULT_POOL_ROCK_COLOR,
   '#bebcb5',
   '#b0afa9',
   '#bbb9b2',

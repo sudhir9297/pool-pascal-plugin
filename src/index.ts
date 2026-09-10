@@ -1,4 +1,5 @@
 import type { AnyNodeDefinition, Plugin } from '@pascal-app/core'
+import { poolPaint } from './core/paint'
 import { poolDefinition } from './core/definition'
 import { poolSkimmerDefinition } from './skimmer/core/definition'
 import { poolValveDefinition } from './valve/core/definition'
@@ -34,7 +35,7 @@ export const poolPlugin: Plugin = {
     poolInletDefinition as unknown as AnyNodeDefinition,
     poolWaterfallDefinition as unknown as AnyNodeDefinition,
     poolStairDefinition as unknown as AnyNodeDefinition,
-  ],
+  ].map(definition => ({ ...definition, capabilities: { ...definition.capabilities, paint: poolPaint } })),
 }
 
 export const poolHostPanel: PoolHostPanel = {

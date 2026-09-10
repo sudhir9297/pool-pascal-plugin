@@ -1,9 +1,10 @@
 import { PoolNode } from '../core/schema'
 import { createDefaultPoolAttachments, isAutomaticPoolFitting } from './default-pool-attachments'
+import { resolvePoolAttachment } from './pool-attachments'
 
 const placementKeys = ['position', 'rotation', 'parentId', 'poolId', 'wallIndex', 'wallT', 'floorAnchor'] as const
 
-/** Reconcile only generated slots. Manually added equipment is never removed. */
+/** Update existing generated slots. Missing slots may have been deliberately deleted. */
 export function syncAutomaticPoolFittings(nodes: Record<string, unknown>) {
   const create: ReturnType<typeof createDefaultPoolAttachments> = []
   const update: { id: string; data: Record<string, unknown> }[] = []
@@ -13,11 +14,14 @@ export function syncAutomaticPoolFittings(nodes: Record<string, unknown>) {
     const parsed = PoolNode.safeParse(value)
     if (!parsed.success || !parsed.data.automaticFittings) continue
     const pool = parsed.data
-    const desired = createDefaultPoolAttachments(pool)
+    const desired = Object.values(nodes).flatMap(value => {
+      const attached = resolvePoolAttachment(value, pool)
+      return attached && isAutomaticPoolFitting(attached, pool.id) ? [attached] : []
+    })
     const wanted = new Set<string>(desired.map((node) => node.id))
     for (const node of desired) {
       const current = nodes[node.id]
-      if (!current || typeof current !== 'object') { create.push(node); continue }
+      if (!current || typeof current !== 'object') continue
       const data = Object.fromEntries(placementKeys.flatMap((key) => {
         if (!(key in node)) return []
         const field = (node as Record<string, unknown>)[key]
