@@ -19,7 +19,7 @@ import { MeshBasicNodeMaterial } from 'three/webgpu'
 import { TessellateModifier } from 'three/examples/jsm/modifiers/TessellateModifier.js'
 import { color, float, mix, normalLocal, positionLocal, sin, smoothstep, vec2 } from 'three/tsl'
 import { getPoolDepthRange, getPoolDepthResolver } from '../design/depth-profile'
-import { buildPoolOutlines } from '../design/outlines'
+import { buildPoolOutlines, outsetPoolPolygon } from '../design/outlines'
 import { PoolNode, type PoolPoint, resolvePoolPolygon } from './schema'
 import { PoolWaterEffect } from '../shader/water-effect'
 import { buildNaturalCopingGeometry } from '../design/coping'
@@ -898,7 +898,39 @@ function boundaryPositionForLegacyWall(points: PoolPoint[], wall: PoolNode['benc
   return bestT
 }
 
-function createPerimeterBenchGeometry(
+/** Trace the exposed lower basin boundary, including walls introduced by overlaps. */
+export function perimeterBenchBoundaries(points: PoolPoint[], footprints: PoolPoint[][]): PoolPoint[][] {
+  if (!footprints.length) return [points]
+  const ccw = (polygon: PoolPoint[]) => signedArea(polygon) >= 0 ? polygon : [...polygon].reverse()
+  const basin = ccw(points)
+  const cuts = footprints.map(ccw)
+  const edges: Array<{ start: PoolPoint; end: PoolPoint }> = []
+  basin.forEach((point, i) => edges.push(...visibleSegmentFragments(point, basin[(i + 1) % basin.length]!, cuts)))
+  cuts.forEach((cut, cutIndex) => cut.forEach((point, i) => {
+    for (const fragment of visibleSegmentFragments(point, cut[(i + 1) % cut.length]!, [basin], true)) {
+      for (const exposed of visibleSegmentFragments(fragment.start, fragment.end, cuts.filter((_, index) => index !== cutIndex))) {
+        edges.push({ start: exposed.end, end: exposed.start })
+      }
+    }
+  }))
+  const close = (a: PoolPoint, b: PoolPoint) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-5
+  const boundaries: PoolPoint[][] = []
+  while (edges.length) {
+    const first = edges.shift()!
+    const ring = [first.start]
+    let end = first.end
+    while (!close(end, ring[0]!)) {
+      ring.push(end)
+      const index = edges.findIndex(edge => close(edge.start, end))
+      if (index < 0) break
+      end = edges.splice(index, 1)[0]!.end
+    }
+    if (close(end, ring[0]!) && ring.length >= 3) boundaries.push(normalizeClippedPolygon(ring))
+  }
+  return boundaries
+}
+
+export function createPerimeterBenchGeometry(
   points: PoolPoint[],
   floorDepthAtX: (x: number) => number,
   requestedWidth: number,
@@ -906,16 +938,9 @@ function createPerimeterBenchGeometry(
 ) {
   const positions: number[] = []
   if (points.length < 3) return new BufferGeometry()
-  const winding = signedArea(points) >= 0 ? 1 : -1
   const width = Math.max(0.05, requestedWidth)
-  const insetPoints = points.map((point, index) => {
-    const next = points[(index + 1) % points.length]!
-    const edgeLength = Math.hypot(next[0] - point[0], next[1] - point[1])
-    if (edgeLength <= GEOMETRY_EPSILON) return [...point] as PoolPoint
-    const tangent: PoolPoint = [(next[0] - point[0]) / edgeLength, (next[1] - point[1]) / edgeLength]
-    const inward: PoolPoint = winding > 0 ? [-tangent[1], tangent[0]] : [tangent[1], -tangent[0]]
-    return [point[0] + inward[0] * width, point[1] + inward[1] * width] as PoolPoint
-  })
+  // Intersect both adjoining offset edges, keeping the seat width constant.
+  const insetPoints = outsetPoolPolygon(points, -width)
 
   for (let index = 0; index < points.length; index += 1) {
     const nextIndex = (index + 1) % points.length
@@ -955,22 +980,6 @@ function createPerimeterBenchGeometry(
       [boundaryStart[0], -topDepth, boundaryStart[1]],
       [boundaryStart[0], -boundaryStartDepth, boundaryStart[1]],
       [boundaryEnd[0], -boundaryEndDepth, boundaryEnd[1]],
-    )
-  }
-
-  // Close the small mitred gaps where two offset edge strips meet. This is
-  // intentionally a flat corner fill, which also works for freeform outlines.
-  for (let index = 0; index < points.length; index += 1) {
-    const previousIndex = (index - 1 + points.length) % points.length
-    const point = points[index]!
-    const currentInset = insetPoints[index]!
-    const previousInset = insetPoints[previousIndex]!
-    const topDepth = Math.min(requestedTopDepth, floorDepthAtX(point[0]) * 0.8)
-    pushTriangle(
-      positions,
-      [point[0], -topDepth, point[1]],
-      [currentInset[0], -topDepth, currentInset[1]],
-      [previousInset[0], -topDepth, previousInset[1]],
     )
   }
 
@@ -1265,19 +1274,24 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     const boundaryT = Object.prototype.hasOwnProperty.call(nodeInput, 'benchBoundaryT')
       ? node.benchBoundaryT
       : boundaryPositionForLegacyWall(inner, node.benchWall)
-    const bench = new Mesh(
-      perimeter
-        ? createPerimeterBenchGeometry(inner, depth.depthAtX, width, node.benchWaterDepth)
-        : createBoundaryBenchGeometry(inner, depth.depthAtX, boundaryT, node.benchLength, width, node.benchWaterDepth),
-      shellMaterial,
-    )
-    bench.name = 'pool-bench'
-    benchAssembly.add(bench)
+    const benchBoundaries = perimeter ? perimeterBenchBoundaries(inner,
+      options.overlaps?.filter(overlap => overlap.trimBasin !== false && overlap.suppressSeparator !== true).map(overlap => overlap.footprint) ?? [],
+    ) : [inner]
+    for (const boundary of benchBoundaries) {
+      const bench = new Mesh(
+        perimeter
+          ? createPerimeterBenchGeometry(boundary, depth.depthAtX, width, node.benchWaterDepth)
+          : createBoundaryBenchGeometry(boundary, depth.depthAtX, boundaryT, node.benchLength, width, node.benchWaterDepth),
+        shellMaterial,
+      )
+      bench.name = 'pool-bench'
+      benchAssembly.add(bench)
+    }
     group.add(benchAssembly)
     if (node.copingStyle === 'rock') {
       if (perimeter) {
-        for (let index = 0; index < inner.length; index += 1) {
-          addSubmergedFeatureEdge(inner[index]!, inner[(index + 1) % inner.length]!, node.benchWaterDepth, node.copingSeed + 202 + index)
+        for (const boundary of benchBoundaries) for (let index = 0; index < boundary.length; index += 1) {
+          addSubmergedFeatureEdge(boundary[index]!, boundary[(index + 1) % boundary.length]!, node.benchWaterDepth, node.copingSeed + 202 + index)
         }
       } else {
         // The end bench follows the selected boundary; its coping is generated
