@@ -1,4 +1,5 @@
 import type { FloorplanGeometry, GeometryContext, HandleDescriptor, NodeDefinition } from '@pascal-app/core'
+import { Euler, Vector3 } from 'three'
 import { getPoolDepthRange } from '../design/depth-profile'
 import { poolParametrics } from '../editor/parametrics'
 import { DEFAULT_POOL, PoolNode, resolvePoolPolygon } from './schema'
@@ -68,7 +69,7 @@ function poolHorizontalHandle(axis: 'x' | 'z'): HandleDescriptor<PoolNode> {
   return {
     kind: 'linear-resize',
     axis,
-    anchor: 'center',
+    anchor: 'min',
     gridSnap: true,
     min: MIN_POOL_DIMENSION,
     max: MAX_POOL_DIMENSION,
@@ -76,17 +77,25 @@ function poolHorizontalHandle(axis: 'x' | 'z'): HandleDescriptor<PoolNode> {
       const dimensions = isDrawnPoolShape(node.shape)
         ? getPoolPolygonDimensions(resolvePoolPolygon(node))
         : node
-      return axis === 'x' ? dimensions.length : dimensions.width
+      return axis === 'x' || node.shape === 'circle' ? dimensions.length : dimensions.width
     },
     apply: (node, newValue) => {
       const dimensions = isDrawnPoolShape(node.shape)
         ? getPoolPolygonDimensions(resolvePoolPolygon(node))
         : node
-      const length = axis === 'x' ? newValue : dimensions.length
-      const width = axis === 'z' ? newValue : dimensions.width
+      const length = axis === 'x' || node.shape === 'circle' ? newValue : dimensions.length
+      const width = node.shape === 'circle' ? newValue : axis === 'z' ? newValue : dimensions.width
+      // Outlines resize around their local centre. Move that centre by half
+      // the size change so the opposite edge stays fixed in the parent frame.
+      const offset = new Vector3(
+        axis === 'x' ? (length - dimensions.length) / 2 : 0,
+        0,
+        axis === 'z' ? (width - (node.shape === 'circle' ? dimensions.length : dimensions.width)) / 2 : 0,
+      ).applyEuler(new Euler(...node.rotation))
       return {
         length,
         width,
+        position: new Vector3(...node.position).add(offset).toArray(),
         ...resizePoolOutline(node, length, width),
       }
     },
@@ -108,7 +117,7 @@ function poolHorizontalHandle(axis: 'x' | 'z'): HandleDescriptor<PoolNode> {
               poolHandleDeckElevation(node)
                 + poolHandleCopingThickness(node)
                 + HANDLE_HEIGHT_OFFSET,
-              dimensions.width / 2 + poolHandleCopingWidth(node) + SIDE_HANDLE_OFFSET,
+              (node.shape === 'circle' ? dimensions.length : dimensions.width) / 2 + poolHandleCopingWidth(node) + SIDE_HANDLE_OFFSET,
             ]
       },
     },

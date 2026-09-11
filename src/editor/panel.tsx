@@ -84,7 +84,7 @@ export default function PoolPanel() {
       {menu === 'root' && <section className="flex flex-col gap-2">
         <h2 className="font-semibold text-base">Pool catalog</h2>
         <div className="grid grid-cols-2 gap-2">
-          <CatalogCard className="col-span-2" count={poolCount} image={THUMBNAILS.pool} label="Swimming pool" onClick={() => setMenu('pool-types')} wide />
+          <CatalogCard className="col-span-2" count={poolCount} image={THUMBNAILS.pool} label="Swimming pool" onClick={() => { setMenu('pool-types'); activate() }} wide />
           <CatalogCard count={stairCount} image={THUMBNAILS.stairs} label="Pool stairs" onClick={() => setMenu('stair-types')} />
         </div>
       </section>}
