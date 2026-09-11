@@ -1,11 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { isDeepStrictEqual } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { relative, resolve } from 'node:path'
 
 type PackageManifest = {
   main: string
   types: string
+  exports: { '.': { types: string; default: string } }
+  scripts: Record<string, string>
 }
 
 type PackReport = {
@@ -32,7 +33,12 @@ async function filesBelow(directory: string): Promise<string[]> {
 }
 
 for (const path of [manifest.main, manifest.types]) {
+  invariant(path === './src/index.ts', 'Package must resolve directly to source')
   await readFile(resolve(projectDirectory, path))
+}
+invariant(manifest.exports['.'].types === manifest.types && manifest.exports['.'].default === manifest.main, 'Exports must resolve to source')
+for (const hook of ['preinstall', 'install', 'postinstall', 'prepare', 'prepack']) {
+  invariant(!manifest.scripts[hook], `Package must not run ${hook}`)
 }
 
 const entry = await import(`${pathToFileURL(resolve(projectDirectory, manifest.main)).href}?package-check=${Date.now()}`)
@@ -49,6 +55,7 @@ const consumerTypecheck = Bun.spawn([
   '--ignoreConfig',
   '--noEmit',
   '--strict',
+  '--noUncheckedIndexedAccess',
   '--skipLibCheck',
   '--target',
   'ES2022',
@@ -56,6 +63,8 @@ const consumerTypecheck = Bun.spawn([
   'ESNext',
   '--moduleResolution',
   'Bundler',
+  '--jsx',
+  'react-jsx',
   'tests/package-consumer.ts',
 ], {
   cwd: projectDirectory,
@@ -69,24 +78,8 @@ const [consumerExitCode, consumerStdout, consumerStderr] = await Promise.all([
 ])
 invariant(
   consumerExitCode === 0,
-  `Published declarations fail in a consumer project:\n${consumerStdout}${consumerStderr}`,
+  `Published source fails in a consumer project:\n${consumerStdout}${consumerStderr}`,
 )
-
-const assetCopies = [
-  ['src/editor/assets', 'dist/assets'],
-  ['src/shader/assets/water', 'dist/assets/water'],
-] as const
-for (const [sourceDirectory, outputDirectory] of assetCopies) {
-  const sourceRoot = resolve(projectDirectory, sourceDirectory)
-  for (const sourcePath of await filesBelow(sourceRoot)) {
-    const assetPath = relative(sourceRoot, sourcePath)
-    const outputPath = resolve(projectDirectory, outputDirectory, assetPath)
-    invariant(
-      isDeepStrictEqual(await readFile(sourcePath), await readFile(outputPath)),
-      `Built asset differs from source: ${sourceDirectory}/${assetPath}`,
-    )
-  }
-}
 
 const pack = Bun.spawn(['npm', 'pack', '--dry-run', '--json', '--ignore-scripts'], {
   cwd: projectDirectory,
@@ -106,8 +99,12 @@ invariant(report.size < 5_000_000, `Packed package is ${(report.size / 1_000_000
 invariant(report.bundled.length === 0, 'Runtime dependencies were bundled into the package')
 
 const publishedPaths = report.files.map((file) => file.path)
+for (const file of await filesBelow(resolve(projectDirectory, 'src'))) {
+  if (/\.test\.[cm]?[jt]sx?$/.test(file)) continue
+  invariant(publishedPaths.includes(relative(projectDirectory, file)), `Package is missing source or asset: ${file}`)
+}
 const forbidden = publishedPaths.filter((path) => (
-  path.startsWith('src/')
+  path.startsWith('dist/')
   || path.startsWith('scripts/')
   || path.startsWith('coverage/')
   || /(?:^|\/)node_modules\//.test(path)
@@ -127,8 +124,8 @@ for (const required of [
   'docs/public-api.md',
   'docs/testing-and-release.md',
   'package.json',
-  'dist/index.js',
-  'dist/index.d.ts',
+  'src/index.ts',
+  'src/editor/routing-worker.ts',
 ]) {
   invariant(publishedPaths.includes(required), `Package is missing ${required}`)
 }

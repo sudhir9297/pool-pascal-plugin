@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
   Box3,
+  Color,
+  MeshStandardMaterial,
   Matrix4,
   Quaternion,
   Vector3,
@@ -104,12 +106,17 @@ describe('waterfall geometry', () => {
     }))
     const firstRocks = namedObjects(first).filter((object) => object.name.startsWith('waterfall-rock-')) as Mesh[]
     const secondRock = namedObjects(second).find((object) => object.name.startsWith('waterfall-rock-')) as Mesh
-    const firstColor = firstRocks[0]!.geometry.getAttribute('color')
-    const secondColor = secondRock.geometry.getAttribute('color')
-
     expect(firstRocks).toHaveLength(1)
-    expect(firstColor.getX(0)).not.toBeCloseTo(secondColor.getX(0))
-    expect(firstColor.getZ(0)).not.toBeCloseTo(secondColor.getZ(0))
+    for (const [rock, color] of [[firstRocks[0]!, '#7a351f'], [secondRock, '#1f517a']] as const) {
+      expect(rock.geometry.getAttribute('color')).toBeUndefined()
+      const materials = Array.isArray(rock.material) ? rock.material : [rock.material]
+      for (const material of materials) {
+        expect(material).toBeInstanceOf(MeshStandardMaterial)
+        if (!(material instanceof MeshStandardMaterial)) throw new Error('Expected editable rock material')
+        expect(material.vertexColors).toBe(false)
+        expect(material.color.equals(new Color(color))).toBe(true)
+      }
+    }
   })
 
   test('keeps the receiving pool but removes active flow effects when flow is off', () => {

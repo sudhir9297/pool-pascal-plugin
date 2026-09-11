@@ -1,9 +1,8 @@
 import type { routePipe } from '../design/pipe-route'
 
 export function createRoutingClient() {
-  const workerUrl = new URL('./routing-worker.js', import.meta.url)
-  // This file is already bundled; load it as an asset rather than a second bundler entrypoint.
-  const worker: Worker = Reflect.construct(Worker, [workerUrl, { type: 'module' }])
+  // Static Worker + URL syntax lets the host bundler transpile the worker too.
+  const worker = new Worker(new URL('./routing-worker.ts', import.meta.url), { type: 'module' })
   let nextId = 0
   const pending = new Map<number, { resolve: (value: ReturnType<typeof routePipe>) => void; reject: (error: Error) => void }>()
   let queued: { id: number; args: Parameters<typeof routePipe>; resolve: (value: ReturnType<typeof routePipe>) => void; reject: (error: Error) => void } | null = null

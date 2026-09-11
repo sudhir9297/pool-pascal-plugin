@@ -62,18 +62,19 @@ Generated files are written to `coverage/` and are not source artifacts.
 
 ## Package verification
 
-`check-package` imports `dist/index.js`, confirms the manifest ID, Plugin API
+`check-package` imports `src/index.ts`, confirms the manifest ID, Plugin API
 version, and 12 unique node kinds, then type-checks `tests/package-consumer.ts`
-against the emitted declarations. It verifies copied assets byte for byte and
+against the source exports. It verifies that all source files and assets are packed and
 inspects `npm pack --dry-run` output.
 
 The packed package must:
 
 - Stay below 5 MB
-- Contain no source, tests, scripts, coverage, or nested `node_modules`
+- Contain source and assets, but no dist, tests, scripts, coverage, or nested `node_modules`
+- Resolve directly to source and define no install or preparation lifecycle hooks
 - Contain no bundled runtime dependencies
 - Include the license, README, changelog, security policy, documentation,
-  manifest, JavaScript entry, and declaration entry
+  manifest, TypeScript entry, and routing worker source
 
 ## Release preparation
 
