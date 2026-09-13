@@ -136,7 +136,15 @@ for (const circuit of ['inlets', 'skimmers', 'drains'] as const) test(`${circuit
   useScene.setState({ readOnly: false })
   deletePoolConnection(pool.id, circuit)
   expect(apply).toHaveBeenCalledTimes(1)
-  expect(useScene.getState().nodes).toEqual(base)
+  const deletedIds = new Set(apply.mock.calls[0]![0].delete ?? [])
+  for (const member of members) expect(deletedIds.has(member.id)).toBe(true)
+  if (circuit === 'inlets') {
+    const inletIds = new Set(Object.values(base).filter((node) => String(node.type) === 'pool:inlet').map((node) => node.id))
+    for (const id of inletIds) expect(deletedIds.has(id)).toBe(true)
+    expect(Object.keys(useScene.getState().nodes).some((id) => inletIds.has(id))).toBe(false)
+  } else {
+    expect(useScene.getState().nodes).toEqual(base)
+  }
   expect(poolConnectionState(pool.id, circuit).status).toBe('empty')
   useScene.setState({ nodes: connected })
   expect(poolConnectionState(pool.id, circuit).status).toBe('connected')

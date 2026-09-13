@@ -1165,6 +1165,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   const shellOuter = outlines.shellOuter
   const copingOuter = outlines.copingOuter
   const waterEffect = new PoolWaterEffect(node, options.waterResolution)
+  waterEffect.setBoundary(inner, options.removeWaterRegions)
   const shellMaterial = createTileMaterial(node, waterEffect, inner)
   const outerWallMaterial = new MeshBasicNodeMaterial({ color: '#ffffff', side: DoubleSide })
   const copingMaterial = new MeshBasicNodeMaterial({ color: node.copingColor, side: DoubleSide })

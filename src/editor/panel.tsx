@@ -2,8 +2,10 @@
 
 import { useScene } from '@pascal-app/core'
 import { SegmentedControl, SliderControl, ToggleControl, useEditor } from '@pascal-app/editor'
-import { useEffect, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useViewer } from '@pascal-app/viewer'
 import { usePoolStore } from './store'
 import { POOL_SHAPE_OPTIONS, type PoolShape } from '../design/shapes'
 import { POOL_STAIR_CATALOG, POOL_STAIR_VARIANTS, type PoolStairVariant } from '../stair/data/catalog'
@@ -11,7 +13,7 @@ import { usePoolStairStore } from '../stair/editor/store'
 import { countPoolPluginNodes } from './scene-nodes'
 
 const THUMBNAILS = {
-  pool: new URL('./assets/swimming-pool-thumbnail-v2.webp', import.meta.url).href,
+  pool: new URL('./assets/swimming-pool-thumbnail-v3.webp', import.meta.url).href,
   stairs: new URL('./assets/pool-stairs-thumbnail.webp', import.meta.url).href,
   waterfall: new URL('./assets/waterfall-thumbnail.webp', import.meta.url).href,
   spillover: new URL('./assets/spillover-thumbnail.webp', import.meta.url).href,
@@ -43,8 +45,15 @@ const POOL_STAIR_THUMBNAILS: Record<PoolStairVariant, string> = {
   compact: new URL('./assets/stair-short-compact-thumbnail-v3.webp', import.meta.url).href,
 }
 
+const POOL_NODE_TO_TOOL = new Set([
+  'pool:pool', 'pool:stair', 'pool:waterfall', 'pool:spillover',
+  'pool:pump', 'pool:filter', 'pool:heater', 'pool:drain',
+  'pool:valve', 'pool:skimmer', 'pool:inlet',
+])
+
 export default function PoolPanel() {
-  const [menu, setMenu] = useState<'root' | 'pool-types' | 'stair-types'>('root')
+  const [menu, setMenu] = useState<'root' | 'pool-types' | 'stair-types' | 'water-features'>('root')
+  const selectedIds = useViewer((state) => state.selection.selectedIds)
   const shape = usePoolStore((state) => state.shape)
   const copingStyle = usePoolStore((state) => state.copingStyle)
   const floorProfile = usePoolStore((state) => state.floorProfile)
@@ -52,6 +61,7 @@ export default function PoolPanel() {
   const width = usePoolStore((state) => state.width)
   const stairVariant = usePoolStairStore((state) => state.variant)
   const counts = useScene(useShallow((state) => countPoolPluginNodes(state.nodes)))
+  const nodes = useScene((state) => state.nodes)
   const poolCount = counts['pool:pool']
   const stairCount = counts['pool:stair']
   const skimmerCount = counts['pool:skimmer']
@@ -63,6 +73,15 @@ export default function PoolPanel() {
   const drainCount = counts['pool:drain']
   const waterfallCount = counts['pool:waterfall']
   const spilloverCount = counts['pool:spillover']
+  const selectedPoolTool = selectedIds
+    .map((id) => String(nodes[id as keyof typeof nodes]?.type))
+    .find((tool) => POOL_NODE_TO_TOOL.has(tool)) ?? null
+  useEffect(() => {
+    if (selectedPoolTool === 'pool:pool') setMenu('pool-types')
+    else if (selectedPoolTool === 'pool:stair') setMenu('stair-types')
+    else if (selectedPoolTool === 'pool:waterfall' || selectedPoolTool === 'pool:spillover') setMenu('water-features')
+    else if (selectedPoolTool) setMenu('root')
+  }, [selectedPoolTool])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Alt' || event.repeat || event.metaKey || event.ctrlKey || event.shiftKey) return
@@ -78,81 +97,124 @@ export default function PoolPanel() {
     useEditor.getState().setMode('build')
   }
   const activate = () => activateTool('pool:pool')
+  const waterFeatureCount = waterfallCount + spilloverCount
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain p-4 text-sidebar-foreground">
-      {menu === 'root' && <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-base">Pool catalog</h2>
-        <div className="grid grid-cols-2 gap-2">
-          <CatalogCard className="col-span-2" count={poolCount} image={THUMBNAILS.pool} label="Swimming pool" onClick={() => { setMenu('pool-types'); activate() }} wide />
-          <CatalogCard count={stairCount} image={THUMBNAILS.stairs} label="Pool stairs" onClick={() => setMenu('stair-types')} />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-sidebar-foreground">
+      {menu === 'root' ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+          <section className="flex flex-col gap-2">
+            <h2 className="font-semibold text-base">Swimming pool</h2>
+            <p className="text-xs text-sidebar-foreground/60">Build the pool, then add its systems and details.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <CatalogCard className="col-span-2" count={poolCount} image={THUMBNAILS.pool} label="Swimming pool" onClick={() => { setMenu('pool-types'); activate() }} wide />
+              <CatalogCard count={stairCount} image={THUMBNAILS.stairs} label="Pool stairs" onClick={() => setMenu('stair-types')} />
+            </div>
+          </section>
+          <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
+            <h3 className="font-medium text-sm">Water features</h3>
+            <p className="text-xs text-sidebar-foreground/60">Add movement and visual interest to the pool.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <CatalogCard count={waterfallCount} image={THUMBNAILS.waterfall} label="Waterfall" onClick={() => { setMenu('water-features'); activateTool('pool:waterfall') }} />
+              <CatalogCard count={spilloverCount} image={THUMBNAILS.spillover} label="Pool spillover" onClick={() => { setMenu('water-features'); activateTool('pool:spillover') }} />
+            </div>
+          </section>
+          <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
+            <h3 className="font-medium text-sm">Circulation equipment</h3>
+            <p className="text-xs text-sidebar-foreground/60">Place the equipment that keeps the water clean and comfortable.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <CatalogCard count={pumpCount} image={THUMBNAILS.pump} label="Pool pump" onClick={() => activateTool('pool:pump')} />
+              <CatalogCard count={filterCount} image={THUMBNAILS.filter} label="Pool filter" onClick={() => activateTool('pool:filter')} />
+              <CatalogCard count={heaterCount} image={THUMBNAILS.heater} label="Pool heater" onClick={() => activateTool('pool:heater')} />
+            </div>
+          </section>
+          <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
+            <h3 className="font-medium text-sm">Pool fittings</h3>
+            <p className="text-xs text-sidebar-foreground/60">Connect the pool to its suction, drain, and return lines.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <CatalogCard count={skimmerCount} image={THUMBNAILS.skimmer} label="Pool skimmer" onClick={() => activateTool('pool:skimmer')} />
+              <CatalogCard count={inletCount} image={THUMBNAILS.inlet} label="Pool return inlet" onClick={() => activateTool('pool:inlet')} />
+              <CatalogCard count={drainCount} image={THUMBNAILS.drain} label="Pool drain" onClick={() => activateTool('pool:drain')} />
+              <CatalogCard count={valveCount} image={THUMBNAILS.valve} label="Suction valve" onClick={() => activateTool('pool:valve')} />
+            </div>
+          </section>
         </div>
-      </section>}
-      {menu !== 'root' && <header className="flex items-center justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            aria-label="Back to pool catalog"
-            className="rounded px-1 text-lg leading-none text-sidebar-foreground/60 hover:text-sidebar-foreground"
-            onClick={() => setMenu('root')}
-            type="button"
-          >
-            ←
-          </button>
-          <h2 className="font-semibold text-base">{menu === 'pool-types' ? 'Swimming pool' : menu === 'stair-types' ? 'Pool stairs' : 'Swimming pools'}</h2>
+      ) : (
+        <PoolDetailPanel
+          title={menu === 'pool-types' ? 'Swimming pool' : menu === 'stair-types' ? 'Pool stairs' : 'Water features'}
+          description={menu === 'pool-types' ? 'Choose a shape and configure the pool before placing it.' : menu === 'stair-types' ? 'Choose a stair style to place inside the pool.' : 'Add a waterfall or connect two pools with a spillover.'}
+          count={menu === 'pool-types' ? poolCount : menu === 'stair-types' ? stairCount : waterFeatureCount}
+          onBack={() => setMenu('root')}
+        >
+          {menu === 'water-features' && <section className="flex flex-col gap-3">
+            <p className="text-xs leading-relaxed text-sidebar-foreground/70">Waterfalls are placed along a pool edge. Spillovers connect a source pool to a receiving pool.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <CatalogCard count={waterfallCount} image={THUMBNAILS.waterfall} label="Waterfall" onClick={() => activateTool('pool:waterfall')} />
+              <CatalogCard count={spilloverCount} image={THUMBNAILS.spillover} label="Pool spillover" onClick={() => activateTool('pool:spillover')} />
+            </div>
+          </section>}
+          {menu === 'pool-types' && <PresetGrid selected={shape} onPick={(value) => { usePoolStore.getState().setShape(value); activate() }} />}
+          {menu === 'pool-types' && <section className="flex flex-col gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 p-3">
+            <h3 className="font-medium text-sm">Pool settings</h3>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sidebar-foreground/60 text-xs">Border style</span>
+              <SegmentedControl className="h-11 p-1" value={copingStyle} options={[{ label: 'Standard', value: 'continuous' }, { label: 'Rock border', value: 'rock' }]} onChange={usePoolStore.getState().setCopingStyle} />
+            </div>
+            <ToggleControl checked={floorProfile === 'shallow-to-deep'} className="h-11 px-4" label="Shallow to deep" onChange={(enabled) => usePoolStore.getState().setFloorProfile(enabled ? 'shallow-to-deep' : 'flat')} />
+          </section>}
+          {menu === 'stair-types' && <section className="flex flex-col gap-2"><StairPresetGrid selected={stairVariant} onPick={(variant) => { usePoolStairStore.getState().selectVariant(variant); useEditor.getState().setTool('pool:stair'); useEditor.getState().setMode('build') }} /></section>}
+          {menu === 'pool-types' && <SliderControl label={shape === 'circle' ? 'Diameter' : 'Length'} min={0.5} max={100} step={0.1} unit="m" value={length} onChange={usePoolStore.getState().setLength} />}
+          {menu === 'pool-types' && shape !== 'circle' && <SliderControl label="Width" min={0.5} max={100} step={0.1} unit="m" value={width} onChange={usePoolStore.getState().setWidth} />}
+        </PoolDetailPanel>
+      )}
+    </div>
+  )
+}
+
+function PoolDetailPanel({
+  title,
+  description,
+  count,
+  onBack,
+  children,
+}: {
+  title: string
+  description: string
+  count: number
+  onBack: () => void
+  children: ReactNode
+}) {
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true })
+  }, [])
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="flex shrink-0 flex-col gap-3 border-b border-sidebar-border/70 px-3 pb-3 pt-2">
+        <button
+          aria-label="Back to pool catalog"
+          className="-ml-1.5 flex min-h-8 self-start items-center gap-1.5 rounded-lg px-1.5 text-sidebar-foreground/60 text-xs hover:bg-sidebar-accent/50 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          onClick={onBack}
+          type="button"
+        >
+          <ArrowLeft aria-hidden size={14} />
+          Pool catalog
+        </button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 ref={heading} tabIndex={-1} className="rounded font-semibold text-sm focus-visible:outline-2 focus-visible:outline-ring">
+              {title}
+            </h2>
+            <p className="mt-0.5 text-xs leading-relaxed text-sidebar-foreground/60">{description}</p>
+          </div>
+          <span className="shrink-0 text-sidebar-foreground/60 text-xs">{count} placed</span>
         </div>
-        <span className="text-sidebar-foreground/60 text-xs">{menu === 'stair-types' ? stairCount : poolCount} placed</span>
-      </header>}
-      {menu === 'pool-types' && <PresetGrid selected={shape} onPick={(value) => { usePoolStore.getState().setShape(value); activate() }} />}
-      {menu === 'pool-types' && <section className="flex flex-col gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 p-3">
-        <h3 className="font-medium text-sm">Pool settings</h3>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sidebar-foreground/60 text-xs">Border style</span>
-          <SegmentedControl
-            className="h-11 p-1"
-            value={copingStyle}
-            options={[{ label: 'Standard', value: 'continuous' }, { label: 'Rock border', value: 'rock' }]}
-            onChange={usePoolStore.getState().setCopingStyle}
-          />
-        </div>
-        <ToggleControl
-          checked={floorProfile === 'shallow-to-deep'}
-          className="h-11 px-4"
-          label="Shallow to deep"
-          onChange={(enabled) => usePoolStore.getState().setFloorProfile(enabled ? 'shallow-to-deep' : 'flat')}
-        />
-      </section>}
-      {menu === 'stair-types' && <section className="flex flex-col gap-2">
-        <h3 className="font-medium text-sm">Pool stairs</h3>
-        <StairPresetGrid
-          selected={stairVariant}
-          onPick={(variant) => {
-            usePoolStairStore.getState().selectVariant(variant)
-            useEditor.getState().setTool('pool:stair')
-            useEditor.getState().setMode('build')
-          }}
-        />
-      </section>}
-      {menu === 'pool-types' && <SliderControl label={shape === 'circle' ? 'Diameter' : 'Length'} min={0.5} max={100} step={0.1} unit="m" value={length} onChange={usePoolStore.getState().setLength} />}
-      {menu === 'pool-types' && shape !== 'circle' && <SliderControl label="Width" min={0.5} max={100} step={0.1} unit="m" value={width} onChange={usePoolStore.getState().setWidth} />}
-      {menu === 'root' && <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
-        <h3 className="font-medium text-sm uppercase tracking-wide text-sidebar-foreground/60">Natural water features</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <CatalogCard count={waterfallCount} image={THUMBNAILS.waterfall} label="Waterfall" onClick={() => activateTool('pool:waterfall')} />
-          <CatalogCard count={spilloverCount} image={THUMBNAILS.spillover} label="Pool spillover" onClick={() => activateTool('pool:spillover')} />
-        </div>
-      </section>}
-      {menu === 'root' && <section className="flex flex-col gap-2 border-t border-sidebar-border pt-4">
-        <h3 className="font-medium text-sm uppercase tracking-wide text-sidebar-foreground/60">Pool equipment</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <CatalogCard count={filterCount} image={THUMBNAILS.filter} label="Pool filter" onClick={() => activateTool('pool:filter')} />
-          <CatalogCard count={heaterCount} image={THUMBNAILS.heater} label="Pool heater" onClick={() => activateTool('pool:heater')} />
-          <CatalogCard count={pumpCount} image={THUMBNAILS.pump} label="Pool pump" onClick={() => activateTool('pool:pump')} />
-          <CatalogCard count={drainCount} image={THUMBNAILS.drain} label="Pool drain" onClick={() => activateTool('pool:drain')} />
-          <CatalogCard count={valveCount} image={THUMBNAILS.valve} label="Suction valve" onClick={() => activateTool('pool:valve')} />
-          <CatalogCard count={skimmerCount} image={THUMBNAILS.skimmer} label="Pool skimmer" onClick={() => activateTool('pool:skimmer')} />
-          <CatalogCard count={inletCount} image={THUMBNAILS.inlet} label="Pool return inlet" onClick={() => activateTool('pool:inlet')} />
-        </div>
-      </section>}
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-3">
+        {children}
+      </div>
     </div>
   )
 }
@@ -192,7 +254,7 @@ function StairPresetGrid({ selected, onPick }: { selected: PoolStairVariant; onP
 
 function CatalogCard({ className = '', count, image, label, onClick, wide = false }: {
   className?: string
-  count: number
+  count?: number
   image: string
   label: string
   onClick: () => void
@@ -200,11 +262,11 @@ function CatalogCard({ className = '', count, image, label, onClick, wide = fals
 }) {
   return <button className={`group min-w-0 overflow-hidden rounded-xl border border-sidebar-border bg-sidebar-accent/20 text-left hover:border-primary ${className}`} onClick={onClick} type="button">
     <div className="overflow-hidden">
-      <img alt="" className={`${wide ? 'aspect-[2.4/1]' : 'aspect-square'} w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]`} src={image} />
+      <img alt="" className={`${wide ? 'aspect-[16/9]' : 'aspect-square'} w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]`} src={image} />
     </div>
-    <span className="flex min-w-0 items-center justify-between gap-2 px-2 py-2">
-      <span className="truncate font-medium text-xs">{label}</span>
-      <span className="shrink-0 text-sidebar-foreground/50 text-[11px]">{count}</span>
-    </span>
+      <span className="flex min-w-0 items-center justify-between gap-2 px-2 py-2">
+        <span className="truncate font-medium text-xs">{label}</span>
+        {count !== undefined && <span className="shrink-0 text-sidebar-foreground/50 text-[11px]">{count}</span>}
+      </span>
   </button>
 }

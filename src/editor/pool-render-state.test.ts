@@ -4,7 +4,6 @@ import { PoolNode } from '../core/schema'
 import {
   countPools,
   getPoolGeometrySignature,
-  getPoolRippleUv,
   getPoolWaterResolution,
   shouldAdvancePoolWater,
   selectPoolRenderNodes,
@@ -54,10 +53,4 @@ describe('pool render state', () => {
     expect(countPools({ one: pool('pool_one'), two: pool('pool_two') })).toBe(2)
   })
 
-  test('maps floor hits into the water simulation while ignoring coping hits', () => {
-    const polygon: Array<[number, number]> = [[-4, -2], [4, -2], [4, 2], [-4, 2]]
-    expect(getPoolRippleUv('pool-shell-floor', [0, 0], polygon)).toEqual([0.5, 0.5])
-    expect(getPoolRippleUv('pool-shell-floor', [4, 2], polygon)).toEqual([1, 1])
-    expect(getPoolRippleUv('pool-coping', [0, 0], polygon)).toBeNull()
-  })
 })

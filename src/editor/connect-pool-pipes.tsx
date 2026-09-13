@@ -44,7 +44,7 @@ function PoolConnectionForm({ poolId, circuit }: { poolId: string; circuit: Pool
     {connection.status !== 'empty' ? <>
       <ActionGroup>
         <ActionButton label={connection.status === 'connected' ? 'Connected' : 'Partially connected'} disabled />
-        <ActionButton label="Delete connection" disabled={readOnly || connection.shared || !connection.pipeIds.length} onClick={() => {
+        <ActionButton label={circuit === 'inlets' ? 'Delete connection & inlets' : 'Delete connection'} disabled={readOnly || connection.shared || !connection.pipeIds.length} onClick={() => {
           try { deletePoolConnection(poolId, circuit); setActive(false); setMessage('') }
           catch (error) { setMessage(error instanceof Error ? error.message : 'Could not delete this connection.') }
         }} />

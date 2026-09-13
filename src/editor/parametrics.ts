@@ -1,6 +1,6 @@
 import { ConnectInlets, ConnectSkimmers, ConnectDrains } from './connect-pool-pipes'
 import { planPoolFittings } from '../design/pool-fitting-layout'
-import type { ParametricDescriptor } from '@pascal-app/core'
+import { useScene, type ParametricDescriptor } from '@pascal-app/core'
 import { POOL_ENTRY_FEATURES } from '../design/entry-features'
 import { POOL_FLOOR_PROFILES } from '../design/depth-profile'
 import { POOL_SHAPES, createPoolShapePolygon, isDrawnPoolShape } from '../design/shapes'
@@ -15,20 +15,9 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     ? planPoolFittings(node).issues.map((msg) => ({ msg, severity: 'warning' as const }))
     : []],
   groups: [
-    { label: 'Inlet pipes', fields: [{ key: 'inletPipes', kind: 'custom', component: ConnectInlets }] },
-    { label: 'Drain pipes', fields: [{ key: 'drainPipes', kind: 'custom', component: ConnectDrains }] },
-    { label: 'Skimmer pipes', fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
-    {
-      label: 'Automatic fittings',
-      fields: [
-        { key: 'automaticFittings', kind: 'boolean' },
-        { key: 'turnoverHours', kind: 'number', unit: 'h', min: 1, max: 24, step: 1, visibleIf: (node) => node.automaticFittings },
-        { key: 'fittingFlowRate', kind: 'number', unit: 'm³/h (0 = estimate)', min: 0, max: 10000, step: 1, visibleIf: (node) => node.automaticFittings },
-        { key: 'drainFlowCapacity', kind: 'number', unit: 'm³/h per outlet', min: 1, max: 1000, step: 1, visibleIf: (node) => node.automaticFittings },
-      ],
-    },
     {
       label: 'Pool geometry',
+      defaultExpanded: true,
       fields: [
         { key: 'shape', kind: 'enum', options: POOL_SHAPES },
         { key: 'visualPreset', kind: 'enum', options: POOL_VISUAL_PRESETS },
@@ -62,6 +51,7 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     },
     {
       label: 'Water shader',
+      defaultExpanded: false,
       fields: [
         { key: 'waterPreset', kind: 'enum', options: WATER_PRESETS },
         { key: 'shallowWaterColor', kind: 'color' },
@@ -78,32 +68,48 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
         { key: 'breeze', kind: 'number', min: 0, max: 1, step: 0.01 },
       ],
     },
-    { label: 'Transform', fields: [{ key: 'position', kind: 'vec3' }] },
+    {
+      label: 'Automatic fittings',
+      defaultExpanded: false,
+      fields: [
+        { key: 'automaticFittings', kind: 'boolean' },
+        { key: 'turnoverHours', kind: 'number', unit: 'h', min: 1, max: 24, step: 1, visibleIf: (node) => node.automaticFittings },
+        { key: 'fittingFlowRate', kind: 'number', unit: 'm³/h (0 = estimate)', min: 0, max: 10000, step: 1, visibleIf: (node) => node.automaticFittings },
+        { key: 'drainFlowCapacity', kind: 'number', unit: 'm³/h per outlet', min: 1, max: 1000, step: 1, visibleIf: (node) => node.automaticFittings },
+      ],
+    },
+    { label: 'Inlet pipes', defaultExpanded: false, fields: [{ key: 'inletPipes', kind: 'custom', component: ConnectInlets }] },
+    { label: 'Drain pipes', defaultExpanded: false, fields: [{ key: 'drainPipes', kind: 'custom', component: ConnectDrains }] },
+    { label: 'Skimmer pipes', defaultExpanded: false, fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
+    { label: 'Transform', defaultExpanded: false, fields: [{ key: 'position', kind: 'vec3' }] },
   ],
   actions: [
-    {
-      label: 'Big splash',
-      iconSrc: 'https://api.iconify.design/lucide/waves.svg?color=%230284c7',
-      enabledIf: (node) => node.visible,
-      onClick: (node) => triggerPoolWaterAction(node.id, 'splash'),
-    },
     {
       label: 'Calm water',
       iconSrc: 'https://api.iconify.design/lucide/waves.svg?color=%2306478f',
       enabledIf: (node) => node.visible,
-      onClick: (node) => triggerPoolWaterAction(node.id, 'calm'),
+      onClick: (node) => {
+        useScene.getState().updateNode(node.id as never, { waterMode: 'calm' } as never)
+        triggerPoolWaterAction(node.id, 'calm')
+      },
     },
     {
       label: 'Storm water',
       iconSrc: 'https://api.iconify.design/lucide/cloud-lightning.svg?color=%237c3aed',
       enabledIf: (node) => node.visible,
-      onClick: (node) => triggerPoolWaterAction(node.id, 'storm'),
+      onClick: (node) => {
+        useScene.getState().updateNode(node.id as never, { waterMode: 'storm' } as never)
+        triggerPoolWaterAction(node.id, 'storm')
+      },
     },
     {
       label: 'Reset water',
       iconSrc: 'https://api.iconify.design/lucide/rotate-ccw.svg?color=%23475569',
       enabledIf: (node) => node.visible,
-      onClick: (node) => triggerPoolWaterAction(node.id, 'reset'),
+      onClick: (node) => {
+        useScene.getState().updateNode(node.id as never, { waterMode: 'base' } as never)
+        triggerPoolWaterAction(node.id, 'reset')
+      },
     },
   ],
   derive: (next, patch) => {

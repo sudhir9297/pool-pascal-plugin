@@ -70,12 +70,18 @@ function commitPoolDrawing(
     shape: PoolShape
     length: number
     width: number
+    rotationY?: number
     outlineControlPoints?: Point[]
   },
 ) {
   const scene = useScene.getState()
   const settings = usePoolStore.getState()
-  const { polygon, position: localizedPosition } = localizePoolPolygon(points)
+  const { polygon: localizedPolygon, position: localizedPosition } = localizePoolPolygon(points)
+  const rotationY = placement.rotationY ?? 0
+  // Preset placement currently supplies points already rotated in level space.
+  // Store that rotation on the node and keep its polygon in local space so
+  // moving the node does not make the editor fall back to the default yaw.
+  const polygon = localizedPolygon.map((point): Point => rotatePlanPoint(point, -rotationY))
   const position: [number, number, number] = [
     localizedPosition[0],
     elevation,
@@ -97,6 +103,7 @@ function commitPoolDrawing(
   const pool = PoolNode.parse({
     ...settings,
     ...placement,
+    rotation: [0, rotationY, 0],
     ...(outlineControlPoints ? { outlineControlPoints } : {}),
     name: nextSwimmingPoolName(scene.nodes),
     parentId: levelId,
@@ -389,7 +396,7 @@ export default function PoolTool() {
           translated,
           plane,
           levelYRef.current,
-          { shape, length, width },
+          { shape, length, width, rotationY: placementYawRef.current },
         )
         setSelection({ selectedIds: [poolId] })
         resetDraft()

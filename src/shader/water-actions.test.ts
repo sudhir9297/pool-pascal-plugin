@@ -8,10 +8,10 @@ describe('pool water actions', () => {
     const unsubscribeFirst = subscribePoolWaterActions('pool_first', (action) => first.push(action))
     const unsubscribeSecond = subscribePoolWaterActions('pool_second', (action) => second.push(action))
 
-    triggerPoolWaterAction('pool_first', 'splash')
+    triggerPoolWaterAction('pool_first', 'storm')
     triggerPoolWaterAction('pool_first', 'calm')
 
-    expect(first).toEqual(['splash', 'calm'])
+    expect(first).toEqual(['storm', 'calm'])
     expect(second).toEqual([])
     unsubscribeFirst()
     unsubscribeSecond()

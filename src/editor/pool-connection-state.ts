@@ -25,7 +25,12 @@ export function poolConnectionState(poolId: string, circuit: PoolPipeCircuit, no
     const node = nodes[other.nodeId as AnyNode['id']]
     return node && ['pool:inlet', 'pool:skimmer', 'pool:drain'].includes(String(node.type)) && !ids.has(node.id)
   }))
-  return { status: connected ? 'connected' : occupied > 0 || pipeIds.length > 0 ? 'partial' : 'empty', pipeIds, shared } as const
+  return {
+    status: connected ? 'connected' : occupied > 0 || pipeIds.length > 0 ? 'partial' : 'empty',
+    pipeIds,
+    attachmentIds: attachments.map((attachment) => attachment.id),
+    shared,
+  } as const
 }
 
 export function deletePoolConnection(poolId: string, circuit: PoolPipeCircuit) {
@@ -33,5 +38,12 @@ export function deletePoolConnection(poolId: string, circuit: PoolPipeCircuit) {
   if (scene.readOnly) throw new Error('This scene is read-only.')
   const state = poolConnectionState(poolId, circuit, scene.nodes)
   if (state.shared) throw new Error('This pipe network serves other pool connections. Separate the shared branch before deleting it.')
-  if (state.pipeIds.length) scene.applyNodeChanges({ delete: state.pipeIds as AnyNode['id'][] })
+  // Inlet connection setup creates the pool-wall inlet nodes as part of the
+  // connection. Remove those fittings with their generated route. Skimmers
+  // and drains are existing fixtures, so deleting their connection keeps the
+  // fixture and only removes the generated pipe network.
+  const deleteIds = circuit === 'inlets'
+    ? [...state.pipeIds, ...state.attachmentIds]
+    : state.pipeIds
+  if (deleteIds.length) scene.applyNodeChanges({ delete: deleteIds as AnyNode['id'][] })
 }

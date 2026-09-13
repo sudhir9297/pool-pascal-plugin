@@ -2,9 +2,9 @@
 
 import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
 import { NodeRenderer } from '@pascal-app/viewer'
-import { type ThreeEvent, useFrame } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { Box3, Frustum, Matrix4, Sphere, Vector3, type Group, type Material, type Mesh } from 'three'
+import { Box3, Frustum, Matrix4, Mesh, Sphere, type Group, type Material } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
 import { useShallow } from 'zustand/react/shallow'
 import { buildPoolGeometry } from '../core/geometry'
@@ -20,7 +20,6 @@ import {
 import {
   countPools,
   getPoolGeometrySignature,
-  getPoolRippleUv,
   getPoolWaterResolution,
   selectPoolRenderNodes,
   shouldAdvancePoolWater,
@@ -89,13 +88,10 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
 
   useEffect(() => {
     const unsubscribeActions = subscribePoolWaterActions(node.id, (action) => {
-      if (action === 'splash') waterEffect.splash()
       if (action === 'reset') waterEffect.reset()
-      if (action === 'calm') {
-        waterEffect.setSettings({ ...node, rain: 0, breeze: 0.08, viscosity: 0.55, surfaceDetail: 1.15 })
-      }
+      if (action === 'calm') waterEffect.calm(node)
       if (action === 'storm') {
-        waterEffect.setSettings({ ...node, rain: 0.75, breeze: 0.85, viscosity: 0.12, surfaceDetail: 2.4 })
+        waterEffect.storm()
       }
     })
     return () => {
@@ -132,21 +128,6 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     invalidate()
   })
 
-  const onPointerUp = (event: ThreeEvent<PointerEvent>) => {
-    handlers.onPointerUp(event)
-    const root = ref.current
-    if (!root) return
-    const localPoint = root.worldToLocal(event.point.clone() as Vector3)
-    const rippleUv = getPoolRippleUv(
-      event.object.name,
-      [localPoint.x, localPoint.z],
-      resolvePoolPolygon(node),
-    )
-    if (rippleUv) {
-      waterEffect.addDrop(rippleUv[0], rippleUv[1])
-    }
-  }
-
   // Custom renderers do not pass through ParametricNodeRenderer, so they must
   // register their root object and wire the node event bus themselves. Without
   // this, the meshes can be visible but clicks never reach SelectionManager.
@@ -180,7 +161,6 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
       rotation={node.rotation}
       visible={node.visible !== false}
       {...handlers}
-      onPointerUp={onPointerUp}
     >
       <primitive object={pool} />
       <AttachmentPoolContext.Provider value={node}>{node.children?.map((childId) => (

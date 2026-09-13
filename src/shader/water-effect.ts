@@ -74,7 +74,12 @@ const WATER_MOTION_RATES = {
   displacement: 0.075,
 } as const
 
+const CALM_MOTION_INTENSITY = 0.45
+const CALM_SETTLE_DAMPING = 0.92
+const CALM_BREEZE = 0.08
+
 export type WaterSettings = WaterPresetSettings & {
+  waterMode?: 'base' | 'calm' | 'storm'
   sunElevation: number
   sunAzimuth: number
   waterColor: string
@@ -249,6 +254,7 @@ export class PoolWaterEffect {
   private readonly dropRadius: any
   private readonly dropStrength: any
   private readonly damping: any
+  private readonly settleDamping: any
   private readonly simulationDetail: any
   private readonly shallowColor: any
   private readonly deepColor: any
@@ -272,6 +278,14 @@ export class PoolWaterEffect {
   private readonly specularSize: any
   private readonly specularHardness: any
   private readonly time: any
+  private readonly stormIntensity = uniform(0)
+  private readonly motionIntensity = uniform(1)
+  private readonly motionTime = uniform(0)
+  private readonly poolSize = uniform(new Vector2(12, 6))
+  private mode: 'base' | 'calm' | 'storm' = 'base'
+  private boundary: Array<[number, number]> = []
+  private holes: Array<Array<[number, number]>> = []
+  private origin: [number, number] = [0, 0]
   private readonly sunDirection: any
   private readonly absorption: any
   private initialized = false
@@ -281,8 +295,17 @@ export class PoolWaterEffect {
   private drops: Array<[number, number, number, number]> = []
   private settings: WaterSettings
 
+  get waterMode() {
+    return this.mode
+  }
+
   constructor(settingsInput: Partial<WaterSettings>, resolution = 256) {
     this.settings = resolveWaterSettings(settingsInput)
+    this.mode = settingsInput.waterMode ?? 'base'
+    this.stormIntensity.value = this.mode === 'storm' ? 1 : 0
+    this.motionIntensity.value = this.mode === 'calm'
+      ? CALM_MOTION_INTENSITY
+      : this.mode === 'storm' ? 1.6 : 1
     this.resolution = resolution
     this.read = makeTarget(resolution)
     this.write = makeTarget(resolution)
@@ -303,11 +326,15 @@ export class PoolWaterEffect {
     const down = this.inputNode.sample(sampleUv.sub(vec2(0, texel.y)))
     const up = this.inputNode.sample(sampleUv.add(vec2(0, texel.y)))
     this.damping = uniform(this.computeDamping())
+    this.settleDamping = uniform(1)
     this.simulationDetail = uniform(this.settings.surfaceDetail)
 
     const average = left.r.add(right.r).add(down.r).add(up.r).mul(0.25)
-    const velocity = current.g.add(average.sub(current.r).mul(2)).mul(this.damping)
-    const height = current.r.add(velocity).clamp(-0.35, 0.35)
+    const velocity = current.g
+      .add(average.sub(current.r).mul(2))
+      .mul(this.damping)
+      .mul(this.settleDamping)
+    const height = current.r.add(velocity).mul(this.settleDamping).clamp(-0.35, 0.35)
     const gradientX = right.r.sub(left.r).mul(this.simulationDetail)
     const gradientZ = up.r.sub(down.r).mul(this.simulationDetail)
     this.updateMaterial = new NodeMaterial()
@@ -318,7 +345,7 @@ export class PoolWaterEffect {
     this.dropCenter = uniform(new Vector2(0.5, 0.5))
     this.dropRadius = uniform(0.03)
     this.dropStrength = uniform(0.01)
-    const distance = sampleUv.sub(this.dropCenter).length()
+    const distance = sampleUv.sub(this.dropCenter).mul(this.poolSize).length().div(this.poolSize.y)
     const influence = smoothstep(this.dropRadius, float(0), distance)
     const shaped = float(0.5).sub(influence.mul(Math.PI).cos().mul(0.5))
     this.dropMaterial = new NodeMaterial()
@@ -371,8 +398,8 @@ export class PoolWaterEffect {
 
   private normalSample() {
     const base = this.worldWaterUv()
-    const panA = this.time.mul(this.normalSpeed).mul(WATER_MOTION_RATES.normalPrimary)
-    const panB = this.time.mul(this.normalSpeed).mul(WATER_MOTION_RATES.normalSecondary)
+    const panA = this.motionTime.mul(WATER_MOTION_RATES.normalPrimary)
+    const panB = this.motionTime.mul(WATER_MOTION_RATES.normalSecondary)
     const uvA = base.mul(this.normalScale.mul(0.5)).add(vec2(panA))
     const uvB = base.mul(this.normalScale).add(vec2(panB))
     return mix(
@@ -429,13 +456,22 @@ export class PoolWaterEffect {
       side: FrontSide,
     })
     const state = this.stateNode.sample(uv())
-    material.positionNode = positionLocal.add(vec3(0, state.r.mul(WATER_MOTION_RATES.displacement), 0))
+    const local = uv().mul(this.poolSize)
+    const phase = local.x.mul(2.1).add(local.y.mul(1.3)).sub(this.time.mul(3.4))
+    const phase2 = local.x.mul(-1.2).add(local.y.mul(2.8)).sub(this.time.mul(4.1))
+    const edge = uv().x.min(uv().y).min(uv().x.oneMinus()).min(uv().y.oneMinus())
+    const edgeFade = smoothstep(0, 0.08, edge)
+    const windHeight = phase.sin().mul(0.035).add(phase2.sin().mul(0.018))
+      .mul(this.stormIntensity).mul(edgeFade)
+    const displacement = float(WATER_MOTION_RATES.displacement)
+    material.positionNode = positionLocal.add(vec3(0,
+      state.r.mul(displacement).add(windHeight) as any, 0))
 
     const mapped = this.normalSample()
     const surfaceNormal = normalize(vec3(
-      mapped.x.mul(this.normalStrength).sub(state.b.mul(this.simulationDetail)) as any,
+      mapped.x.mul(this.normalStrength).mul(this.motionIntensity).sub(state.b.mul(this.simulationDetail)).add(phase.cos().mul(this.stormIntensity).mul(0.18)) as any,
       1,
-      mapped.y.mul(this.normalStrength).sub(state.a.mul(this.simulationDetail)) as any,
+      mapped.y.mul(this.normalStrength).mul(this.motionIntensity).sub(state.a.mul(this.simulationDetail)).add(phase2.cos().mul(this.stormIntensity).mul(0.15)) as any,
     ))
     const eye = normalize(cameraPosition.sub(positionWorld))
     const facing = max(dot(surfaceNormal, eye), 0)
@@ -455,7 +491,7 @@ export class PoolWaterEffect {
     // for renderers whose depth copy is unavailable.
     const shoreFade = smoothstep(0.005, 0.18, depthDelta).mul(0.78).add(0.22)
 
-    const refractionOffset = mapped.xy
+    const refractionOffset = surfaceNormal.xz
       .mul(this.refractionStrength)
       .mul(this.reflectionDistortion.mul(0.025))
     const offsetUv = screenUV.add(refractionOffset).clamp(0, 1)
@@ -501,8 +537,7 @@ export class PoolWaterEffect {
     // gives the water a moving screen-space reflection without a nested
     // reflector render, which is incompatible with the host's multisampled
     // WebGPU depth target.
-    const reflectionOffset = mapped.xy
-      .mul(this.normalStrength)
+    const reflectionOffset = surfaceNormal.xz
       .mul(this.reflectionDistortion.mul(0.035))
     const reflectedUv = screenUV.add(vec2(
       reflectionOffset.x.negate(),
@@ -527,12 +562,20 @@ export class PoolWaterEffect {
     const layered = refracted
       .add(intersectionBand.mul(this.intersectionColor))
       .add(shorelineBand.mul(color('#f2ffff')))
-    material.colorNode = mix(layered as any, reflectedScene as any, fresnel as any).add(specular as any) as any
+    const foamNoise = this.distortionTextureNode.sample(this.worldWaterUv().mul(18).add(vec2(this.time.mul(0.03)))).r
+    const foam = smoothstep(0.85, 1, phase.sin()).mul(this.stormIntensity).mul(0.22)
+      .mul(smoothstep(0.25, 0.7, foamNoise)).clamp(0, 0.8)
+    material.colorNode = mix(mix(layered as any, reflectedScene as any, fresnel as any).add(specular as any), color('#e9ffff') as any, foam as any) as any
     material.opacityNode = shoreFade
     return material
   }
 
   setSettings(settingsInput: Partial<WaterSettings>) {
+    if (settingsInput.waterMode !== undefined && settingsInput.waterMode !== this.mode) {
+      this.mode = settingsInput.waterMode
+      this.settleDamping.value = this.mode === 'calm' ? CALM_SETTLE_DAMPING : 1
+      if (this.mode === 'calm') this.drops.length = 0
+    }
     const previousPreset = this.settings.waterPreset
     this.settings = resolveWaterSettings(settingsInput)
     this.damping.value = this.computeDamping()
@@ -571,6 +614,7 @@ export class PoolWaterEffect {
   }
 
   addDrop(u: number, v: number, radius?: number, strength = 0.055) {
+    if (this.drops.length >= 16 || !this.contains(u, v)) return
     const normalizedRadius = (radius ?? this.settings.rippleSize / 1000) * 1.5
     this.drops.push([
       Math.max(0, Math.min(1, u)),
@@ -580,13 +624,52 @@ export class PoolWaterEffect {
     ])
   }
 
-  splash() {
-    this.addDrop(0.2 + Math.random() * 0.6, 0.2 + Math.random() * 0.6, 0.09, 0.22)
+  calm(settings: Partial<WaterSettings>) {
+    this.setSettings(settings)
+    this.mode = 'calm'
+    this.drops.length = 0
+    // Settle large waves without flattening the surface into a static plane.
+    this.settleDamping.value = CALM_SETTLE_DAMPING
+  }
+
+  storm() {
+    this.mode = 'storm'
+    this.settleDamping.value = 1
+  }
+
+  setBoundary(points: Array<[number, number]>, holes: Array<Array<[number, number]>> = []) {
+    this.boundary = points
+    this.holes = holes
+    this.origin = [Math.min(...points.map(p => p[0])), Math.min(...points.map(p => p[1]))]
+    this.poolSize.value.set(
+      Math.max(0.001, Math.max(...points.map(p => p[0])) - this.origin[0]),
+      Math.max(0.001, Math.max(...points.map(p => p[1])) - this.origin[1]),
+    )
+  }
+
+  private contains(u: number, v: number) {
+    if (!this.boundary.length) return true
+    const x = this.origin[0] + u * this.poolSize.value.x
+    const y = this.origin[1] + v * this.poolSize.value.y
+    const inside = (polygon: Array<[number, number]>) => {
+      let result = false
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const a = polygon[i]!, b = polygon[j]!
+        if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) result = !result
+      }
+      return result
+    }
+    return inside(this.boundary) && !this.holes.some(inside)
   }
 
   reset() {
+    this.mode = 'base'
+    this.stormIntensity.value = 0
+    this.motionIntensity.value = 1
+    this.accumulator = this.rainAccumulator = this.breezeAccumulator = 0
     this.initialized = false
     this.drops.length = 0
+    this.settleDamping.value = 1
   }
 
   private swap() {
@@ -603,23 +686,35 @@ export class PoolWaterEffect {
   }
 
   update(renderer: WebGPURenderer, delta: number) {
+    delta = Math.max(0, Math.min(Number.isFinite(delta) ? delta : 0, 0.05))
     const previousTarget = renderer.getRenderTarget()
     const previousAutoClear = renderer.autoClear
     renderer.autoClear = true
     try {
       this.time.value += Math.min(delta, 0.05)
+      const blend = 1 - Math.exp(-delta * 2)
+      this.stormIntensity.value += ((this.mode === 'storm' ? 1 : 0) - this.stormIntensity.value) * blend
+      const targetMotion = this.mode === 'calm'
+        ? CALM_MOTION_INTENSITY
+        : this.mode === 'storm' ? 1.6 : 1
+      this.motionIntensity.value += (targetMotion - this.motionIntensity.value) * blend
+      this.motionTime.value += delta * this.settings.normalSpeed * this.motionIntensity.value
+      this.settleDamping.value = Math.min(1, this.settleDamping.value + Math.min(delta, 0.05) * 0.1)
       if (!this.initialized) {
         this.pass(renderer, this.clearMaterial)
         this.pass(renderer, this.clearMaterial)
         this.initialized = true
       }
 
-      this.rainAccumulator += delta * this.settings.rain * 48
+      this.rainAccumulator += delta * (this.mode === 'calm' ? 0 : this.mode === 'storm' ? this.stormIntensity.value * 0.75 : this.settings.rain) * 48
       while (this.rainAccumulator >= 1) {
         this.rainAccumulator -= 1
         this.addDrop(Math.random(), Math.random(), 0.01 + Math.random() * 0.012, 0.025 + Math.random() * 0.04)
       }
-      this.breezeAccumulator += delta * this.settings.breeze * 18
+      const breeze = this.mode === 'calm'
+        ? CALM_BREEZE
+        : this.mode === 'base' ? this.settings.breeze : 0
+      this.breezeAccumulator += delta * breeze * 18
       while (this.breezeAccumulator >= 1) {
         this.breezeAccumulator -= 1
         this.addDrop(Math.random(), Math.random(), 0.05 + Math.random() * 0.08, (Math.random() - 0.5) * 0.012)

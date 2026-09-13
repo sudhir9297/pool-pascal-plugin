@@ -20,7 +20,7 @@ type PoolSettings = Pick<PoolNode,
   | 'waterColor' | 'shellColor' | 'interiorFinish' | 'visualPreset'
 >
 
-type PoolWaterAction = 'splash' | 'calm' | 'storm' | 'reset'
+type PoolWaterAction = 'calm' | 'storm' | 'reset'
 type PoolCopingStyle = PoolNode['copingStyle']
 
 type PoolStore = PoolSettings & {

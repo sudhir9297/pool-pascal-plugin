@@ -1,19 +1,11 @@
 import type { AnyNode } from '@pascal-app/core'
-import type { PoolNode, PoolPoint } from '../core/schema'
+import type { PoolNode } from '../core/schema'
 
 type ConnectionNode = AnyNode & {
   poolIds?: unknown
   sourcePoolId?: unknown
   targetPoolId?: unknown
 }
-
-const RIPPLE_SURFACES = new Set([
-  'pool-shell-floor',
-  'pool-entry-steps',
-  'pool-entry-tanning-shelf',
-  'pool-entry-beach',
-  'pool-bench',
-])
 
 function connectionTouchesPool(node: AnyNode, poolId: string) {
   const candidate = node as ConnectionNode
@@ -121,29 +113,4 @@ export function getPoolGeometrySignature(node: PoolNode) {
     designWaterElevation: node.designWaterElevation,
     interiorFinish: node.interiorFinish,
   })
-}
-
-export function getPoolRippleUv(
-  objectName: string,
-  localPoint: PoolPoint,
-  polygon: readonly PoolPoint[],
-): [number, number] | null {
-  if (!RIPPLE_SURFACES.has(objectName) || polygon.length < 3) return null
-  let minimumX = Number.POSITIVE_INFINITY
-  let maximumX = Number.NEGATIVE_INFINITY
-  let minimumZ = Number.POSITIVE_INFINITY
-  let maximumZ = Number.NEGATIVE_INFINITY
-  for (const [x, z] of polygon) {
-    minimumX = Math.min(minimumX, x)
-    maximumX = Math.max(maximumX, x)
-    minimumZ = Math.min(minimumZ, z)
-    maximumZ = Math.max(maximumZ, z)
-  }
-  const width = maximumX - minimumX
-  const depth = maximumZ - minimumZ
-  if (width <= 0 || depth <= 0) return null
-  return [
-    Math.max(0, Math.min(1, (localPoint[0] - minimumX) / width)),
-    Math.max(0, Math.min(1, (localPoint[1] - minimumZ) / depth)),
-  ]
 }

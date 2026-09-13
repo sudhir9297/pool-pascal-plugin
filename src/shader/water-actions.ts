@@ -1,4 +1,4 @@
-export type PoolWaterAction = 'splash' | 'calm' | 'storm' | 'reset'
+export type PoolWaterAction = 'calm' | 'storm' | 'reset'
 
 type WaterActionListener = (action: PoolWaterAction) => void
 

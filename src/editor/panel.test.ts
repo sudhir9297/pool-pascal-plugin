@@ -14,13 +14,15 @@ test('opening the pool picker arms the highlighted shape without resetting its s
     let tool = null
     let mode = 'select'
     const settings = { shape: 'rectangle', length: 12, width: 6 }
-    const editor = { setTool(value) { tool = value }, setMode(value) { mode = value } }
+    const editor = { tool, mode, setTool(value) { tool = value; editor.tool = value }, setMode(value) { mode = value; editor.mode = value } }
+    const useEditor = Object.assign(selector => selector(editor), { getState: () => editor })
     mock.module('react', () => ({ ...actualReact, useEffect() {}, useState() { return [menu, value => { menu = value }] } }))
     mock.module('zustand/react/shallow', () => ({ useShallow: selector => selector }))
     mock.module(${JSON.stringify(sceneNodesPath)}, () => ({ countPoolPluginNodes: () => ({}) }))
     mock.module('@pascal-app/core', () => ({ useScene: selector => selector({ nodes: {} }) }))
+    mock.module('@pascal-app/viewer', () => ({ useViewer: selector => selector({ selection: { selectedIds: [] } }) }))
     mock.module('@pascal-app/editor', () => ({
-      useEditor: { getState: () => editor },
+      useEditor,
       SegmentedControl() {}, SliderControl() {}, ToggleControl() {},
     }))
     mock.module(${JSON.stringify(storePath)}, () => ({ usePoolStore: Object.assign(selector => selector(settings), { getState: () => settings }) }))
