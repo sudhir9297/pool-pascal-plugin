@@ -2,6 +2,7 @@
 
 import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
 import { useFrame } from '@react-three/fiber'
+import { useSceneAtmosphere } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef } from 'react'
 import { Group } from 'three'
 import { PoolNode } from '../../core/schema'
@@ -13,6 +14,7 @@ import { disposePoolSpilloverVisual } from './dispose-visual'
 
 export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode }) {
   const rootRef = useRef<Group>(null!)
+  const atmosphere = useSceneAtmosphere()
   const handlers = usePoolNodeHost(node, rootRef)
   const sourceValue = useScene((state) => state.nodes[node.sourcePoolId as never])
   const targetValue = useScene((state) => state.nodes[node.targetPoolId as never])
@@ -31,9 +33,13 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
     () => {
       if (!liveNode) return new Group()
       const source = PoolNode.safeParse(liveNode.sourcePoolId === node.sourcePoolId ? sourceValue : targetValue)
-      return buildPoolSpilloverGeometry(liveNode, source.success ? source.data : undefined)
+      return buildPoolSpilloverGeometry(
+        liveNode,
+        source.success ? source.data : undefined,
+        atmosphere,
+      )
     },
-    [liveNode, node.sourcePoolId, sourceValue, targetValue],
+    [liveNode, node.sourcePoolId, sourceValue, targetValue, atmosphere],
   )
   useFrame(({ invalidate }, delta) => {
     if (!liveNode || editInProgress || node.visible === false) return

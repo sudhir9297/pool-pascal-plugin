@@ -13,6 +13,7 @@ import {
   positionView,
   positionWorld,
   pow,
+  reference,
   reflect,
   screenUV,
   sin,
@@ -26,6 +27,7 @@ import {
   viewportDepthTexture,
   viewportSharedTexture,
 } from 'three/tsl'
+import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import {
   AdditiveBlending,
   Color,
@@ -117,7 +119,12 @@ export class WaterfallWaterEffect {
   private readonly shallowColor = uniform(color('#83eab3'))
   private readonly deepColor = uniform(color('#008ab3'))
 
-  constructor(styleInput: Partial<WaterfallWaterStyle>, flowStrength = 1, foamStrength = 1) {
+  constructor(
+    styleInput: Partial<WaterfallWaterStyle>,
+    flowStrength = 1,
+    foamStrength = 1,
+    atmosphere?: SceneAtmosphereSource | null,
+  ) {
     const settings = resolveWaterfallStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
     const maskTexture = texture(loadNoise(NOISE_URLS[selected.mask]))
@@ -206,7 +213,7 @@ export class WaterfallWaterEffect {
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
-      toneMapped: false,
+      toneMapped: Boolean(atmosphere),
       alphaTest: 0.08,
     })
 
@@ -229,7 +236,13 @@ export class WaterfallWaterEffect {
     const vertical = upward.oneMinus()
     const poolLikeBlend = upward.mul(0.58).add(depth.mul(0.42)).min(1)
     const darkWater = this.deepColor.mul(0.3 + 0.1 / clarity)
-    const litWater = mix(darkWater, this.shallowColor.mul(0.92), poolLikeBlend)
+    const illumination = atmosphere
+      ? reference('ambientIntensity', 'float', atmosphere)
+        .add(reference('hemisphereIntensity', 'float', atmosphere))
+        .add(0.25)
+        .clamp(0.25, 1.2)
+      : float(1)
+    const litWater = mix(darkWater, this.shallowColor.mul(0.92), poolLikeBlend).mul(illumination)
     const eye = normalize(cameraPosition.sub(positionWorld))
     const facing = dot(flowNormal, eye).max(0)
     const refractOffset = flowNormal.xz
@@ -237,7 +250,9 @@ export class WaterfallWaterEffect {
       .mul(1 + settings.reflectionDistortion * 0.35)
     const refractedScene = viewportSharedTexture(screenUV.add(refractOffset).clamp(0, 1)).rgb
     const reflectedDirection = reflect(eye.negate(), flowNormal)
-    const sky = mix(color('#d8eef9'), color('#1260a6'), smoothstep(-0.1, 0.8, reflectedDirection.y))
+    const sky = atmosphere
+      ? atmosphere.reflectionRadiance(reflectedDirection)
+      : mix(color('#d8eef9'), color('#1260a6'), smoothstep(-0.1, 0.8, reflectedDirection.y))
     const reflectedScene = viewportSharedTexture(screenUV.add(refractOffset.mul(1.7)).clamp(0, 1)).rgb
     const reflection = mix(sky, reflectedScene, 0.42)
     const fresnel = pow(float(1).sub(facing).max(0.001), Math.max(1, settings.reflectionFresnel))
@@ -256,9 +271,17 @@ export class WaterfallWaterEffect {
       .add(crest.mul(0.34))
       .add(fallFoam.mul(foamGain))
       .add(brokenContact.max(0.5).sub(0.5))
-    const foamColor = mix(this.shallowColor, color('#f2fdff'), 0.86)
+    const foamHighlight: any = atmosphere
+      ? mix(color('#f2fdff'), uniform(atmosphere.skyColor), 0.16)
+      : color('#f2fdff')
+    const foamColor = mix(this.shallowColor, foamHighlight, 0.86)
     const sparkle = smoothstep(0.9, 0.99, streakNoise).mul(vertical).mul(settings.specularStrength * 0.18)
-    material.colorNode = reflectiveWater.add(foamColor.mul(vec3(brightness.add(sparkle))).mul(foamStrength))
+    material.colorNode = reflectiveWater.add(
+      foamColor
+        .mul(vec3(brightness.add(sparkle)))
+        .mul(illumination.clamp(0.3, 1.1))
+        .mul(foamStrength),
+    )
     material.opacityNode = float(Math.min(0.92, 0.62 + settings.clarity * 0.09))
       .add(crest.mul(0.08))
       .add(verticalHighlight.mul(0.06))
@@ -280,7 +303,11 @@ export class WaterfallLineEffect {
   readonly material: MeshBasicNodeMaterial
   private readonly time = uniform(0)
 
-  constructor(styleInput: Partial<WaterfallWaterStyle>, flowStrength = 1) {
+  constructor(
+    styleInput: Partial<WaterfallWaterStyle>,
+    flowStrength = 1,
+    atmosphere?: SceneAtmosphereSource | null,
+  ) {
     const settings = resolveWaterfallStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
     const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
@@ -321,13 +348,26 @@ export class WaterfallLineEffect {
       depthWrite: false,
       side: DoubleSide,
       blending: AdditiveBlending,
-      toneMapped: false,
+      toneMapped: Boolean(atmosphere),
       alphaTest: 0.02,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
     })
-    this.material.colorNode = mix(color(settings.shallowWaterColor), color('#f4ffff'), 0.78)
+    const illumination = atmosphere
+      ? reference('ambientIntensity', 'float', atmosphere)
+        .add(reference('hemisphereIntensity', 'float', atmosphere))
+        .add(0.25)
+        .clamp(0.3, 1.1)
+      : float(1)
+    const highlightColor: any = atmosphere
+      ? mix(color('#f4ffff'), uniform(atmosphere.skyColor), 0.16)
+      : color('#f4ffff')
+    this.material.colorNode = mix(
+      color(settings.shallowWaterColor),
+      highlightColor,
+      0.78,
+    ).mul(illumination)
     this.material.opacityNode = thinLines
       .mul(brokenLength)
       .mul(verticalSurface)
@@ -475,7 +515,10 @@ export class WaterfallPoolEffect {
   private readonly shallowColor = uniform(color('#83eab3'))
   private readonly deepColor = uniform(color('#008ab3'))
 
-  constructor(styleInput: Partial<WaterfallWaterStyle>) {
+  constructor(
+    styleInput: Partial<WaterfallWaterStyle>,
+    atmosphere?: SceneAtmosphereSource | null,
+  ) {
     const settings = resolveWaterfallStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
     const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
@@ -499,10 +542,22 @@ export class WaterfallPoolEffect {
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
-      toneMapped: false,
+      toneMapped: Boolean(atmosphere),
     })
+    const illumination = atmosphere
+      ? reference('ambientIntensity', 'float', atmosphere)
+        .add(reference('hemisphereIntensity', 'float', atmosphere))
+        .add(0.25)
+        .clamp(0.25, 1.2)
+      : float(1)
     const waterTint = mix(this.deepColor.mul(0.64), this.shallowColor, broadWave.mul(0.22).add(0.34))
-    material.colorNode = mix(waterTint, color('#e8fcff'), highlight.mul(0.42))
+      .mul(illumination)
+    const highlightColor = atmosphere ? uniform(atmosphere.skyColor) : color('#e8fcff')
+    material.colorNode = mix(
+      waterTint as any,
+      highlightColor as any,
+      highlight.mul(illumination.clamp(0.3, 1.1)).mul(0.42) as any,
+    )
     material.opacityNode = float(Math.min(0.9, 0.72 + settings.clarity * 0.06))
       .add(highlight.mul(0.06))
     this.material = material

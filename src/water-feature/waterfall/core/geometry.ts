@@ -11,6 +11,7 @@ import {
   Vector3,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import {
   WaterfallBubbleCloudEffect,
@@ -125,7 +126,10 @@ function adaptiveMoundRocks(node: PoolWaterfallNode) {
   return rocks
 }
 
-export function buildWaterfallGeometry(node: PoolWaterfallNode) {
+export function buildWaterfallGeometry(
+  node: PoolWaterfallNode,
+  atmosphere?: SceneAtmosphereSource | null,
+) {
   // Scene hydration can hand renderers nodes saved under an older schema version
   // without reapplying Zod defaults. Normalize newly-added placement fields here
   // so legacy waterfalls remain renderable.
@@ -136,9 +140,9 @@ export function buildWaterfallGeometry(node: PoolWaterfallNode) {
     Object.entries(node).filter(([, value]) => value !== undefined),
   )
   const normalized = PoolWaterfallNode.parse(definedNode)
-  const group = normalized.waterfallType === 'modern' ? buildModernWaterfallGeometry(normalized)
-    : normalized.waterfallType === 'spillover' ? buildSpilloverWaterfallGeometry(normalized)
-    : buildRockWaterfallGeometry(normalized)
+  const group = normalized.waterfallType === 'modern' ? buildModernWaterfallGeometry(normalized, atmosphere)
+    : normalized.waterfallType === 'spillover' ? buildSpilloverWaterfallGeometry(normalized, atmosphere)
+    : buildRockWaterfallGeometry(normalized, atmosphere)
   // Rock facets used baked random shades in addition to scene lighting.
   // Use one base color, as on the border; lighting provides the shading.
   group.traverse(object => {
@@ -155,10 +159,10 @@ export function buildWaterfallGeometry(node: PoolWaterfallNode) {
   return group
 }
 
-function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
+function buildModernWaterfallGeometry(node: PoolWaterfallNode, atmosphere?: SceneAtmosphereSource | null) {
   const group = new Group()
   group.name = 'pool-waterfall-modern'
-  addReceivingPool(group, node)
+  addReceivingPool(group, node, atmosphere)
   const structure = new MeshStandardMaterial({ color: node.structureColor, roughness: 0.82 })
   const wall = new Mesh(new BoxGeometry(node.width, node.height, node.depth), structure)
   wall.position.y = node.height / 2
@@ -178,15 +182,15 @@ function buildModernWaterfallGeometry(node: PoolWaterfallNode) {
   const flowWidth = Math.max(0.24, node.width - 0.08)
   addSpillwayBox(group, node, flowWidth, topY, fallZ)
   if (node.showFlow) {
-    addWaterSheet(group, flowWidth, topY - node.targetWaterOffset, topY, fallZ, node)
+    addWaterSheet(group, flowWidth, topY - node.targetWaterOffset, topY, fallZ, node, atmosphere)
   }
   return group
 }
 
-function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
+function buildRockWaterfallGeometry(node: PoolWaterfallNode, atmosphere?: SceneAtmosphereSource | null) {
   const group = new Group()
   group.name = `pool-waterfall-${node.waterfallType}`
-  addReceivingPool(group, node)
+  addReceivingPool(group, node, atmosphere)
 
   const moundRocks = adaptiveMoundRocks(node)
   const moundMaterial = createRockMaterial(0.96)
@@ -206,15 +210,15 @@ function buildRockWaterfallGeometry(node: PoolWaterfallNode) {
   addNaturalCavity(group, node, fallWidth, topY, fallZ)
   addNaturalChannel(group, node, fallWidth, topY, fallZ)
   if (node.showFlow) {
-    addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node)
+    addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node, atmosphere)
   }
   return group
 }
 
-function buildSpilloverWaterfallGeometry(node: PoolWaterfallNode) {
+function buildSpilloverWaterfallGeometry(node: PoolWaterfallNode, atmosphere?: SceneAtmosphereSource | null) {
   const group = new Group()
   group.name = 'pool-waterfall-spillover'
-  addReceivingPool(group, node)
+  addReceivingPool(group, node, atmosphere)
 
   const rocks = adaptiveMoundRocks(node).filter((rock) => rock.y < 0.35)
   const rockMaterial = createRockMaterial(0.96)
@@ -231,7 +235,7 @@ function buildSpilloverWaterfallGeometry(node: PoolWaterfallNode) {
   const fallWidth = node.width * 0.72
   addSpilloverWeir(group, node, fallWidth, topY, fallZ)
   addNaturalChannel(group, node, fallWidth, topY, fallZ)
-  if (node.showFlow) addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node)
+  if (node.showFlow) addWaterSheet(group, fallWidth, topY - node.targetWaterOffset, topY, fallZ, node, atmosphere)
   return group
 }
 
@@ -489,7 +493,7 @@ function createCurvedChannelGeometry(
   return geometry
 }
 
-function addReceivingPool(group: Group, node: PoolWaterfallNode) {
+function addReceivingPool(group: Group, node: PoolWaterfallNode, atmosphere?: SceneAtmosphereSource | null) {
   if (!node.receivingPoolEnabled) return
   const centerZ = node.receivingPoolDepth * 0.36
   const bed = new Mesh(
@@ -503,7 +507,7 @@ function addReceivingPool(group: Group, node: PoolWaterfallNode) {
   bed.receiveShadow = true
   group.add(bed)
 
-  const effect = new WaterfallPoolEffect(node)
+  const effect = new WaterfallPoolEffect(node, atmosphere)
   const water = new Mesh(new CircleGeometry(1, 96), effect.material)
   water.name = 'waterfall-receiving-water'
   water.rotation.x = -Math.PI / 2
@@ -517,8 +521,16 @@ function addReceivingPool(group: Group, node: PoolWaterfallNode) {
   group.add(water)
 }
 
-function addWaterSheet(group: Group, width: number, height: number, topY: number, z: number, node: PoolWaterfallNode) {
-  const effect = new WaterfallWaterEffect(node, node.flowStrength)
+function addWaterSheet(
+  group: Group,
+  width: number,
+  height: number,
+  topY: number,
+  z: number,
+  node: PoolWaterfallNode,
+  atmosphere?: SceneAtmosphereSource | null,
+) {
+  const effect = new WaterfallWaterEffect(node, node.flowStrength, 1, atmosphere)
   // Sink the broken lower strands slightly through the receiving water. A
   // tiny overlap avoids a bright air gap from depth precision or displaced
   // pool waves while remaining hidden beneath the animated pool surface.
@@ -541,7 +553,7 @@ function addWaterSheet(group: Group, width: number, height: number, topY: number
   water.userData.deepWaterColor = node.deepWaterColor
   group.add(water)
 
-  const lineEffect = new WaterfallLineEffect(node, node.flowStrength)
+  const lineEffect = new WaterfallLineEffect(node, node.flowStrength, atmosphere)
   const lines = new Mesh(geometry.clone(), lineEffect.material)
   lines.position.copy(water.position)
   lines.name = 'waterfall-flow-lines'

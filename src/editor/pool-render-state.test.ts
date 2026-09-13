@@ -48,9 +48,18 @@ describe('pool render state', () => {
 
   test('reduces water resolution as the visible pool count grows', () => {
     expect(getPoolWaterResolution(1)).toBe(256)
+    expect(getPoolWaterResolution(1, 'low')).toBe(64)
+    expect(getPoolWaterResolution(1, 'medium')).toBe(128)
+    expect(getPoolWaterResolution(1, 'ultra')).toBe(384)
     expect(getPoolWaterResolution(3)).toBe(128)
     expect(getPoolWaterResolution(12)).toBe(64)
     expect(countPools({ one: pool('pool_one'), two: pool('pool_two') })).toBe(2)
+  })
+
+  test('rebuilds the compiled water graph when its quality changes', () => {
+    const original = PoolNode.parse({ waterQuality: 'high' })
+    const ultra = PoolNode.parse({ ...original, waterQuality: 'ultra' })
+    expect(getPoolGeometrySignature(original)).not.toBe(getPoolGeometrySignature(ultra))
   })
 
 })

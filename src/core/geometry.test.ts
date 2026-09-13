@@ -1,9 +1,39 @@
 import { describe, expect, test } from 'bun:test'
 import type { BufferAttribute, Material, Mesh } from 'three'
+import { MeshStandardNodeMaterial } from 'three/webgpu'
 import { PoolNode } from './schema'
 import { buildPoolGeometry } from './geometry'
 
 describe('pool connection wall openings', () => {
+  test('uses lit materials and shadows for the shell walls, floor, and coping', () => {
+    const pool = PoolNode.parse({ shellColor: '#123456', copingColor: '#654321' })
+    const geometry = buildPoolGeometry(pool, { waterResolution: 16 })
+    const floor = geometry.getObjectByName('pool-shell-floor') as Mesh
+    const walls = geometry.getObjectByName('pool-shell-walls') as Mesh
+    const coping = geometry.getObjectByName('pool-coping') as Mesh
+    const wallMaterials = Array.isArray(walls.material) ? walls.material : [walls.material]
+
+    expect(floor.material).toBeInstanceOf(MeshStandardNodeMaterial)
+    expect(wallMaterials).toHaveLength(2)
+    expect(wallMaterials.every((material) => material instanceof MeshStandardNodeMaterial)).toBe(true)
+    expect((wallMaterials[1] as MeshStandardNodeMaterial).color.getHexString()).toBe('123456')
+    expect(coping.material).toBeInstanceOf(MeshStandardNodeMaterial)
+    expect(floor.receiveShadow).toBe(true)
+    expect(walls.castShadow).toBe(true)
+    expect(walls.receiveShadow).toBe(true)
+    expect(coping.castShadow).toBe(true)
+    expect(coping.receiveShadow).toBe(true)
+
+    geometry.userData.waterEffect.dispose()
+    geometry.traverse((child) => {
+      const mesh = child as Mesh
+      if (!mesh.isMesh) return
+      mesh.geometry.dispose()
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const material of materials as Material[]) material.dispose()
+    })
+  })
+
   test('uses the requested adaptive water resolution', () => {
     const geometry = buildPoolGeometry(PoolNode.parse({}), { waterResolution: 64 })
     expect(geometry.userData.waterEffect.resolution).toBe(64)

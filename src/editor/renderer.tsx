@@ -1,7 +1,7 @@
 'use client'
 
 import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
-import { NodeRenderer } from '@pascal-app/viewer'
+import { NodeRenderer, useSceneAtmosphere } from '@pascal-app/viewer'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Box3, Frustum, Matrix4, Mesh, Sphere, type Group, type Material } from 'three'
@@ -29,6 +29,7 @@ import { AttachmentPoolContext } from './attachment-pool'
 
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const ref = useRef<Group>(null!)
+  const atmosphere = useSceneAtmosphere()
   // Native resize handles publish their in-flight patch here and commit it to
   // the scene only on pointer-up. Merge that patch into the render node so the
   // basin outline and floor depth follow the pointer throughout the drag.
@@ -41,7 +42,7 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     (state) => selectPoolRenderNodes(state.nodes, storeNode.id),
   ))
   const visiblePoolCount = useScene((state) => countPools(state.nodes))
-  const waterResolution = getPoolWaterResolution(visiblePoolCount)
+  const waterResolution = getPoolWaterResolution(visiblePoolCount, node.waterQuality)
   const geometrySignature = getPoolGeometrySignature(node)
   const geometryNode = useMemo(() => node, [geometrySignature])
   const sceneNodes = useMemo(() => Object.fromEntries([
@@ -66,14 +67,15 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     removeFloorRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
     removeWaterRegions: getPoolConnectionRegions(geometryNode, sceneNodes),
     waterResolution,
-  }), [geometryNode, sceneNodes, suppressSpilloverGeometry, waterResolution])
+    atmosphere,
+  }), [geometryNode, sceneNodes, suppressSpilloverGeometry, waterResolution, atmosphere])
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.
   const handlers = usePoolNodeHost(node, ref)
   const waterEffect = pool.userData.waterEffect as PoolWaterEffect
   const immersiveWaterMaterial = useMemo(
-    () => createImmersiveXRPoolWaterMaterial({ waterColor: node.waterColor }),
-    [node.waterColor],
+    () => createImmersiveXRPoolWaterMaterial({ waterColor: node.waterColor }, atmosphere),
+    [node.waterColor, atmosphere],
   )
   const localWaterBounds = useMemo(
     () => new Box3().setFromObject(pool).getBoundingSphere(new Sphere()),

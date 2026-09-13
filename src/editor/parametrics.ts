@@ -54,6 +54,7 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
       defaultExpanded: false,
       fields: [
         { key: 'waterPreset', kind: 'enum', options: WATER_PRESETS },
+        { key: 'waterQuality', kind: 'enum', options: ['low', 'medium', 'high', 'ultra'], display: 'segmented' },
         { key: 'shallowWaterColor', kind: 'color' },
         { key: 'deepWaterColor', kind: 'color' },
         { key: 'surfaceDetail', kind: 'number', min: 0.4, max: 3, step: 0.05 },

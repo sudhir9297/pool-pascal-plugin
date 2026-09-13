@@ -1,6 +1,7 @@
 import { sampleSpilloverEdge } from '../design/curved-placement'
 import { BoxGeometry, BufferGeometry, Group, Mesh, MeshStandardMaterial } from 'three'
 import { WaterfallWaterEffect, type WaterfallWaterStyle } from '../../shader/waterfall-effect'
+import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import { createSpillwayGeometry } from '../../water-feature/waterfall/core/geometry'
 import type { PoolSpilloverNode } from './schema'
 
@@ -24,7 +25,11 @@ function deformGeometry(geometry: BufferGeometry, offset: (x: number, y: number,
   geometry.computeBoundingSphere()
 }
 
-export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?: WaterfallWaterStyle) {
+export function buildPoolSpilloverGeometry(
+  node: PoolSpilloverNode,
+  waterStyle?: WaterfallWaterStyle,
+  atmosphere?: SceneAtmosphereSource | null,
+) {
   const group = new Group()
   group.name = 'pool-spillover'
   const mergedSurface = node.mergedSurface || (
@@ -82,7 +87,7 @@ export function buildPoolSpilloverGeometry(node: PoolSpilloverNode, waterStyle?:
   const waterEffect = new WaterfallWaterEffect(waterStyle ?? {
     shallowWaterColor: node.waterColor,
     deepWaterColor: node.waterColor,
-  }, node.flowStrength, 0.25)
+  }, node.flowStrength, 0.25, atmosphere)
 
   if (node.connectionMode === 'channel' && !touchingConnection) {
     const bed = new Mesh(new BoxGeometry(channelLength, node.lipThickness, width, 1, 1, 40), surfaceMaterial())

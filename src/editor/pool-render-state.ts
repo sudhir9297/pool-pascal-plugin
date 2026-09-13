@@ -53,10 +53,13 @@ export function countPools(nodes: Record<string, AnyNode>) {
 }
 
 /** Water cost drops in steps, so adding a pool only rebuilds existing pools at a threshold. */
-export function getPoolWaterResolution(visiblePoolCount: number) {
-  if (visiblePoolCount <= 2) return 256
-  if (visiblePoolCount <= 8) return 128
-  return 64
+export function getPoolWaterResolution(
+  visiblePoolCount: number,
+  quality: PoolNode['waterQuality'] = 'high',
+) {
+  const qualityLimit = { low: 64, medium: 128, high: 256, ultra: 384 }[quality]
+  const sceneLimit = visiblePoolCount <= 2 ? 384 : visiblePoolCount <= 8 ? 128 : 64
+  return Math.min(qualityLimit, sceneLimit)
 }
 
 /** Nested simulation render targets are not safe while the host owns an XR framebuffer. */
@@ -112,5 +115,8 @@ export function getPoolGeometrySignature(node: PoolNode) {
     finishedDeckElevation: node.finishedDeckElevation,
     designWaterElevation: node.designWaterElevation,
     interiorFinish: node.interiorFinish,
+    // Quality changes both simulation resolution and the compiled screen-space
+    // reflection/refraction graph, so it intentionally rebuilds the material.
+    waterQuality: node.waterQuality,
   })
 }

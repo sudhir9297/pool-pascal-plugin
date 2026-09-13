@@ -15,7 +15,8 @@ import {
   ShapeUtils,
   Vector2,
 } from 'three'
-import { MeshBasicNodeMaterial } from 'three/webgpu'
+import { MeshStandardNodeMaterial } from 'three/webgpu'
+import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import { TessellateModifier } from 'three/examples/jsm/modifiers/TessellateModifier.js'
 import { color, float, mix, normalLocal, positionLocal, sin, smoothstep, vec2 } from 'three/tsl'
 import { getPoolDepthRange, getPoolDepthResolver } from '../design/depth-profile'
@@ -116,6 +117,7 @@ export type PoolGeometryOptions = {
   removeFloorRegions?: PoolPoint[][]
   removeWaterRegions?: PoolPoint[][]
   waterResolution?: number
+  atmosphere?: SceneAtmosphereSource | null
 }
 
 function pointInPolygon(point: PoolPoint, polygon: PoolPoint[]) {
@@ -1063,7 +1065,21 @@ function createWaterGeometry(points: PoolPoint[], removeWaterRegions: PoolPoint[
 
 function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: PoolPoint[]) {
   const finish = getPoolFinishSettings(node.interiorFinish)
-  const material = new MeshBasicNodeMaterial({ color: finish.base, side: DoubleSide })
+  const roughness = finish.kind === 'mosaic'
+    ? 0.38
+    : finish.kind === 'glass'
+      ? 0.28
+      : finish.kind === 'polished'
+        ? 0.46
+        : finish.kind === 'solid'
+          ? 0.72
+          : 0.78
+  const material = new MeshStandardNodeMaterial({
+    color: finish.base,
+    metalness: 0,
+    roughness,
+    side: DoubleSide,
+  })
   const normal = normalLocal.abs()
   const isFloor = normal.y.greaterThan(0.65)
   const wallU = normal.x.greaterThan(normal.z).select(positionLocal.z, positionLocal.x)
@@ -1164,11 +1180,21 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
   const waterElevation = node.designWaterElevation
   const shellOuter = outlines.shellOuter
   const copingOuter = outlines.copingOuter
-  const waterEffect = new PoolWaterEffect(node, options.waterResolution)
+  const waterEffect = new PoolWaterEffect(node, options.waterResolution, options.atmosphere)
   waterEffect.setBoundary(inner, options.removeWaterRegions)
   const shellMaterial = createTileMaterial(node, waterEffect, inner)
-  const outerWallMaterial = new MeshBasicNodeMaterial({ color: '#ffffff', side: DoubleSide })
-  const copingMaterial = new MeshBasicNodeMaterial({ color: node.copingColor, side: DoubleSide })
+  const outerWallMaterial = new MeshStandardNodeMaterial({
+    color: node.shellColor,
+    metalness: 0,
+    roughness: 0.9,
+    side: DoubleSide,
+  })
+  const copingMaterial = new MeshStandardNodeMaterial({
+    color: node.copingColor,
+    metalness: 0,
+    roughness: 0.52,
+    side: DoubleSide,
+  })
   const depth = getPoolDepthResolver(node, inner)
   const cuts = depth.profile.kind === 'shallow-to-deep'
     ? [
@@ -1199,6 +1225,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     shellMaterial,
   )
   floor.name = 'pool-shell-floor'
+  floor.receiveShadow = true
   group.add(floor)
 
   const walls = new Mesh(
@@ -1216,6 +1243,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     [shellMaterial, outerWallMaterial],
   )
   walls.name = 'pool-shell-walls'
+  walls.castShadow = true
+  walls.receiveShadow = true
   group.add(walls)
 
   if (node.entryFeature === 'steps') {
@@ -1230,6 +1259,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     steps.name = 'pool-entry-steps'
+    steps.castShadow = true
+    steps.receiveShadow = true
     group.add(steps)
   } else if (node.entryFeature === 'tanning-shelf') {
     const length = Math.min(node.entryLength, (depth.maximumX - depth.minimumX) * 0.6)
@@ -1246,6 +1277,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     shelf.name = 'pool-entry-tanning-shelf'
+    shelf.castShadow = true
+    shelf.receiveShadow = true
     group.add(shelf)
     const shelfIntervals = getCrossSectionIntervals(inner, endX)
     for (const [minimumZ, maximumZ] of shelfIntervals) {
@@ -1265,6 +1298,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     beach.name = 'pool-entry-beach'
+    beach.receiveShadow = true
     group.add(beach)
   }
 
@@ -1286,6 +1320,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
         shellMaterial,
       )
       bench.name = 'pool-bench'
+      bench.castShadow = true
+      bench.receiveShadow = true
       benchAssembly.add(bench)
     }
     group.add(benchAssembly)
@@ -1341,6 +1377,8 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       copingMaterial,
     )
     coping.name = 'pool-coping'
+    coping.castShadow = true
+    coping.receiveShadow = true
     group.add(coping)
   }
 

@@ -36,6 +36,7 @@ import {
   positionView,
   positionWorld,
   pow,
+  reference,
   reflect,
   screenUV,
   smoothstep,
@@ -49,6 +50,7 @@ import {
   viewportDepthTexture,
   viewportSharedTexture,
 } from 'three/tsl'
+import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import {
   WATER_PRESET_SETTINGS,
   getWaterPresetSettings,
@@ -80,6 +82,7 @@ const CALM_BREEZE = 0.08
 
 export type WaterSettings = WaterPresetSettings & {
   waterMode?: 'base' | 'calm' | 'storm'
+  waterQuality?: 'low' | 'medium' | 'high' | 'ultra'
   sunElevation: number
   sunAzimuth: number
   waterColor: string
@@ -159,6 +162,9 @@ function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
   const preset = getWaterPresetSettings(value.waterPreset)
   return {
     waterPreset: preset.waterPreset,
+    waterQuality: ['low', 'medium', 'high', 'ultra'].includes(String(value.waterQuality))
+      ? value.waterQuality as WaterSettings['waterQuality']
+      : 'high',
     shallowWaterColor: typeof value.shallowWaterColor === 'string'
       ? value.shallowWaterColor
       : preset.shallowWaterColor,
@@ -202,15 +208,27 @@ function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
  * XR-safe water presentation without viewport-copy or nested render-target nodes.
  * The animated desktop material cannot share Three's immersive output target.
  */
-export function createImmersiveXRPoolWaterMaterial(settings: Partial<WaterSettings>) {
+export function createImmersiveXRPoolWaterMaterial(
+  settings: Partial<WaterSettings>,
+  atmosphere?: SceneAtmosphereSource | null,
+) {
   const resolved = resolveWaterSettings(settings)
-  return new MeshBasicNodeMaterial({
+  const material = new MeshBasicNodeMaterial({
     color: resolved.waterColor,
     depthWrite: false,
     opacity: 0.72,
     side: FrontSide,
     transparent: true,
   })
+  if (atmosphere) {
+    const ambient = reference('ambientIntensity', 'float', atmosphere)
+    const hemisphere = reference('hemisphereIntensity', 'float', atmosphere)
+    const illumination = ambient.add(hemisphere).add(0.25).clamp(0.25, 1.2)
+    material.colorNode = color(resolved.waterColor)
+      .mul(illumination)
+      .add(uniform(atmosphere.skyColor).mul(0.12))
+  }
+  return material
 }
 
 type TextureNodeLike = ReturnType<typeof texture> & { value: Texture }
@@ -294,13 +312,19 @@ export class PoolWaterEffect {
   private breezeAccumulator = 0
   private drops: Array<[number, number, number, number]> = []
   private settings: WaterSettings
+  private readonly atmosphere: SceneAtmosphereSource | null
 
   get waterMode() {
     return this.mode
   }
 
-  constructor(settingsInput: Partial<WaterSettings>, resolution = 256) {
+  constructor(
+    settingsInput: Partial<WaterSettings>,
+    resolution = 256,
+    atmosphere?: SceneAtmosphereSource | null,
+  ) {
     this.settings = resolveWaterSettings(settingsInput)
+    this.atmosphere = atmosphere ?? null
     this.mode = settingsInput.waterMode ?? 'base'
     this.stormIntensity.value = this.mode === 'storm' ? 1 : 0
     this.motionIntensity.value = this.mode === 'calm'
@@ -426,7 +450,18 @@ export class PoolWaterEffect {
       motion.mul(WATER_MOTION_RATES.causticsSecondaryY),
     )).sub(vec2(noise))
     const dual = this.causticTextureNode.sample(uvA).min(this.causticTextureNode.sample(uvB))
-    return dual.r.mul(this.causticsStrength)
+    const directLight = this.atmosphere
+      ? reference('sunIntensity', 'float', this.atmosphere).mul(0.4).clamp(0, 1.25)
+      : float(1)
+    return dual.r.mul(this.causticsStrength).mul(directLight)
+  }
+
+  private environmentIllumination(): any {
+    if (!this.atmosphere) return float(1)
+    return reference('ambientIntensity', 'float', this.atmosphere)
+      .add(reference('hemisphereIntensity', 'float', this.atmosphere))
+      .add(0.25)
+      .clamp(0.25, 1.2)
   }
 
   private computeDamping() {
@@ -502,16 +537,28 @@ export class PoolWaterEffect {
     ).negate()
     const keepOffset = step(fragmentEye.sub(offsetDepth), float(0))
     const refractedUv = screenUV.add(refractionOffset.mul(keepOffset)).clamp(0, 1)
-    const sceneColor = viewportSharedTexture(refractedUv).rgb
+    const usesSceneRefraction = this.settings.waterQuality !== 'low'
+    const sceneColor = usesSceneRefraction
+      ? viewportSharedTexture(refractedUv).rgb
+      : vec3(0)
 
     const baseColor = mix(this.deepColor, this.shallowColor, shallowMask)
     const attenuation = exp(this.absorption.mul(depthDelta.min(4)))
-    const absorbed = mix(color('#064a61'), baseColor, attenuation)
+    const absorbedBase = mix(color('#064a61'), baseColor, attenuation)
+    const environmentIllumination = this.environmentIllumination()
+    const underwaterBounce: any = this.atmosphere
+      ? mix(uniform(this.atmosphere.groundColor), uniform(this.atmosphere.skyColor), 0.35)
+      : color('#000000')
+    const absorbed = absorbedBase
+      .mul(environmentIllumination)
+      .add(underwaterBounce.mul(this.atmosphere ? 0.08 : 0))
     // Caustics belong on the submerged liner (see buildLinerMaterial), where
     // refraction naturally reveals them through the water. Adding the same
     // animated ridges here projected them onto the top plane as bright moving
     // streaks that read as rain.
-    const refracted = mix(absorbed, sceneColor, this.refractionStrength)
+    const refracted = usesSceneRefraction
+      ? mix(absorbed, sceneColor, this.refractionStrength)
+      : absorbed
 
     const shorelinePhase = shallowMask.oneMinus().mul(8)
       .sub(this.time.mul(this.shorelineSpeed).mul(0.35))
@@ -530,9 +577,17 @@ export class PoolWaterEffect {
     ).mul(smoothstep(0.82, 1, shallowMask).oneMinus())
       .mul(this.intersectionStrength)
 
+    // A narrow depth-derived occlusion band anchors the transparent plane to
+    // walls, steps and shelves. It is deliberately separate from bright foam:
+    // contact should remain readable in calm water and dark environments.
+    const contactWidth = this.intersectionWidth.mul(0.16).add(0.025)
+    const contactOcclusion = smoothstep(0.008, contactWidth, depthDelta).oneMinus()
+      .mul(this.intersectionStrength.mul(0.42))
+
     const reflectedDirection = reflect(eye.negate(), surfaceNormal)
-    const skyMix = smoothstep(-0.1, 0.8, reflectedDirection.y)
-    const sky = mix(color('#d8eef9'), color('#1260a6'), skyMix)
+    const sky = this.atmosphere
+      ? this.atmosphere.reflectionRadiance(reflectedDirection)
+      : mix(color('#d8eef9'), color('#1260a6'), smoothstep(-0.1, 0.8, reflectedDirection.y))
     // Distort Pascal's opaque scene copy with the animated normal field. This
     // gives the water a moving screen-space reflection without a nested
     // reflector render, which is incompatible with the host's multisampled
@@ -543,29 +598,66 @@ export class PoolWaterEffect {
       reflectionOffset.x.negate(),
       reflectionOffset.y,
     )).clamp(0, 1)
-    const nearbyScene = viewportSharedTexture(reflectedUv).rgb
-    const reflectedScene = mix(sky, nearbyScene, 0.38)
+    const usesLocalReflections = this.settings.waterQuality === 'high'
+      || this.settings.waterQuality === 'ultra'
+    const screenEdge = screenUV.x.min(screenUV.y)
+      .min(screenUV.x.oneMinus()).min(screenUV.y.oneMinus())
+    const reflectionConfidence = smoothstep(0.015, 0.12, screenEdge)
+      .mul(smoothstep(0.02, 0.3, facing.oneMinus()))
+    const nearbyScene = usesLocalReflections
+      ? viewportSharedTexture(reflectedUv).rgb
+      : sky
+    const localReflectionWeight = this.settings.waterQuality === 'ultra' ? 0.52 : 0.38
+    const reflectedScene = mix(sky, nearbyScene, reflectionConfidence.mul(localReflectionWeight))
 
     const fresnel = pow(float(1).sub(facing).max(1e-5), this.reflectionFresnel)
       .mul(this.reflectionStrength)
 
-    const phong = pow(max(dot(reflectedDirection, this.sunDirection), 0), 96)
+    const activeSunDirection = this.atmosphere
+      ? uniform(this.atmosphere.sunDirection)
+      : this.sunDirection
+    const phong = pow(max(dot(reflectedDirection, activeSunDirection), 0), 96)
     const hardSpecular = smoothstep(
       float(1).sub(this.specularSize),
       float(1.15).sub(this.specularSize),
       phong,
     )
-    const specular = mix(phong, hardSpecular, this.specularHardness)
+    const directLightColor: any = this.atmosphere
+      ? uniform(this.atmosphere.sunColor)
+        .mul(reference('sunIntensity', 'float', this.atmosphere).mul(0.4).clamp(0, 2))
+      : color('#fff8e7')
+    let specular: any = mix(phong, hardSpecular, this.specularHardness)
       .mul(this.specularStrength)
-      .mul(color('#fff8e7'))
+      .mul(directLightColor)
+    if (this.atmosphere) {
+      const moonPhong = pow(max(dot(reflectedDirection, uniform(this.atmosphere.moonDirection)), 0), 128)
+      specular = specular.add(
+        moonPhong
+          .mul(this.specularStrength)
+          .mul(uniform(this.atmosphere.moonColor))
+          .mul(reference('moonIntensity', 'float', this.atmosphere).mul(4).clamp(0, 1)),
+      )
+    }
 
-    const layered = refracted
-      .add(intersectionBand.mul(this.intersectionColor))
-      .add(shorelineBand.mul(color('#f2ffff')))
+    const secondaryLight = environmentIllumination.clamp(0.3, 1.1)
+    const contactTint: any = this.atmosphere
+      ? uniform(this.atmosphere.groundColor).mul(0.22)
+      : color('#073b4c')
+    const layered: any = mix(refracted as any, contactTint as any, contactOcclusion as any)
+    const litLayered = layered
+      .add(intersectionBand.mul(this.intersectionColor).mul(secondaryLight))
+      .add(shorelineBand.mul(color('#f2ffff')).mul(secondaryLight))
     const foamNoise = this.distortionTextureNode.sample(this.worldWaterUv().mul(18).add(vec2(this.time.mul(0.03)))).r
     const foam = smoothstep(0.85, 1, phase.sin()).mul(this.stormIntensity).mul(0.22)
       .mul(smoothstep(0.25, 0.7, foamNoise)).clamp(0, 0.8)
-    material.colorNode = mix(mix(layered as any, reflectedScene as any, fresnel as any).add(specular as any), color('#e9ffff') as any, foam as any) as any
+    const foamColor: any = this.atmosphere
+      ? mix(color('#e9ffff'), uniform(this.atmosphere.skyColor), 0.18).mul(secondaryLight)
+      : color('#e9ffff')
+    material.colorNode = mix(
+      mix(litLayered as any, reflectedScene as any, fresnel as any).add(specular as any),
+      foamColor,
+      foam as any,
+    ) as any
     material.opacityNode = shoreFade
     return material
   }

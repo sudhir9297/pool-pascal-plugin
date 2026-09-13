@@ -1,6 +1,7 @@
 'use client'
 
 import { useFrame } from '@react-three/fiber'
+import { useSceneAtmosphere } from '@pascal-app/viewer'
 import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh } from 'three'
 import { useAttachmentPool } from '../../../editor/attachment-pool'
@@ -24,10 +25,11 @@ type WaterfallEffect =
 
 export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode }) {
   const rootRef = useRef<Group>(null!)
+  const atmosphere = useSceneAtmosphere()
   const handlers = usePoolNodeHost(node, rootRef)
   const pool = useAttachmentPool(node.poolId)
   const mounted = useMemo(() => resolveMountedWaterfall(node, pool), [node, pool])
-  const geometry = useMemo(() => buildWaterfallGeometry(mounted), [mounted])
+  const geometry = useMemo(() => buildWaterfallGeometry(mounted, atmosphere), [mounted, atmosphere])
   const effects = useMemo(() => {
     const result = [] as WaterfallEffect[]
     geometry.traverse((child) => {

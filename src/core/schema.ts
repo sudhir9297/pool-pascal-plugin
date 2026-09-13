@@ -56,6 +56,7 @@ export const DEFAULT_POOL = {
   copingCorner: 'miter' as const,
   copingColor: '#e2e8f0',
   ...WATER_PRESET_SETTINGS['crystal-clear'],
+  waterQuality: 'high' as const,
   sunElevation: 52,
   sunAzimuth: 135,
   supportSlabId: null,
@@ -119,6 +120,7 @@ export const PoolNode = BaseNode.extend({
     if (value === 'tropical') return 'tropical-lagoon'
     return value
   }, z.enum(WATER_PRESETS).default('crystal-clear')),
+  waterQuality: z.enum(['low', 'medium', 'high', 'ultra']).default('high'),
   shallowWaterColor: z.string().default('#83eab3'),
   deepWaterColor: z.string().default('#008ab3'),
   surfaceDetail: z.number().min(0.4).max(3).default(1.6),

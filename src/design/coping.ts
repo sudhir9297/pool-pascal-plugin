@@ -1,5 +1,5 @@
 import { BufferGeometry, Color, ExtrudeGeometry, Float32BufferAttribute, Group, Mesh, Shape } from 'three'
-import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/webgpu'
+import { MeshStandardNodeMaterial } from 'three/webgpu'
 import type { PoolPoint } from '../core/schema'
 import {
   layoutNaturalCopingStones,
@@ -335,25 +335,25 @@ export function buildNaturalCopingGeometry(
     const color = options.rockLike
       ? getPoolRockColor(item.rockSeed, index)
       : baseColor.clone().offsetHSL(...colorOffset)
-    const material = options.rockLike
-      ? new MeshStandardNodeMaterial({ color, roughness: 0.88, metalness: 0 })
-      : new MeshBasicNodeMaterial({ color })
+    const material = new MeshStandardNodeMaterial({
+      color,
+      roughness: options.rockLike ? 0.78 : 0.58,
+      metalness: 0,
+    })
     const meshMaterials = options.smoothBoundary
       ? [
           material,
-          options.rockLike
-            ? new MeshStandardNodeMaterial({
-                color: color.clone().multiplyScalar(0.72),
-                roughness: 0.96,
-                metalness: 0,
-              })
-            : new MeshBasicNodeMaterial({
-                color: color.clone().multiplyScalar(0.72),
-              }),
+          new MeshStandardNodeMaterial({
+            color: color.clone().multiplyScalar(0.72),
+            roughness: options.rockLike ? 0.9 : 0.68,
+            metalness: 0,
+          }),
         ]
       : material
     const stone = new Mesh(geometry, meshMaterials)
     stone.name = `pool-coping-stone-${index + 1}`
+    stone.castShadow = true
+    stone.receiveShadow = true
     stone.position.set(...item.position)
     if (options.rockLike || options.smoothBoundary) {
       // ExtrudeGeometry starts at the base plane, so keep the bottom flat on

@@ -174,7 +174,7 @@ export function poolFloorplan(node: PoolNode, ctx?: GeometryContext): FloorplanG
 
 export const poolDefinition: PoolDefinition = {
   kind: 'pool:pool',
-  schemaVersion: 24,
+  schemaVersion: 25,
   schema: PoolNode,
   category: 'furnish',
   snapProfile: 'item',
