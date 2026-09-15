@@ -355,8 +355,8 @@ export class WaterfallLineEffect {
       polygonOffsetUnits: -1,
     })
     const illumination = atmosphere
-      ? reference('ambientIntensity', 'float', atmosphere)
-        .add(reference('hemisphereIntensity', 'float', atmosphere))
+      ? (reference('ambientIntensity', 'float', atmosphere) as any)
+        .add(reference('hemisphereIntensity', 'float', atmosphere) as any)
         .add(0.25)
         .clamp(0.3, 1.1)
       : float(1)
@@ -545,8 +545,8 @@ export class WaterfallPoolEffect {
       toneMapped: Boolean(atmosphere),
     })
     const illumination = atmosphere
-      ? reference('ambientIntensity', 'float', atmosphere)
-        .add(reference('hemisphereIntensity', 'float', atmosphere))
+      ? (reference('ambientIntensity', 'float', atmosphere) as any)
+        .add(reference('hemisphereIntensity', 'float', atmosphere) as any)
         .add(0.25)
         .clamp(0.25, 1.2)
       : float(1)
