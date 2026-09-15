@@ -497,7 +497,7 @@ function addReceivingPool(group: Group, node: PoolWaterfallNode, atmosphere?: Sc
   if (!node.receivingPoolEnabled) return
   const centerZ = node.receivingPoolDepth * 0.36
   const bed = new Mesh(
-    new CircleGeometry(1, 72),
+    new CircleGeometry(1, 48),
     new MeshStandardMaterial({ color: node.poolBedColor, roughness: 0.94 }),
   )
   bed.name = 'waterfall-receiving-bed'
@@ -508,7 +508,7 @@ function addReceivingPool(group: Group, node: PoolWaterfallNode, atmosphere?: Sc
   group.add(bed)
 
   const effect = new WaterfallPoolEffect(node, atmosphere)
-  const water = new Mesh(new CircleGeometry(1, 96), effect.material)
+  const water = new Mesh(new CircleGeometry(1, 64), effect.material)
   water.name = 'waterfall-receiving-water'
   water.rotation.x = -Math.PI / 2
   water.scale.set(node.receivingPoolWidth * 0.5, node.receivingPoolDepth * 0.5, 1)
@@ -554,7 +554,9 @@ function addWaterSheet(
   group.add(water)
 
   const lineEffect = new WaterfallLineEffect(node, node.flowStrength, atmosphere)
-  const lines = new Mesh(geometry.clone(), lineEffect.material)
+  // Both passes sample the same surface. Reusing the buffer avoids a second
+  // GPU geometry allocation and upload for the flow-line overlay.
+  const lines = new Mesh(geometry, lineEffect.material)
   lines.position.copy(water.position)
   lines.name = 'waterfall-flow-lines'
   lines.renderOrder = 4
@@ -573,8 +575,8 @@ function addBubbleCloud(group: Group, width: number, node: PoolWaterfallNode) {
   const depth = Math.max(0.3, width * 0.28)
   const layerCounts: Record<WaterfallBubbleFamily, number> = {
     foam: Math.max(9, Math.min(16, Math.round(9 + width * 3))),
-    aeration: Math.max(72, Math.min(140, Math.round(76 + width * 25))),
-    microstream: Math.max(18, Math.min(34, Math.round(18 + width * 7))),
+    aeration: Math.max(60, Math.min(112, Math.round(64 + width * 20))),
+    microstream: Math.max(16, Math.min(28, Math.round(16 + width * 6))),
   }
   let seedOffset = 0
   for (const family of ['foam', 'aeration', 'microstream'] as const) {
@@ -824,7 +826,7 @@ export function createSpillwayGeometry(
   const curveLength = Math.PI * curveRadius / 2
   const verticalLength = Math.max(0.08, height - curveRadius)
   const pathLength = approach + curveLength + verticalLength
-  const pathSegments = Math.max(32, Math.min(96, Math.ceil(pathLength * 28)))
+  const pathSegments = Math.max(32, Math.min(72, Math.ceil(pathLength * 28)))
 
   for (let pathIndex = 0; pathIndex <= pathSegments; pathIndex += 1) {
     const progress = pathIndex / pathSegments

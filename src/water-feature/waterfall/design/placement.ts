@@ -20,6 +20,21 @@ export type WaterfallPlacement = {
   poolRockSeed: number | null
 }
 
+/** Live handle edits that can be represented without rebuilding geometry. */
+export function canReuseWaterfallGeometryDuringLiveEdit(
+  override: Readonly<Record<string, unknown>> | undefined,
+) {
+  if (!override) return false
+  const keys = Object.keys(override)
+  return keys.length > 0 && keys.every((key) => key === 'width' || key === 'position' || key === 'rotation')
+}
+
+/** Bound transient width scales before they reach the Three.js scene graph. */
+export function getWaterfallLiveWidthScale(baseWidth: number, liveWidth: number) {
+  if (!Number.isFinite(baseWidth) || !Number.isFinite(liveWidth) || baseWidth <= 0 || liveWidth <= 0) return 1
+  return Math.min(3, Math.max(1 / 3, liveWidth / baseWidth))
+}
+
 function poolWallLength(pool: PoolNode, wallIndex: number) {
   const polygon = resolvePoolPolygon(pool)
   const index = ((wallIndex % polygon.length) + polygon.length) % polygon.length

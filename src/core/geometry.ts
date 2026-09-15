@@ -1259,7 +1259,9 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     steps.name = 'pool-entry-steps'
-    steps.castShadow = true
+    // Interior features only need to receive the shell/coping shadow. Casting
+    // them into the scene shadow map adds a pass without a visible benefit.
+    steps.castShadow = false
     steps.receiveShadow = true
     group.add(steps)
   } else if (node.entryFeature === 'tanning-shelf') {
@@ -1277,7 +1279,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     shelf.name = 'pool-entry-tanning-shelf'
-    shelf.castShadow = true
+    shelf.castShadow = false
     shelf.receiveShadow = true
     group.add(shelf)
     const shelfIntervals = getCrossSectionIntervals(inner, endX)
@@ -1298,6 +1300,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
       shellMaterial,
     )
     beach.name = 'pool-entry-beach'
+    beach.castShadow = false
     beach.receiveShadow = true
     group.add(beach)
   }
@@ -1320,7 +1323,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
         shellMaterial,
       )
       bench.name = 'pool-bench'
-      bench.castShadow = true
+      bench.castShadow = false
       bench.receiveShadow = true
       benchAssembly.add(bench)
     }

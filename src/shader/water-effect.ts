@@ -79,6 +79,10 @@ const WATER_MOTION_RATES = {
 const CALM_MOTION_INTENSITY = 0.45
 const CALM_SETTLE_DAMPING = 0.92
 const CALM_BREEZE = 0.08
+// The surface shader still animates every rendered frame. The height-field
+// simulation only needs a lower fixed rate, which avoids two render-target
+// passes per pool on every 60 Hz frame while remaining visually smooth.
+const WATER_SIMULATION_HZ = 30
 
 export type WaterSettings = WaterPresetSettings & {
   waterMode?: 'base' | 'calm' | 'storm'
@@ -146,7 +150,9 @@ function loadWaterTexture(asset: keyof typeof ASSET_URLS) {
   result.colorSpace = NoColorSpace
   result.minFilter = LinearMipmapLinearFilter
   result.magFilter = LinearFilter
-  result.anisotropy = 16
+  // Anisotropy 8 keeps oblique pool surfaces crisp while avoiding the extra
+  // texture bandwidth of the previous 16x setting for every water map.
+  result.anisotropy = 8
   textureCache.set(url, result)
   return result
 }
@@ -821,10 +827,10 @@ export class PoolWaterEffect {
 
       this.accumulator += Math.min(delta, 0.05)
       let steps = 0
-      while (this.accumulator >= 1 / 60 && steps < 2) {
+      while (this.accumulator >= 1 / WATER_SIMULATION_HZ && steps < 1) {
         this.pass(renderer, this.updateMaterial)
         this.pass(renderer, this.updateMaterial)
-        this.accumulator -= 1 / 60
+        this.accumulator -= 1 / WATER_SIMULATION_HZ
         steps += 1
       }
     } finally {

@@ -2,9 +2,22 @@ import { describe, expect, test } from 'bun:test'
 import { PoolNode } from '../../../core/schema'
 import { createPoolShapePolygon } from '../../../design/shapes'
 import { PoolWaterfallNode } from '../core/schema'
-import { createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, getMountedWaterfallDimensions, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
+import { canReuseWaterfallGeometryDuringLiveEdit, createStandaloneWaterfallPlacement, findNearestWaterfallPlacement, getMountedWaterfallDimensions, getWaterfallLiveWidthScale, placementOnPoolBoundary, resolveMountedWaterfall } from './placement'
 
 describe('pool waterfall placement', () => {
+  test('reuses geometry for live width and transform edits', () => {
+    expect(canReuseWaterfallGeometryDuringLiveEdit({ width: 4 })).toBe(true)
+    expect(canReuseWaterfallGeometryDuringLiveEdit({ rotation: [0, 1, 0] })).toBe(true)
+    expect(canReuseWaterfallGeometryDuringLiveEdit({ position: [1, 0, 2], width: 4 })).toBe(true)
+    expect(canReuseWaterfallGeometryDuringLiveEdit({ height: 3 })).toBe(false)
+    expect(canReuseWaterfallGeometryDuringLiveEdit({ width: 4, edgeCurve: [[-1, 0], [1, 0]] })).toBe(false)
+  })
+  test('bounds transient waterfall width preview scales', () => {
+    expect(getWaterfallLiveWidthScale(1, 2)).toBe(2)
+    expect(getWaterfallLiveWidthScale(1, 100)).toBe(3)
+    expect(getWaterfallLiveWidthScale(1, 0)).toBe(1)
+    expect(getWaterfallLiveWidthScale(Number.NaN, 2)).toBe(1)
+  })
   test('default and legacy waterfall rocks match border colors without replacing custom colors', () => {
     const pool = PoolNode.parse({ copingStyle: 'rock' })
     for (const rockColor of ['#7f817d', '#b8b6af']) {
