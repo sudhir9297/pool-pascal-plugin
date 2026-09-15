@@ -458,8 +458,8 @@ export class PoolWaterEffect {
 
   private environmentIllumination(): any {
     if (!this.atmosphere) return float(1)
-    return reference('ambientIntensity', 'float', this.atmosphere)
-      .add(reference('hemisphereIntensity', 'float', this.atmosphere))
+    return (reference('ambientIntensity', 'float', this.atmosphere) as any)
+      .add(reference('hemisphereIntensity', 'float', this.atmosphere) as any)
       .add(0.25)
       .clamp(0.25, 1.2)
   }
