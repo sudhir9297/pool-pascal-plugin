@@ -512,8 +512,8 @@ export class WaterfallBubbleCloudEffect {
 export class WaterfallPoolEffect {
   readonly material: MeshBasicNodeMaterial
   private readonly time = uniform(0)
-  private readonly shallowColor = uniform(color('#83eab3'))
-  private readonly deepColor = uniform(color('#008ab3'))
+  private readonly shallowColor: UniformNode<'color', Color> = uniform(new Color('#83eab3'))
+  private readonly deepColor: UniformNode<'color', Color> = uniform(new Color('#008ab3'))
 
   constructor(
     styleInput: Partial<WaterfallWaterStyle>,
