@@ -1,5 +1,5 @@
 import type { AnyNode } from '@pascal-app/core'
-import type { PoolNode } from '../core/schema'
+import { resolvePoolPolygon, type PoolNode } from '../core/schema'
 
 type ConnectionNode = AnyNode & {
   poolIds?: unknown
@@ -67,15 +67,40 @@ export function shouldAdvancePoolWater(immersiveXR: boolean, isWebGPURenderer: b
   return !immersiveXR && isWebGPURenderer
 }
 
+function polygonBounds(node: PoolNode) {
+  const points = resolvePoolPolygon(node)
+  const xs = points.map(([x]) => x)
+  const zs = points.map(([, z]) => z)
+  return {
+    centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+    centerZ: (Math.min(...zs) + Math.max(...zs)) / 2,
+    length: Math.max(...xs) - Math.min(...xs),
+    width: Math.max(...zs) - Math.min(...zs),
+  }
+}
+
+/** Reuses the committed basin mesh while a horizontal resize is in flight. */
+export function getPoolResizePreviewTransform(committed: PoolNode, preview: PoolNode) {
+  const source = polygonBounds(committed)
+  const target = polygonBounds(preview)
+  const scaleX = target.length / Math.max(source.length, Number.EPSILON)
+  const scaleZ = target.width / Math.max(source.width, Number.EPSILON)
+  return {
+    position: [
+      target.centerX - source.centerX * scaleX,
+      0,
+      target.centerZ - source.centerZ * scaleZ,
+    ] as [number, number, number],
+    scale: [scaleX, 1, scaleZ] as [number, number, number],
+  }
+}
+
 /**
  * Water uniforms update in place. This signature contains only properties
  * that require a new Three.js mesh or a different water elevation.
  */
 export function getPoolGeometrySignature(node: PoolNode) {
   return JSON.stringify({
-    parentId: node.parentId,
-    position: node.position,
-    rotation: node.rotation,
     shape: node.shape,
     length: node.length,
     width: node.width,

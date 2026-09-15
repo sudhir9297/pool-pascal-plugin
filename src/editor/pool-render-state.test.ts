@@ -4,6 +4,7 @@ import { PoolNode } from '../core/schema'
 import {
   countPools,
   getPoolGeometrySignature,
+  getPoolResizePreviewTransform,
   getPoolWaterResolution,
   shouldAdvancePoolWater,
   selectPoolRenderNodes,
@@ -44,6 +45,39 @@ describe('pool render state', () => {
 
     expect(getPoolGeometrySignature(waterEdit)).toBe(getPoolGeometrySignature(original))
     expect(getPoolGeometrySignature(geometryEdit)).not.toBe(getPoolGeometrySignature(original))
+  })
+
+  test('does not rebuild geometry when only the pool transform changes', () => {
+    const original = PoolNode.parse({})
+    const moved = PoolNode.parse({
+      ...original,
+      position: [4, 0, -3],
+      rotation: [0, Math.PI / 3, 0],
+    })
+
+    expect(getPoolGeometrySignature(moved)).toBe(getPoolGeometrySignature(original))
+  })
+
+  test('turns an in-flight outline resize into a cheap mesh transform', () => {
+    const committed = PoolNode.parse({
+      shape: 'custom',
+      polygon: [[1, 2], [9, 2], [9, 6], [1, 6]],
+      outlineControlPoints: [[1, 2], [9, 2], [9, 6], [1, 6]],
+      length: 8,
+      width: 4,
+    })
+    const preview = PoolNode.parse({
+      ...committed,
+      polygon: [[-1, 1], [11, 1], [11, 7], [-1, 7]],
+      outlineControlPoints: [[-1, 1], [11, 1], [11, 7], [-1, 7]],
+      length: 12,
+      width: 6,
+    })
+
+    expect(getPoolResizePreviewTransform(committed, preview)).toEqual({
+      position: [-2.5, 0, -2],
+      scale: [1.5, 1, 1.5],
+    })
   })
 
   test('reduces water resolution as the visible pool count grows', () => {

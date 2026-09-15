@@ -17,7 +17,6 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
   groups: [
     {
       label: 'Pool geometry',
-      defaultExpanded: true,
       fields: [
         { key: 'shape', kind: 'enum', options: POOL_SHAPES },
         { key: 'visualPreset', kind: 'enum', options: POOL_VISUAL_PRESETS },
@@ -51,7 +50,6 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     },
     {
       label: 'Water shader',
-      defaultExpanded: false,
       fields: [
         { key: 'waterPreset', kind: 'enum', options: WATER_PRESETS },
         { key: 'waterQuality', kind: 'enum', options: ['low', 'medium', 'high', 'ultra'], display: 'segmented' },
@@ -71,7 +69,6 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     },
     {
       label: 'Automatic fittings',
-      defaultExpanded: false,
       fields: [
         { key: 'automaticFittings', kind: 'boolean' },
         { key: 'turnoverHours', kind: 'number', unit: 'h', min: 1, max: 24, step: 1, visibleIf: (node) => node.automaticFittings },
@@ -79,10 +76,10 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
         { key: 'drainFlowCapacity', kind: 'number', unit: 'm³/h per outlet', min: 1, max: 1000, step: 1, visibleIf: (node) => node.automaticFittings },
       ],
     },
-    { label: 'Inlet pipes', defaultExpanded: false, fields: [{ key: 'inletPipes', kind: 'custom', component: ConnectInlets }] },
-    { label: 'Drain pipes', defaultExpanded: false, fields: [{ key: 'drainPipes', kind: 'custom', component: ConnectDrains }] },
-    { label: 'Skimmer pipes', defaultExpanded: false, fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
-    { label: 'Transform', defaultExpanded: false, fields: [{ key: 'position', kind: 'vec3' }] },
+    { label: 'Inlet pipes', fields: [{ key: 'inletPipes', kind: 'custom', component: ConnectInlets }] },
+    { label: 'Drain pipes', fields: [{ key: 'drainPipes', kind: 'custom', component: ConnectDrains }] },
+    { label: 'Skimmer pipes', fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
+    { label: 'Transform', fields: [{ key: 'position', kind: 'vec3' }] },
   ],
   actions: [
     {

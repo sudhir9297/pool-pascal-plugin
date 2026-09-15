@@ -1,4 +1,14 @@
-import { BufferGeometry, Color, ExtrudeGeometry, Float32BufferAttribute, Group, Mesh, Shape } from 'three'
+import {
+  BufferGeometry,
+  Color,
+  ExtrudeGeometry,
+  Float32BufferAttribute,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Shape,
+} from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { MeshStandardNodeMaterial } from 'three/webgpu'
 import type { PoolPoint } from '../core/schema'
 import {
@@ -299,6 +309,8 @@ export function buildNaturalCopingGeometry(
   const baseColor = new Color(options.color)
   const layout = layoutNaturalCopingStones(points, options)
 
+  const stoneGeometries: BufferGeometry[] = []
+
   layout.forEach((item, index) => {
     const geometry = options.rockLike
       ? item.cornerPoint && item.cornerTangents
@@ -335,25 +347,10 @@ export function buildNaturalCopingGeometry(
     const color = options.rockLike
       ? getPoolRockColor(item.rockSeed, index)
       : baseColor.clone().offsetHSL(...colorOffset)
-    const material = new MeshStandardNodeMaterial({
-      color,
-      roughness: options.rockLike ? 0.78 : 0.58,
-      metalness: 0,
-    })
-    const meshMaterials = options.smoothBoundary
-      ? [
-          material,
-          new MeshStandardNodeMaterial({
-            color: color.clone().multiplyScalar(0.72),
-            roughness: options.rockLike ? 0.9 : 0.68,
-            metalness: 0,
-          }),
-        ]
-      : material
-    const stone = new Mesh(geometry, meshMaterials)
-    stone.name = `pool-coping-stone-${index + 1}`
-    stone.castShadow = true
-    stone.receiveShadow = true
+    // Bake each stone's transform into its geometry, then merge the whole
+    // coping run. Vertex colors retain the per-stone variation without a
+    // separate material and draw call for every stone.
+    const stone = new Mesh(geometry)
     stone.position.set(...item.position)
     if (options.rockLike || options.smoothBoundary) {
       // ExtrudeGeometry starts at the base plane, so keep the bottom flat on
@@ -384,7 +381,62 @@ export function buildNaturalCopingGeometry(
         ? 0
         : -Math.atan2(item.tangent[1], item.tangent[0]) + item.rockRotation
     }
-    group.add(stone)
+    // Keep rock coping as individual solids: spillover notch CSG relies on
+    // each boulder's closed end face when cutting an opening. Natural stone
+    // coping (the common tiled mode) is safely merged below.
+    if (options.rockLike) {
+      const rockMaterial = new MeshStandardNodeMaterial({
+        color,
+        roughness: 0.78,
+        metalness: 0,
+      })
+      stone.material = options.smoothBoundary
+        ? [
+            rockMaterial,
+            new MeshStandardNodeMaterial({
+              color: color.clone().multiplyScalar(0.72),
+              roughness: 0.9,
+              metalness: 0,
+            }),
+          ]
+        : rockMaterial
+      stone.name = `pool-coping-stone-${index + 1}`
+      stone.castShadow = true
+      stone.receiveShadow = true
+      group.add(stone)
+      return
+    }
+    stone.updateMatrix()
+    geometry.applyMatrix4(stone.matrix)
+    const colors = new Float32Array(geometry.getAttribute('position').count * 3)
+    for (let vertex = 0; vertex < colors.length; vertex += 3) {
+      colors[vertex] = color.r
+      colors[vertex + 1] = color.g
+      colors[vertex + 2] = color.b
+    }
+    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
+    stoneGeometries.push(geometry)
   })
+
+  if (stoneGeometries.length === 0) return group
+  const mergedGeometry = mergeGeometries(stoneGeometries, false)
+  if (!mergedGeometry) {
+    stoneGeometries.forEach((geometry) => geometry.dispose())
+    return group
+  }
+  stoneGeometries.forEach((geometry) => {
+    if (geometry !== mergedGeometry) geometry.dispose()
+  })
+  const material = new MeshStandardMaterial({
+    color: '#ffffff',
+    vertexColors: true,
+    roughness: options.rockLike ? 0.78 : options.smoothBoundary ? 0.68 : 0.58,
+    metalness: 0,
+  })
+  const mergedStones = new Mesh(mergedGeometry, material)
+  mergedStones.name = 'pool-coping-stones'
+  mergedStones.castShadow = true
+  mergedStones.receiveShadow = true
+  group.add(mergedStones)
   return group
 }

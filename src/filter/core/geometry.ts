@@ -11,6 +11,7 @@ import {
   Vector2,
   Vector3,
 } from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { PoolFilterNode } from './schema'
 import {
   FILTER_FLOOR_CLEARANCE,
@@ -325,6 +326,46 @@ function addBadge(group: Group, node: FilterGeometryNode, materials: FilterMater
   group.add(markTop)
 }
 
+/**
+ * Collapse unnamed static detail meshes that share a material into one draw.
+ * Named meshes remain separate because the host uses those names for ports,
+ * handles, and other interaction targets.
+ */
+function mergeStaticDetails(group: Group) {
+  for (const child of [...group.children]) {
+    if (child instanceof Group) mergeStaticDetails(child)
+  }
+
+  const byMaterial = new Map<MeshStandardMaterial, Mesh[]>()
+  for (const child of group.children) {
+    if (!(child instanceof Mesh) || child.name) continue
+    if (!(child.material instanceof MeshStandardMaterial)) continue
+    const meshes = byMaterial.get(child.material) ?? []
+    meshes.push(child)
+    byMaterial.set(child.material, meshes)
+  }
+
+  for (const [material, meshes] of byMaterial) {
+    if (meshes.length < 2) continue
+    const geometries = meshes.map((mesh) => {
+      mesh.updateMatrix()
+      return mesh.geometry.clone().applyMatrix4(mesh.matrix)
+    })
+    const merged = mergeGeometries(geometries, false)
+    if (!merged) {
+      for (const geometry of geometries) geometry.dispose()
+      continue
+    }
+    const replacement = new Mesh(merged, material)
+    group.add(replacement)
+    for (const mesh of meshes) {
+      group.remove(mesh)
+      mesh.geometry.dispose()
+    }
+    for (const geometry of geometries) geometry.dispose()
+  }
+}
+
 /** Builds the compact top-mount sand-filter assembly used by the editor. */
 export function buildFilterGeometry(node: PoolFilterNode): Group {
   const group = new Group()
@@ -336,6 +377,7 @@ export function buildFilterGeometry(node: PoolFilterNode): Group {
   addValve(group, node, materials)
   addBadge(group, node, materials)
   for (const port of getFilterPortsLocal(node)) addPortAssembly(group, port, node, materials)
+  mergeStaticDetails(group)
 
   return group
 }

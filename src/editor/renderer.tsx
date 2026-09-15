@@ -20,6 +20,7 @@ import {
 import {
   countPools,
   getPoolGeometrySignature,
+  getPoolResizePreviewTransform,
   getPoolWaterResolution,
   selectPoolRenderNodes,
   shouldAdvancePoolWater,
@@ -38,13 +39,28 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     () => (liveOverride ? ({ ...storeNode, ...liveOverride } as PoolNode) : storeNode),
     [storeNode, liveOverride],
   )
+  const horizontalResizeInProgress = Boolean(
+    liveOverride
+    && ('length' in liveOverride || 'width' in liveOverride)
+    && ('polygon' in liveOverride || 'outlineControlPoints' in liveOverride),
+  )
+  const resizePreviewTransform = useMemo(
+    () => horizontalResizeInProgress
+      ? getPoolResizePreviewTransform(storeNode, node)
+      : { position: [0, 0, 0] as [number, number, number], scale: [1, 1, 1] as [number, number, number] },
+    [horizontalResizeInProgress, storeNode, node],
+  )
   const relatedNodes = useScene(useShallow(
     (state) => selectPoolRenderNodes(state.nodes, storeNode.id),
   ))
   const visiblePoolCount = useScene((state) => countPools(state.nodes))
   const waterResolution = getPoolWaterResolution(visiblePoolCount, node.waterQuality)
-  const geometrySignature = getPoolGeometrySignature(node)
-  const geometryNode = useMemo(() => node, [geometrySignature])
+  // A horizontal handle drag stretches the already-built basin mesh. The
+  // committed node still drives geometry until pointer-up, when the host saves
+  // the final patch and this renderer performs one accurate rebuild.
+  const geometrySourceNode = horizontalResizeInProgress ? storeNode : node
+  const geometrySignature = getPoolGeometrySignature(geometrySourceNode)
+  const geometryNode = useMemo(() => geometrySourceNode, [geometrySignature])
   const sceneNodes = useMemo(() => Object.fromEntries([
     [geometryNode.id, geometryNode],
     ...relatedNodes.map((candidate) => [candidate.id, candidate] as const),
@@ -164,7 +180,12 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
       visible={node.visible !== false}
       {...handlers}
     >
-      <primitive object={pool} />
+      <group
+        position={resizePreviewTransform.position}
+        scale={resizePreviewTransform.scale}
+      >
+        <primitive object={pool} />
+      </group>
       <AttachmentPoolContext.Provider value={node}>{node.children?.map((childId) => (
         <NodeRenderer key={`${node.id}:${childId}`} nodeId={childId as never} />
       ))}</AttachmentPoolContext.Provider>

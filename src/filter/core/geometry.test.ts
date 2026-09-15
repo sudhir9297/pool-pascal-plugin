@@ -21,7 +21,7 @@ describe('pool filter geometry', () => {
     ]) {
       expect(group.getObjectByName(name), name).toBeDefined()
     }
-    expect(group.children.length).toBeGreaterThan(45)
+    expect(group.children.length).toBeLessThan(30)
   })
 
   test('puts every logical endpoint at its visible socket-face centre', () => {
