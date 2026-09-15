@@ -237,8 +237,8 @@ export class WaterfallWaterEffect {
     const poolLikeBlend = upward.mul(0.58).add(depth.mul(0.42)).min(1)
     const darkWater = this.deepColor.mul(0.3 + 0.1 / clarity)
     const illumination = atmosphere
-      ? reference('ambientIntensity', 'float', atmosphere)
-        .add(reference('hemisphereIntensity', 'float', atmosphere))
+      ? (reference('ambientIntensity', 'float', atmosphere) as any)
+        .add(reference('hemisphereIntensity', 'float', atmosphere) as any)
         .add(0.25)
         .clamp(0.25, 1.2)
       : float(1)
