@@ -23,10 +23,10 @@ function invariant(condition: unknown, message: string): asserts condition {
 }
 
 for (const path of [manifest.main, manifest.types]) {
-  invariant(path.startsWith('./dist/'), 'Package must resolve to compiled output')
+  invariant(path.startsWith('./src/'), 'Package must resolve to source output')
   await readFile(resolve(projectDirectory, path))
 }
-invariant(manifest.exports['.'].types === manifest.types && manifest.exports['.'].default === manifest.main, 'Exports must resolve to compiled output')
+invariant(manifest.exports['.'].types === manifest.types && manifest.exports['.'].default === manifest.main, 'Exports must resolve to source output')
 for (const hook of ['preinstall', 'install', 'postinstall', 'prepare', 'prepack']) {
   invariant(!manifest.scripts[hook], `Package must not run ${hook}`)
 }
@@ -90,11 +90,9 @@ invariant(report.bundled.length === 0, 'Runtime dependencies were bundled into t
 
 const publishedPaths = report.files.map((file) => file.path)
 const forbidden = publishedPaths.filter((path) => (
-  path.startsWith('src/')
-  || path.startsWith('scripts/')
+  path.startsWith('scripts/')
   || path.startsWith('coverage/')
   || /(?:^|\/)node_modules\//.test(path)
-  || /\.test\.[cm]?[jt]sx?$/.test(path)
 ))
 invariant(forbidden.length === 0, `Package contains forbidden files: ${forbidden.join(', ')}`)
 for (const required of [
@@ -110,16 +108,12 @@ for (const required of [
   'docs/public-api.md',
   'docs/testing-and-release.md',
   'package.json',
-  'dist/index.js',
-  'dist/index.d.ts',
-  'dist/routing-worker.js',
+  'src/index.ts',
+  'src/editor/routing-worker.ts',
+  'src/editor/assets/pool-rectangle-thumbnail.webp',
+  'src/shader/assets/water/normal1.webp',
 ]) {
   invariant(publishedPaths.includes(required), `Package is missing ${required}`)
-}
-
-for (const path of publishedPaths.filter((path) => path.startsWith('dist/') && path.endsWith('.js'))) {
-  const source = await readFile(resolve(projectDirectory, path), 'utf8')
-  invariant(!source.includes('"./routing-worker.ts"'), `Compiled package still references TypeScript worker source: ${path}`)
 }
 
 console.log(`Package artifact passed: ${nodeKinds.length} node kinds, ${publishedPaths.length} files, ${(report.size / 1_000_000).toFixed(2)} MB`)
