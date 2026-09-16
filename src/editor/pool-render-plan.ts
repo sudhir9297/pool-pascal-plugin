@@ -1,6 +1,7 @@
 import type { AnyNode } from '@pascal-app/core'
 import { resolvePoolPolygon, type PoolNode } from '../core/schema'
 import { getPoolDepthRange } from '../design/depth-profile'
+import { Euler, Quaternion, Vector3 } from 'three'
 
 type ConnectionNode = AnyNode & {
   poolIds?: unknown
@@ -128,6 +129,44 @@ export function getPoolResizePreviewTransform(committed: PoolNode, preview: Pool
     ] as [number, number, number],
     scale: [scaleX, 1, scaleZ] as [number, number, number],
   }
+}
+
+/** Applies the horizontal pool resize preview to a direct generic child. */
+export function getPoolChildResizePreviewPosition(
+  committed: PoolNode,
+  preview: PoolNode,
+  position: readonly [number, number, number],
+) {
+  const transform = getPoolResizePreviewTransform(committed, preview)
+  return [
+    transform.position[0] + position[0] * transform.scale[0],
+    position[1],
+    transform.position[2] + position[2] * transform.scale[2],
+  ] as [number, number, number]
+}
+
+/** Maps a level-local point through a pool's horizontal resize preview. */
+export function getPoolLevelResizePreviewPosition(
+  committed: PoolNode,
+  preview: PoolNode,
+  position: readonly [number, number, number],
+) {
+  const local = new Vector3(...position)
+    .sub(new Vector3(...committed.position))
+    .applyQuaternion(new Quaternion().setFromEuler(new Euler(...committed.rotation)).invert())
+  const resized = getPoolChildResizePreviewPosition(committed, preview, local.toArray() as [number, number, number])
+  return new Vector3(...resized)
+    .applyQuaternion(new Quaternion().setFromEuler(new Euler(...committed.rotation)))
+    .add(new Vector3(...committed.position))
+    .toArray() as [number, number, number]
+}
+
+export function getPoolLevelResizePreviewPath(
+  committed: PoolNode,
+  preview: PoolNode,
+  path: readonly (readonly [number, number, number])[],
+) {
+  return path.map((point) => getPoolLevelResizePreviewPosition(committed, preview, point))
 }
 
 /** Reuses the committed basin mesh while the depth handle is moving. */

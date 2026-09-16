@@ -35,6 +35,29 @@ describe('pool child attachments', () => {
     expect(resolvePoolAttachment(child, resized)?.position).toEqual([4, -2.5, 2])
   })
 
+  test('remaps a stale wall index to the nearest custom-outline segment', () => {
+    const pool = PoolNode.parse({
+      id: 'pool_custom_anchor',
+      shape: 'custom',
+      polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]],
+    })
+    const edited = PoolNode.parse({
+      ...pool,
+      polygon: [[-4, -2], [4, -2], [4, 2]],
+    })
+    const inlet = PoolInletNode.parse({
+      poolId: pool.id,
+      parentId: pool.id,
+      wallIndex: 3,
+      wallT: 0.5,
+      position: [-4, pool.designWaterElevation, 0],
+    })
+    const resolved = resolvePoolAttachment(inlet, edited)
+    expect(resolved?.type).toBe('pool:inlet')
+    expect(resolved && 'wallIndex' in resolved ? resolved.wallIndex : null).toBe(2)
+    expect(resolved && 'wallT' in resolved ? resolved.wallT : null).toBeCloseTo(0.9)
+  })
+
   test('passes the pool parent to scene creation and keeps pipe ports in level coordinates', () => {
     const before = useScene.getState()
     const pool = PoolNode.parse({ id: 'pool_scene_children', position: [10, 2, -5], rotation: [0, Math.PI / 2, 0], parentId: 'level_test' })

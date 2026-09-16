@@ -8,9 +8,9 @@ import type { PoolInletNode } from '../core/schema'
 import { resolveMountedInlet } from '../design/placement'
 
 export default function PoolInletPreview({ node }: { node: PoolInletNode }) {
-  const pool = useAttachmentPool(node.poolId)
+  const pool = useAttachmentPool(node.poolId, true)
   const mountedNode = useMemo(() => resolveMountedInlet(node, pool), [node, pool])
-  return <GeometryPreview node={mountedNode} buildGeometry={buildInletGeometry} geometryPosition={[0, mountedNode.verticalOffset, 0]}>
+  return <GeometryPreview node={mountedNode} geometryNode={node} buildGeometry={buildInletGeometry} geometryPosition={[0, mountedNode.verticalOffset, 0]}>
     {mountedNode.showFlow && <FlowArrow length={mountedNode.flowLength} verticalOffset={mountedNode.verticalOffset} />}
   </GeometryPreview>
 }

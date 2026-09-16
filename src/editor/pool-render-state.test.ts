@@ -6,6 +6,8 @@ import {
   getPoolGeometrySignature,
   getPoolDepthResizePreviewTransform,
   getPoolResizePreviewTransform,
+  getPoolChildResizePreviewPosition,
+  getPoolLevelResizePreviewPath,
   getPoolWaterResolution,
   getPoolWaterSettingsSignature,
   selectPoolRenderNodes,
@@ -90,6 +92,18 @@ describe('pool render state', () => {
       position: [-2.5, 0, -2],
       scale: [1.5, 1, 1.5],
     })
+  })
+
+  test('moves generic child positions without scaling their local geometry', () => {
+    const committed = PoolNode.parse({ length: 8, width: 4, polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]] })
+    const preview = PoolNode.parse({ ...committed, length: 12, width: 6, polygon: [[-6, -3], [6, -3], [6, 3], [-6, 3]] })
+    expect(getPoolChildResizePreviewPosition(committed, preview, [2, 0.4, 1])).toEqual([3, 0.4, 1.5])
+  })
+
+  test('maps pool-connected level paths through the same resize transform', () => {
+    const committed = PoolNode.parse({ length: 8, width: 4, polygon: [[-4, -2], [4, -2], [4, 2], [-4, 2]] })
+    const preview = PoolNode.parse({ ...committed, length: 12, width: 6, polygon: [[-6, -3], [6, -3], [6, 3], [-6, 3]] })
+    expect(getPoolLevelResizePreviewPath(committed, preview, [[-4, 0, 0], [0, 0, 0]])).toEqual([[ -6, 0, 0 ], [0, 0, 0]])
   })
 
   test('turns an in-flight depth resize into a cheap vertical transform', () => {

@@ -18,28 +18,32 @@ export default function PoolSpilloverPreview({ node }: { node: PoolSpilloverNode
   const handlers = usePoolNodeHost(node, rootRef)
   const sourceValue = useScene((state) => state.nodes[node.sourcePoolId as never])
   const targetValue = useScene((state) => state.nodes[node.targetPoolId as never])
-  const editInProgress = useLiveNodeOverrides((state) => Boolean(
-    state.get(node.id) || state.get(node.sourcePoolId) || state.get(node.targetPoolId),
-  ))
+  const livePoolOverrides = useLiveNodeOverrides((state) => [
+    state.get(node.sourcePoolId), state.get(node.targetPoolId),
+  ])
+  const editInProgress = useLiveNodeOverrides((state) => Boolean(state.get(node.id)))
   const liveNode = useMemo(() => {
     if (editInProgress) return null
-    const source = PoolNode.safeParse(sourceValue)
-    const target = PoolNode.safeParse(targetValue)
+    const source = PoolNode.safeParse(sourceValue ? { ...sourceValue, ...livePoolOverrides[0] } : sourceValue)
+    const target = PoolNode.safeParse(targetValue ? { ...targetValue, ...livePoolOverrides[1] } : targetValue)
     if (!source.success || !target.success) return null
     const update = resolvePoolSpilloverSyncUpdate(node, source.data, target.data)
     return update ? { ...node, ...update } : null
-  }, [node, sourceValue, targetValue, editInProgress])
+  }, [editInProgress, livePoolOverrides, node, sourceValue, targetValue])
   const geometry = useMemo(
     () => {
       if (!liveNode) return new Group()
-      const source = PoolNode.safeParse(liveNode.sourcePoolId === node.sourcePoolId ? sourceValue : targetValue)
+      const sourceValueWithOverride = liveNode.sourcePoolId === node.sourcePoolId
+        ? (sourceValue ? { ...sourceValue, ...livePoolOverrides[0] } : sourceValue)
+        : (targetValue ? { ...targetValue, ...livePoolOverrides[1] } : targetValue)
+      const source = PoolNode.safeParse(sourceValueWithOverride)
       return buildPoolSpilloverGeometry(
         liveNode,
         source.success ? source.data : undefined,
         atmosphere,
       )
     },
-    [liveNode, node.sourcePoolId, sourceValue, targetValue, atmosphere],
+    [liveNode, node.sourcePoolId, sourceValue, targetValue, livePoolOverrides, atmosphere],
   )
   useFrame(({ invalidate }, delta) => {
     if (!liveNode || editInProgress || node.visible === false) return

@@ -13,6 +13,34 @@ import { getPoolDepthResolver } from './depth-profile'
 
 const schemas = [PoolDrainNode, PoolInletNode, PoolSkimmerNode, PoolStairNode, PoolWaterfallNode]
 
+function remapWallAnchor<T extends { position: [number, number, number]; wallIndex?: number; wallT?: number }>(node: T, pool: PoolNode): T {
+  const polygon = resolvePoolPolygon(pool)
+  if (
+    polygon.length < 2 ||
+    node.wallIndex === undefined ||
+    node.wallT === undefined ||
+    (node.wallIndex >= 0 && node.wallIndex < polygon.length)
+  ) return node
+  let bestIndex = 0
+  let bestT = 0
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (let index = 0; index < polygon.length; index += 1) {
+    const [ax, az] = polygon[index]!
+    const [bx, bz] = polygon[(index + 1) % polygon.length]!
+    const dx = bx - ax
+    const dz = bz - az
+    const lengthSquared = dx * dx + dz * dz || 1
+    const t = Math.max(0, Math.min(1, ((node.position[0] - ax) * dx + (node.position[2] - az) * dz) / lengthSquared))
+    const distance = (node.position[0] - (ax + dx * t)) ** 2 + (node.position[2] - (az + dz * t)) ** 2
+    if (distance < bestDistance) {
+      bestDistance = distance
+      bestIndex = index
+      bestT = t
+    }
+  }
+  return { ...node, wallIndex: bestIndex, wallT: bestT } as T
+}
+
 /** Convert existing level siblings and recompute attachments in the pool's own frame. */
 export function resolvePoolAttachment(value: unknown, pool: PoolNode) {
   const parsed = schemas.map((schema) => schema.safeParse(value)).find((result) => result.success)
@@ -22,7 +50,10 @@ export function resolvePoolAttachment(value: unknown, pool: PoolNode) {
     ? new Vector3(...node.position)
     : new Vector3(...node.position).sub(new Vector3(...pool.position))
       .applyQuaternion(new Quaternion().setFromEuler(new Euler(...pool.rotation)).invert())
-  const child = { ...node, parentId: pool.id, position: local.toArray() as [number, number, number] }
+  const child = remapWallAnchor(
+    { ...node, parentId: pool.id, position: local.toArray() as [number, number, number] },
+    pool,
+  )
   switch (child.type) {
     case 'pool:skimmer': return resolveMountedSkimmer(child, pool)
     case 'pool:inlet': return resolveMountedInlet(child, pool)

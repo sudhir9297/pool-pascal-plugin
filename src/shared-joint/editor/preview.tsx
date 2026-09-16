@@ -1,6 +1,6 @@
 'use client'
 
-import { useScene, type AnyNode } from '@pascal-app/core'
+import { useLiveNodeOverrides, useScene, type AnyNode } from '@pascal-app/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Group, Material, Mesh } from 'three'
 import type { WebGPURenderer } from 'three/webgpu'
@@ -8,22 +8,36 @@ import { buildSharedJointGeometry } from '../core/geometry'
 import type { PoolSharedJointNode } from '../core/schema'
 import { PoolNode } from '../../core/schema'
 import { usePoolNodeHost } from '../../editor/node-host'
+import { syncSharedPoolJoints } from '../../design/shared-joint'
 
 export default function PoolSharedJointPreview({ node }: { node: PoolSharedJointNode }) {
   const [, redraw] = useState(0)
   const rootRef = useRef<Group>(null!)
   const handlers = usePoolNodeHost(node, rootRef)
-  const geometry = useMemo(() => buildSharedJointGeometry(node), [node])
-  const waterEffect = geometry.userData.waterEffect
   const sceneNodes = useScene((state) => state.nodes)
+  const livePoolOverrides = useLiveNodeOverrides((state) => node.poolIds.map((poolId) => state.get(poolId)))
+  const liveNode = useMemo(() => {
+    const liveNodes = { ...(sceneNodes as Record<string, AnyNode>) }
+    node.poolIds.forEach((poolId, index) => {
+      const pool = liveNodes[poolId]
+      const override = livePoolOverrides[index]
+      if (pool && override) liveNodes[poolId] = { ...pool, ...override }
+    })
+    const update = syncSharedPoolJoints(liveNodes as Record<string, AnyNode>).update.find((entry) => entry.id === node.id)
+    return update ? { ...node, ...update.data } as PoolSharedJointNode : node
+  }, [livePoolOverrides, node, sceneNodes])
+  const geometry = useMemo(() => buildSharedJointGeometry(liveNode), [liveNode])
+  const waterEffect = geometry.userData.waterEffect
   const sourceWaterSettings = useMemo(() => {
     for (const poolId of node.poolIds) {
-      const candidate = (sceneNodes as Record<string, AnyNode>)[poolId]
+      const index = node.poolIds.indexOf(poolId)
+      const raw = (sceneNodes as Record<string, AnyNode>)[poolId]
+      const candidate = raw && livePoolOverrides[index] ? { ...raw, ...livePoolOverrides[index] } : raw
       const parsed = candidate ? PoolNode.safeParse(candidate) : null
       if (parsed?.success) return parsed.data
     }
     return null
-  }, [node.poolIds, sceneNodes])
+  }, [livePoolOverrides, node.poolIds, sceneNodes])
   const hasExplicitSpillover = useMemo(() => Object.values(sceneNodes).some((candidate) => {
     if (String(candidate.type) !== 'pool:spillover') return false
     const sourcePoolId = String((candidate as { sourcePoolId?: unknown }).sourcePoolId ?? '')
@@ -68,5 +82,5 @@ export default function PoolSharedJointPreview({ node }: { node: PoolSharedJoint
       }
     })
   }, [geometry, waterEffect])
-  return <group position={node.position} rotation={node.rotation} ref={rootRef} visible={!hasExplicitSpillover} {...handlers}><primitive object={geometry} /></group>
+  return <group position={liveNode.position} rotation={liveNode.rotation} ref={rootRef} visible={!hasExplicitSpillover} {...handlers}><primitive object={geometry} /></group>
 }

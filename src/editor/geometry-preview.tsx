@@ -14,6 +14,7 @@ type PreviewNode = {
 
 type GeometryPreviewProps<Node extends PreviewNode> = {
   node: Node
+  geometryNode?: Node
   buildGeometry: (node: Node) => Object3D
   children?: ReactNode
   geometryPosition?: [number, number, number]
@@ -22,13 +23,15 @@ type GeometryPreviewProps<Node extends PreviewNode> = {
 /** Shared lifecycle and host registration for procedural equipment previews. */
 export function GeometryPreview<Node extends PreviewNode>({
   node,
+  geometryNode,
   buildGeometry,
   children,
   geometryPosition,
 }: GeometryPreviewProps<Node>) {
   const rootRef = useRef<Group>(null!)
   const handlers = usePoolNodeHost(node, rootRef)
-  const geometry = useMemo(() => buildGeometry(node), [buildGeometry, node])
+  const geometryInput = geometryNode ?? node
+  const geometry = useMemo(() => buildGeometry(geometryInput), [buildGeometry, geometryInput])
   useEffect(() => () => disposeObject3D(geometry), [geometry])
 
   return (

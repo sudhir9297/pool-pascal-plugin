@@ -20,6 +20,9 @@ import {
 import {
   countPools,
   getPoolGeometrySignature,
+  getPoolChildResizePreviewPosition,
+  getPoolLevelResizePreviewPosition,
+  getPoolLevelResizePreviewPath,
   getPoolDepthResizePreviewTransform,
   getPoolResizePreviewTransform,
   getPoolWaterResolution,
@@ -33,6 +36,7 @@ import { AttachmentPoolContext } from './attachment-pool'
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const ref = useRef<Group>(null!)
   const nodeRef = useRef<PoolNode>(storeNode)
+  const resizeSessionRef = useRef<{ pool: PoolNode; positions: Map<string, [number, number, number]> } | null>(null)
   const atmosphere = useSceneAtmosphere()
   // Native resize handles publish their in-flight patch here and commit it to
   // the scene only on pointer-up. Merge that patch into the render node so the
@@ -52,25 +56,77 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const depthResizeInProgress = Boolean(
     liveOverride && ('depth' in liveOverride || 'shallowDepth' in liveOverride || 'deepDepth' in liveOverride),
   )
+  const resizeInProgress = horizontalResizeInProgress || depthResizeInProgress
+  if (resizeInProgress && !resizeSessionRef.current) {
+    resizeSessionRef.current = {
+      pool: storeNode,
+      positions: new Map(),
+    }
+  } else if (!resizeInProgress) {
+    resizeSessionRef.current = null
+  }
+  const resizeSessionPool = resizeSessionRef.current?.pool ?? storeNode
   const resizePreviewTransform = useMemo(
     () => horizontalResizeInProgress
-      ? getPoolResizePreviewTransform(storeNode, node)
+      ? getPoolResizePreviewTransform(resizeSessionPool, node)
       : depthResizeInProgress
-        ? getPoolDepthResizePreviewTransform(storeNode, node)
+        ? getPoolDepthResizePreviewTransform(resizeSessionPool, node)
       : { position: [0, 0, 0] as [number, number, number], scale: [1, 1, 1] as [number, number, number] },
-    [depthResizeInProgress, horizontalResizeInProgress, storeNode, node],
+    [depthResizeInProgress, horizontalResizeInProgress, resizeSessionPool, node],
   )
   const relatedNodes = useScene(useShallow(
     (state) => selectPoolRenderNodes(state.nodes, storeNode.id),
   ))
+  const genericChildren = useScene(useShallow((state) => (node.children ?? []).flatMap((childId) => {
+    const child = state.nodes[childId as never]
+    if (!child || child.parentId !== storeNode.id || 'poolId' in child) return []
+    return [child]
+  })))
+  const connectedPipes = useScene(useShallow((state) => Object.values(state.nodes).filter((candidate) => {
+    if (candidate.type !== 'pipe-segment' && candidate.type !== 'pipe-fitting') return false
+    const connection = (candidate as unknown as { metadata?: { poolConnection?: { poolId?: string } } }).metadata?.poolConnection
+    return connection?.poolId === storeNode.id
+  })))
+  useEffect(() => {
+    if (!horizontalResizeInProgress || (genericChildren.length === 0 && connectedPipes.length === 0)) return
+    const session = resizeSessionRef.current
+    const entries: (readonly [string, Record<string, unknown>])[] = []
+    genericChildren.forEach((child) => {
+      const position = (child as unknown as { position: [number, number, number] }).position
+      const initial = session?.positions.get(child.id) ?? position
+      session?.positions.set(child.id, initial)
+      entries.push([child.id, { position: getPoolChildResizePreviewPosition(session?.pool ?? storeNode, node, initial) }])
+    })
+    connectedPipes.forEach((child) => {
+      const candidate = child as unknown as { id: string; type: string; path?: [number, number, number][]; position?: [number, number, number] }
+      if (candidate.type === 'pipe-segment' && candidate.path) {
+        entries.push([candidate.id, { path: getPoolLevelResizePreviewPath(session?.pool ?? storeNode, node, candidate.path) }])
+      }
+      if (candidate.position) {
+        entries.push([candidate.id, { position: getPoolLevelResizePreviewPosition(session?.pool ?? storeNode, node, candidate.position) }])
+      }
+    })
+    useLiveNodeOverrides.getState().setMany(entries)
+    return () => {
+      for (const child of genericChildren) useLiveNodeOverrides.getState().clearFields(child.id, ['position'])
+      for (const child of connectedPipes) useLiveNodeOverrides.getState().clearFields(child.id, ['path', 'position'])
+    }
+  }, [connectedPipes, genericChildren, horizontalResizeInProgress, node, storeNode])
   const visiblePoolCount = useScene((state) => countPools(state.nodes))
   const waterResolution = getPoolWaterResolution(visiblePoolCount, node.waterQuality)
   const waterSettingsSignature = getPoolWaterSettingsSignature(node)
   // A horizontal handle drag stretches the already-built basin mesh. The
   // committed node still drives geometry until pointer-up, when the host saves
   // the final patch and this renderer performs one accurate rebuild.
-  const geometrySourceNode = horizontalResizeInProgress || depthResizeInProgress ? storeNode : node
-  const geometrySignature = getPoolGeometrySignature(geometrySourceNode)
+  // Transform and resize previews keep the committed procedural mesh stable.
+  // Width/depth handles already provide a cheap scale/position preview below;
+  // rebuilding the pool geometry from the live node on every pointer event
+  // makes side-arrow dragging miss frames.
+  const geometrySourceNode = storeNode
+  const geometrySignature = useMemo(
+    () => getPoolGeometrySignature(geometrySourceNode),
+    [geometrySourceNode],
+  )
   const geometryNode = useMemo(() => geometrySourceNode, [geometrySignature])
   const sceneNodes = useMemo(() => Object.fromEntries([
     [geometryNode.id, geometryNode],
@@ -113,7 +169,7 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   }, [depthResizeInProgress, pool, resizePreviewScaleY])
   // The host's published viewer types predate third-party node augmentation;
   // the runtime event key is still the namespaced pool kind.
-  const handlers = usePoolNodeHost(node, ref)
+  const handlers = usePoolNodeHost(node, ref, geometrySignature)
   const waterEffect = pool.userData.waterEffect as PoolWaterEffect
   const immersiveWaterMaterial = useMemo(
     () => createImmersiveXRPoolWaterMaterial({ waterColor: node.waterColor }, atmosphere),

@@ -8,9 +8,9 @@ import type { PoolSkimmerNode } from '../core/schema'
 import { resolveMountedSkimmer } from '../design/placement'
 
 export default function PoolSkimmerPreview({ node }: { node: PoolSkimmerNode }) {
-  const pool = useAttachmentPool(node.poolId)
+  const pool = useAttachmentPool(node.poolId, true)
   const mountedNode = useMemo(() => resolveMountedSkimmer(node, pool), [node, pool])
-  return <GeometryPreview node={mountedNode} buildGeometry={buildSkimmerGeometry}>
+  return <GeometryPreview node={mountedNode} geometryNode={node} buildGeometry={buildSkimmerGeometry}>
     {mountedNode.showFlow && <FlowArrows />}
   </GeometryPreview>
 }

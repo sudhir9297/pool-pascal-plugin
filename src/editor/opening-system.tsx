@@ -15,6 +15,8 @@ import { syncSharedPoolJoints } from '../design/shared-joint'
 import { syncPoolSpillovers } from '../spillover/design/sync'
 import { syncAutomaticPoolFittings } from '../design/sync-pool-fittings'
 import { poolAttachmentUpdates } from '../design/pool-attachments'
+import { getPoolChildResizePreviewPosition, getPoolLevelResizePreviewPath, getPoolLevelResizePreviewPosition } from './pool-render-plan'
+import { PoolNode } from '../core/schema'
 
 function isOpeningRelevantNode(node: AnyNode | undefined) {
   const type = node?.type as string | undefined
@@ -60,7 +62,34 @@ function hasConnectionRelevantChange(
 export function initializePoolOpeningSync() {
   let syncing = false
 
-  const applyUpdates = (nodes: Record<string, AnyNode>) => {
+  const applyUpdates = (nodes: Record<string, AnyNode>, previousNodes: Record<string, AnyNode> = {}) => {
+    const genericChildUpdates: { id: string; data: Record<string, unknown> }[] = []
+    for (const previousValue of Object.values(previousNodes)) {
+      const previousPool = PoolNode.safeParse(previousValue)
+      if (!previousPool.success) continue
+      const pool = PoolNode.safeParse(nodes[previousPool.data.id])
+      if (!pool.success) continue
+      if (previousPool.data.length === pool.data.length && previousPool.data.width === pool.data.width &&
+        JSON.stringify(previousPool.data.polygon) === JSON.stringify(pool.data.polygon)) continue
+      for (const childId of previousPool.data.children ?? []) {
+        const child = nodes[childId as never]
+        if (!child || child.parentId !== pool.data.id || 'poolId' in child) continue
+        genericChildUpdates.push({
+          id: child.id,
+          data: { position: getPoolChildResizePreviewPosition(previousPool.data, pool.data, (child as unknown as { position: [number, number, number] }).position) },
+        })
+      }
+      for (const value of Object.values(nodes)) {
+        const connection = (value as unknown as { metadata?: { poolConnection?: { poolId?: string } } }).metadata?.poolConnection
+        if (connection?.poolId !== pool.data.id) continue
+        const child = value as unknown as { id: string; type: string; path?: [number, number, number][]; position?: [number, number, number] }
+        if (child.type === 'pipe-segment' && child.path) {
+          genericChildUpdates.push({ id: child.id, data: { path: getPoolLevelResizePreviewPath(previousPool.data, pool.data, child.path) } })
+        } else if (child.position) {
+          genericChildUpdates.push({ id: child.id, data: { position: getPoolLevelResizePreviewPosition(previousPool.data, pool.data, child.position) } })
+        }
+      }
+    }
     const fittingChanges = syncAutomaticPoolFittings(nodes)
     const fittingNodes = { ...nodes }
     for (const node of fittingChanges.create) fittingNodes[node.id] = node as unknown as AnyNode
@@ -111,7 +140,7 @@ export function initializePoolOpeningSync() {
           node: node as unknown as AnyNode,
           parentId: node.parentId ?? undefined,
         }))) as unknown as never,
-        update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update, ...spilloverChanges.update, ...fittingChanges.update, ...attachmentUpdates] as never,
+      update: [...slabUpdates, ...groundChanges.update, ...connectionChanges.update, ...spilloverChanges.update, ...fittingChanges.update, ...attachmentUpdates, ...genericChildUpdates] as never,
         delete: [...groundChanges.delete, ...connectionChanges.delete, ...spilloverChanges.delete, ...fittingChanges.delete] as never,
       })
     } finally {
@@ -126,7 +155,7 @@ export function initializePoolOpeningSync() {
       !hasOpeningRelevantChange(state.nodes, previousState.nodes) &&
       !hasConnectionRelevantChange(state.nodes, previousState.nodes)
     )) return
-    applyUpdates(state.nodes)
+    applyUpdates(state.nodes, previousState.nodes)
   })
 }
 
