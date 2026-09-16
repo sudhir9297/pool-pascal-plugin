@@ -28,7 +28,7 @@ export default function PoolWaterfallPreview({ node }: { node: PoolWaterfallNode
   const rootRef = useRef<Group>(null!)
   const atmosphere = useSceneAtmosphere()
   const handlers = usePoolNodeHost(node, rootRef)
-  const pool = useAttachmentPool(node.poolId)
+  const pool = useAttachmentPool(node.poolId, true)
   const liveOverride = useLiveNodeOverrides((state) => state.overrides.get(node.id))
   const liveNode = useMemo(
     () => liveOverride ? { ...node, ...liveOverride } as PoolWaterfallNode : node,

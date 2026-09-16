@@ -1,7 +1,6 @@
 import { cutOverlapCoping } from './overlap-coping'
-import type { PoolOverlap } from '../design/pool-overlap'
 import { cutPoolSpilloverNotches } from './spillover-notch'
-import type { SpilloverNotch } from '../design/spillover-notch'
+import { createPoolAssemblyPlan, type PoolGeometryOptions } from './pool-assembly-plan'
 import {
   BufferGeometry,
   DoubleSide,
@@ -16,12 +15,10 @@ import {
   Vector2,
 } from 'three'
 import { MeshStandardNodeMaterial } from 'three/webgpu'
-import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import { TessellateModifier } from 'three/examples/jsm/modifiers/TessellateModifier.js'
 import { color, float, mix, normalLocal, positionLocal, sin, smoothstep, vec2 } from 'three/tsl'
-import { getPoolDepthRange, getPoolDepthResolver } from '../design/depth-profile'
-import { buildPoolOutlines, outsetPoolPolygon } from '../design/outlines'
-import { PoolNode, type PoolPoint, resolvePoolPolygon } from './schema'
+import { outsetPoolPolygon } from '../design/outlines'
+import { PoolNode, type PoolPoint } from './schema'
 import { PoolWaterEffect } from '../shader/water-effect'
 import { buildNaturalCopingGeometry } from '../design/coping'
 import { buildSubmergedFeatureCopingGeometry } from '../design/feature-coping'
@@ -109,16 +106,7 @@ type ProfiledPoint = [x: number, z: number, heightAboveFloor: number]
 
 const GEOMETRY_EPSILON = 1e-8
 
-export type PoolGeometryOptions = {
-  overlaps?: PoolOverlap[]
-  spilloverNotches?: SpilloverNotch[]
-  removeWallRegions?: PoolPoint[][]
-  removeWallCapRegions?: PoolPoint[][]
-  removeFloorRegions?: PoolPoint[][]
-  removeWaterRegions?: PoolPoint[][]
-  waterResolution?: number
-  atmosphere?: SceneAtmosphereSource | null
-}
+export type { PoolGeometryOptions } from './pool-assembly-plan'
 
 function pointInPolygon(point: PoolPoint, polygon: PoolPoint[]) {
   let inside = false
@@ -1143,41 +1131,14 @@ function createTileMaterial(node: PoolNode, effect: PoolWaterEffect, points: Poo
 }
 
 export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOptions = {}): Group {
-  // Plugin renderers can receive stored scene data before the registry has
-  // materialized defaults added by a newer schema version. Normalize once at
-  // this boundary so every downstream dimension is finite.
-  const node = PoolNode.parse(nodeInput)
-  const overlapRegions = options.overlaps?.filter(overlap => overlap.trimBasin !== false).flatMap(overlap => overlap.regions) ?? []
-  const overlapWallRegions = options.overlaps
-    ?.filter(overlap => overlap.trimBasin !== false)
-    .flatMap(overlap => overlap.wallRegions ?? overlap.regions) ?? []
-  const overlapWallCapRegions = options.overlaps
-    ?.filter(overlap => overlap.trimBasin !== false)
-    .flatMap(overlap => overlap.wallCapRegions ?? overlap.wallRegions ?? overlap.regions) ?? []
-  const overlapWaterRegions = options.overlaps
-    ?.filter(overlap => overlap.trimBasin !== false && overlap.preserveWater !== true)
-    .flatMap(overlap => overlap.regions) ?? []
-  options = {
-    ...options,
-    removeWallRegions: [...(options.removeWallRegions ?? []), ...overlapWallRegions],
-    removeWallCapRegions: [...(options.removeWallCapRegions ?? []), ...overlapWallCapRegions],
-    removeFloorRegions: [...(options.removeFloorRegions ?? []), ...overlapRegions],
-    removeWaterRegions: [...(options.removeWaterRegions ?? []), ...overlapWaterRegions],
-  }
+  const plan = createPoolAssemblyPlan(nodeInput, options)
+  const { node, outlines, inner, depth, cuts } = plan
+  options = plan.options
   const group = new Group()
   group.name = 'pool-assembly'
   group.position.y = node.finishedDeckElevation
 
-  const sourceOutline = resolvePoolPolygon(node)
-  const safeCoveRadius = Math.min(node.coveRadius, getPoolDepthRange(node).minimum * 0.45)
-  const outlines = buildPoolOutlines(sourceOutline, {
-    shellThickness: node.shellThickness,
-    copingWidth: node.copingWidth,
-    coveRadius: safeCoveRadius,
-    openingClearance: node.openingClearance,
-  })
-  const inner = outlines.basin
-  const waterElevation = node.designWaterElevation
+  const waterElevation = plan.waterElevation
   const shellOuter = outlines.shellOuter
   const copingOuter = outlines.copingOuter
   const waterEffect = new PoolWaterEffect(node, options.waterResolution, options.atmosphere)
@@ -1195,13 +1156,7 @@ export function buildPoolGeometry(nodeInput: PoolNode, options: PoolGeometryOpti
     roughness: 0.52,
     side: DoubleSide,
   })
-  const depth = getPoolDepthResolver(node, inner)
-  const cuts = depth.profile.kind === 'shallow-to-deep'
-    ? [
-        depth.minimumX + (depth.maximumX - depth.minimumX) * depth.profile.slopeStart / 100,
-        depth.minimumX + (depth.maximumX - depth.minimumX) * depth.profile.slopeEnd / 100,
-      ]
-    : []
+  const safeCoveRadius = plan.safeCoveRadius
   const addSubmergedFeatureEdge = (
     start: PoolPoint,
     end: PoolPoint,

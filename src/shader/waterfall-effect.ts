@@ -1,4 +1,4 @@
-import { DataTexture, DoubleSide, LinearFilter, MeshBasicNodeMaterial, NoColorSpace, RGBAFormat, RepeatWrapping, UnsignedByteType, type UniformNode } from 'three/webgpu'
+import { DoubleSide, MeshBasicNodeMaterial, type UniformNode } from 'three/webgpu'
 import {
   cameraFar,
   cameraNear,
@@ -37,76 +37,20 @@ import {
   MeshPhysicalMaterial,
   Object3D,
   SphereGeometry,
-  TextureLoader,
-  type Texture,
 } from 'three'
 import {
-  getWaterPresetSettings,
-  type WaterPreset,
-} from './water-presets'
+  loadWaterTexture,
+  resolveWaterStyle,
+  WATERFALL_PRESET_TEXTURES,
+} from './water-presentation'
+import type { WaterPreset } from './water-presets'
 
-const NOISE_URLS = {
-  caustic1: new URL('./assets/water/caustic1.webp', import.meta.url).href,
-  caustic2: new URL('./assets/water/caustic2.webp', import.meta.url).href,
-  noise1: new URL('./assets/water/noise1.webp', import.meta.url).href,
-  noise4: new URL('./assets/water/noise4.webp', import.meta.url).href,
-  noise5: new URL('./assets/water/noise5.webp', import.meta.url).href,
-  normal1: new URL('./assets/water/normal1.webp', import.meta.url).href,
-  normal2: new URL('./assets/water/normal2.webp', import.meta.url).href,
-  normal3: new URL('./assets/water/normal3.webp', import.meta.url).href,
-} as const
-const WATERFALL_PRESET_TEXTURES: Record<WaterPreset, {
-  mask: keyof typeof NOISE_URLS
-  detail: keyof typeof NOISE_URLS
-  normal: keyof typeof NOISE_URLS
-}> = {
-  'crystal-clear': { mask: 'caustic1', detail: 'noise5', normal: 'normal1' },
-  'vivid-aqua': { mask: 'caustic2', detail: 'noise1', normal: 'normal3' },
-  'tropical-lagoon': { mask: 'caustic1', detail: 'noise4', normal: 'normal2' },
-}
 const waterfallViewportDepth = viewportDepthTexture()
-const waterfallTextureCache = new Map<string, Texture>()
 
 export type WaterfallWaterStyle = {
   waterPreset: WaterPreset
   shallowWaterColor: string
   deepWaterColor: string
-}
-
-function resolveWaterfallStyle(input: Partial<WaterfallWaterStyle>) {
-  const preset = getWaterPresetSettings(input.waterPreset)
-  return {
-    ...preset,
-    shallowWaterColor: typeof input.shallowWaterColor === 'string'
-      ? input.shallowWaterColor
-      : preset.shallowWaterColor,
-    deepWaterColor: typeof input.deepWaterColor === 'string'
-      ? input.deepWaterColor
-      : preset.deepWaterColor,
-  }
-}
-
-function fallbackNoise(): Texture {
-  const data = new Uint8Array([
-    32, 128, 255, 255, 224, 96, 255, 255,
-    192, 220, 255, 255, 64, 160, 255, 255,
-  ])
-  const result = new DataTexture(data, 2, 2, RGBAFormat, UnsignedByteType)
-  result.needsUpdate = true
-  return result
-}
-
-function loadNoise(url: string) {
-  const cached = waterfallTextureCache.get(url)
-  if (cached) return cached
-  const result = typeof document === 'undefined' ? fallbackNoise() : new TextureLoader().load(url)
-  result.wrapS = RepeatWrapping
-  result.wrapT = RepeatWrapping
-  result.colorSpace = NoColorSpace
-  result.minFilter = LinearFilter
-  result.magFilter = LinearFilter
-  waterfallTextureCache.set(url, result)
-  return result
 }
 
 /**
@@ -125,11 +69,11 @@ export class WaterfallWaterEffect {
     foamStrength = 1,
     atmosphere?: SceneAtmosphereSource | null,
   ) {
-    const settings = resolveWaterfallStyle(styleInput)
+    const settings = resolveWaterStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
-    const maskTexture = texture(loadNoise(NOISE_URLS[selected.mask]))
-    const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
-    const normalTexture = texture(loadNoise(NOISE_URLS[selected.normal]))
+    const maskTexture = texture(loadWaterTexture(selected.mask, 'waterfall'))
+    const detailNoise = texture(loadWaterTexture(selected.detail, 'waterfall'))
+    const normalTexture = texture(loadWaterTexture(selected.normal, 'waterfall'))
     this.shallowColor.value.set(settings.shallowWaterColor)
     this.deepColor.value.set(settings.deepWaterColor)
     const coordinates = uv()
@@ -308,9 +252,9 @@ export class WaterfallLineEffect {
     flowStrength = 1,
     atmosphere?: SceneAtmosphereSource | null,
   ) {
-    const settings = resolveWaterfallStyle(styleInput)
+    const settings = resolveWaterStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
-    const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
+    const detailNoise = texture(loadWaterTexture(selected.detail, 'waterfall'))
     const coordinates = uv()
     const speed = Math.max(0.2, Math.min(2, flowStrength))
     const randomField = detailNoise.sample(
@@ -420,7 +364,7 @@ export class WaterfallBubbleCloudEffect {
     family: WaterfallBubbleFamily,
     capacity: number,
   ) {
-    const settings = resolveWaterfallStyle(styleInput)
+    const settings = resolveWaterStyle(styleInput)
     this.family = family
     this.speed = 0.32 + Math.max(0.2, Math.min(2, flowStrength)) * 0.16
     const isFoam = family === 'foam'
@@ -519,9 +463,9 @@ export class WaterfallPoolEffect {
     styleInput: Partial<WaterfallWaterStyle>,
     atmosphere?: SceneAtmosphereSource | null,
   ) {
-    const settings = resolveWaterfallStyle(styleInput)
+    const settings = resolveWaterStyle(styleInput)
     const selected = WATERFALL_PRESET_TEXTURES[settings.waterPreset]
-    const detailNoise = texture(loadNoise(NOISE_URLS[selected.detail]))
+    const detailNoise = texture(loadWaterTexture(selected.detail, 'waterfall'))
     this.shallowColor.value.set(settings.shallowWaterColor)
     this.deepColor.value.set(settings.deepWaterColor)
     const coordinates = uv()

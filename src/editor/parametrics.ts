@@ -81,7 +81,6 @@ export const poolParametrics: ParametricDescriptor<PoolNode> = {
     { label: 'Skimmer pipes', fields: [{ key: 'skimmerPipes', kind: 'custom', component: ConnectSkimmers }] },
     { label: 'Transform', fields: [{ key: 'position', kind: 'vec3' }] },
   ],
-  actionsLayout: 'grid',
   actions: [
     {
       label: 'Calm water',

@@ -1,20 +1,13 @@
 import {
   ClampToEdgeWrapping,
   Color,
-  DataTexture,
   FrontSide,
   HalfFloatType,
   LinearFilter,
-  LinearMipmapLinearFilter,
   MeshBasicNodeMaterial,
-  NoColorSpace,
   NodeMaterial,
   QuadMesh,
   RenderTarget,
-  RepeatWrapping,
-  RGBAFormat,
-  TextureLoader,
-  UnsignedByteType,
   Vector2,
   Vector3,
   type Texture,
@@ -53,10 +46,13 @@ import {
 import type { SceneAtmosphereSource } from '@pascal-app/viewer'
 import {
   WATER_PRESET_SETTINGS,
-  getWaterPresetSettings,
-  type WaterPreset,
   type WaterPresetSettings,
 } from './water-presets'
+import {
+  loadWaterTexture,
+  resolveWaterStyle,
+  WATER_PRESET_TEXTURES,
+} from './water-presentation'
 
 const DEFAULTS = {
   ...WATER_PRESET_SETTINGS['crystal-clear'],
@@ -92,70 +88,10 @@ export type WaterSettings = WaterPresetSettings & {
   waterColor: string
 }
 
-const ASSET_URLS = {
-  normal1: new URL('./assets/water/normal1.webp', import.meta.url).href,
-  normal2: new URL('./assets/water/normal2.webp', import.meta.url).href,
-  normal3: new URL('./assets/water/normal3.webp', import.meta.url).href,
-  caustic1: new URL('./assets/water/caustic1.webp', import.meta.url).href,
-  caustic2: new URL('./assets/water/caustic2.webp', import.meta.url).href,
-  noise1: new URL('./assets/water/noise1.webp', import.meta.url).href,
-  noise2: new URL('./assets/water/noise2.webp', import.meta.url).href,
-  noise4: new URL('./assets/water/noise4.webp', import.meta.url).href,
-  noise5: new URL('./assets/water/noise5.webp', import.meta.url).href,
-  white: new URL('./assets/water/white.webp', import.meta.url).href,
-} as const
-
-const PRESET_TEXTURES: Record<WaterPreset, {
-  normal: keyof typeof ASSET_URLS
-  caustic: keyof typeof ASSET_URLS
-  distortion: keyof typeof ASSET_URLS
-  shoreline: keyof typeof ASSET_URLS
-}> = {
-  'crystal-clear': { normal: 'normal1', caustic: 'caustic1', distortion: 'noise2', shoreline: 'white' },
-  'vivid-aqua': { normal: 'normal3', caustic: 'caustic2', distortion: 'noise1', shoreline: 'noise1' },
-  'tropical-lagoon': { normal: 'normal2', caustic: 'caustic1', distortion: 'noise4', shoreline: 'noise5' },
-}
-
-const textureCache = new Map<string, Texture>()
 // One base node shares the renderer's immutable depth copy across both the
 // straight and refracted samples. Creating one node per sample duplicates the
 // full viewport depth copy and is needlessly expensive.
 const viewportDepth = viewportDepthTexture()
-
-function fallbackTexture(): Texture {
-  const data = new Uint8Array([
-    128, 128, 255, 255,
-    255, 255, 255, 255,
-    128, 128, 255, 255,
-    255, 255, 255, 255,
-  ])
-  const result = new DataTexture(data, 2, 2, RGBAFormat, UnsignedByteType)
-  result.needsUpdate = true
-  // A DataTexture has no generated mip chain. Using a mipmapped min filter
-  // makes the fallback incomplete on WebGL and turns every sample black.
-  result.minFilter = LinearFilter
-  result.magFilter = LinearFilter
-  return result
-}
-
-function loadWaterTexture(asset: keyof typeof ASSET_URLS) {
-  const url = ASSET_URLS[asset]
-  const cached = textureCache.get(url)
-  if (cached) return cached
-  const result = typeof document === 'undefined'
-    ? fallbackTexture()
-    : new TextureLoader().load(url)
-  result.wrapS = RepeatWrapping
-  result.wrapT = RepeatWrapping
-  result.colorSpace = NoColorSpace
-  result.minFilter = LinearMipmapLinearFilter
-  result.magFilter = LinearFilter
-  // Anisotropy 8 keeps oblique pool surfaces crisp while avoiding the extra
-  // texture bandwidth of the previous 16x setting for every water map.
-  result.anisotropy = 8
-  textureCache.set(url, result)
-  return result
-}
 
 function finite(value: unknown, fallback: number, min: number, max: number) {
   return typeof value === 'number' && Number.isFinite(value)
@@ -165,7 +101,7 @@ function finite(value: unknown, fallback: number, min: number, max: number) {
 
 /** Resolve saved pools before values are uploaded as renderer uniforms. */
 function resolveWaterSettings(value: Partial<WaterSettings>): WaterSettings {
-  const preset = getWaterPresetSettings(value.waterPreset)
+  const preset = resolveWaterStyle(value)
   return {
     waterPreset: preset.waterPreset,
     waterQuality: ['low', 'medium', 'high', 'ultra'].includes(String(value.waterQuality))
@@ -342,11 +278,11 @@ export class PoolWaterEffect {
     this.inputNode = texture(this.read.texture) as TextureNodeLike
     this.stateNode = texture(this.read.texture) as TextureNodeLike
 
-    const selected = PRESET_TEXTURES[this.settings.waterPreset]
-    this.normalTextureNode = texture(loadWaterTexture(selected.normal)) as TextureNodeLike
-    this.causticTextureNode = texture(loadWaterTexture(selected.caustic)) as TextureNodeLike
-    this.distortionTextureNode = texture(loadWaterTexture(selected.distortion)) as TextureNodeLike
-    this.shorelineTextureNode = texture(loadWaterTexture(selected.shoreline)) as TextureNodeLike
+    const selected = WATER_PRESET_TEXTURES[this.settings.waterPreset]
+    this.normalTextureNode = texture(loadWaterTexture(selected.normal, 'pool')) as TextureNodeLike
+    this.causticTextureNode = texture(loadWaterTexture(selected.caustic, 'pool')) as TextureNodeLike
+    this.distortionTextureNode = texture(loadWaterTexture(selected.distortion, 'pool')) as TextureNodeLike
+    this.shorelineTextureNode = texture(loadWaterTexture(selected.shoreline, 'pool')) as TextureNodeLike
 
     const texel = vec2(1 / resolution, 1 / resolution)
     const sampleUv = uv()
@@ -703,11 +639,11 @@ export class PoolWaterEffect {
     this.material.color.set(this.settings.waterColor)
     this.updateSunDirection()
     if (previousPreset !== this.settings.waterPreset) {
-      const selected = PRESET_TEXTURES[this.settings.waterPreset]
-      this.normalTextureNode.value = loadWaterTexture(selected.normal)
-      this.causticTextureNode.value = loadWaterTexture(selected.caustic)
-      this.distortionTextureNode.value = loadWaterTexture(selected.distortion)
-      this.shorelineTextureNode.value = loadWaterTexture(selected.shoreline)
+      const selected = WATER_PRESET_TEXTURES[this.settings.waterPreset]
+      this.normalTextureNode.value = loadWaterTexture(selected.normal, 'pool')
+      this.causticTextureNode.value = loadWaterTexture(selected.caustic, 'pool')
+      this.distortionTextureNode.value = loadWaterTexture(selected.distortion, 'pool')
+      this.shorelineTextureNode.value = loadWaterTexture(selected.shoreline, 'pool')
     }
   }
 

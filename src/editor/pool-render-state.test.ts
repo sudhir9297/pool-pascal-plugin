@@ -4,11 +4,13 @@ import { PoolNode } from '../core/schema'
 import {
   countPools,
   getPoolGeometrySignature,
+  getPoolDepthResizePreviewTransform,
   getPoolResizePreviewTransform,
   getPoolWaterResolution,
-  shouldAdvancePoolWater,
+  getPoolWaterSettingsSignature,
   selectPoolRenderNodes,
-} from './pool-render-state'
+} from './pool-render-plan'
+import { shouldAdvancePoolWater } from './pool-render-state'
 
 function pool(id: string) {
   return PoolNode.parse({ id, type: 'pool:pool' }) as unknown as AnyNode
@@ -19,6 +21,7 @@ describe('pool render state', () => {
     expect(shouldAdvancePoolWater(true, true)).toBe(false)
     expect(shouldAdvancePoolWater(false, true)).toBe(true)
     expect(shouldAdvancePoolWater(false, false)).toBe(false)
+    expect(shouldAdvancePoolWater(false, true, true)).toBe(false)
   })
 
   test('ignores unrelated scene nodes but retains connected pools and connections', () => {
@@ -58,6 +61,15 @@ describe('pool render state', () => {
     expect(getPoolGeometrySignature(moved)).toBe(getPoolGeometrySignature(original))
   })
 
+  test('does not reset water uniforms for a live dimension preview', () => {
+    const original = PoolNode.parse({})
+    const resized = PoolNode.parse({ ...original, length: original.length + 2, width: original.width + 1 })
+    expect(getPoolWaterSettingsSignature(resized)).toBe(getPoolWaterSettingsSignature(original))
+    expect(getPoolWaterSettingsSignature(PoolNode.parse({ ...original, rain: 0.8 }))).not.toBe(
+      getPoolWaterSettingsSignature(original),
+    )
+  })
+
   test('turns an in-flight outline resize into a cheap mesh transform', () => {
     const committed = PoolNode.parse({
       shape: 'custom',
@@ -77,6 +89,15 @@ describe('pool render state', () => {
     expect(getPoolResizePreviewTransform(committed, preview)).toEqual({
       position: [-2.5, 0, -2],
       scale: [1.5, 1, 1.5],
+    })
+  })
+
+  test('turns an in-flight depth resize into a cheap vertical transform', () => {
+    const committed = PoolNode.parse({ depth: 2, finishedDeckElevation: 0.4 })
+    const preview = PoolNode.parse({ ...committed, depth: 3 })
+    expect(getPoolDepthResizePreviewTransform(committed, preview)).toEqual({
+      position: [0, -0.2, 0],
+      scale: [1, 1.5, 1],
     })
   })
 

@@ -141,7 +141,7 @@ for (const circuit of ['inlets', 'skimmers', 'drains'] as const) test(`${circuit
   if (circuit === 'inlets') {
     const inletIds = new Set(Object.values(base).filter((node) => String(node.type) === 'pool:inlet').map((node) => node.id))
     for (const id of inletIds) expect(deletedIds.has(id)).toBe(true)
-    expect(Object.keys(useScene.getState().nodes).some((id) => inletIds.has(id))).toBe(false)
+    expect(Object.keys(useScene.getState().nodes).some((id) => inletIds.has(id as AnyNode['id']))).toBe(false)
   } else {
     expect(useScene.getState().nodes).toEqual(base)
   }

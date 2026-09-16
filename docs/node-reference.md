@@ -29,6 +29,7 @@ no entry feature or bench by default.
 
 Supported outline values:
 
+- `circle`
 - `rectangle`
 - `lap-rectangle`
 - `kidney`

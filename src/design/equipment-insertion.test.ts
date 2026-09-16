@@ -10,6 +10,7 @@ import { buildHeaterGeometry } from '../heater/core/geometry'
 import { disposeObject3D } from '../editor/dispose-object'
 import { connectionPorts } from '../core/connection-ports'
 import { equipmentPortsLocal, planEquipmentInsertion, planEquipmentInsertionAsync } from './equipment-insertion'
+import { planEquipmentInsertionAsync as planEquipmentPipeAsync } from './pipe-planning'
 import { routePipe, segmentHitsBox } from './pipe-route'
 
 function ports(node: PipeFittingNode) {
@@ -46,10 +47,14 @@ for (const { node, geometry } of fixtures) {
     const args: Parameters<typeof planEquipmentInsertion> = [run, 0, [1, 0.0254, 2], node, bounds, ports]
     const sync = planEquipmentInsertion(...args)!
     const asyncPlan = (await planEquipmentInsertionAsync(args, async request => routePipe(...structuredClone(request))))!
+    const facadePlan = (await planEquipmentPipeAsync({
+      run, index: 0, point: args[2], template: node, localBounds: bounds, fittingPorts: ports,
+    }, async request => routePipe(...structuredClone(request))))!
     expect(asyncPlan.update).toEqual(sync.update)
     expect(asyncPlan.tail.path).toEqual(sync.tail.path)
     expect(asyncPlan.equipment).toEqual(sync.equipment)
     expect(asyncPlan.members.map(({ id, ...member }) => member)).toEqual(sync.members.map(({ id, ...member }) => member))
+    expect(facadePlan.members.map(({ id, ...member }) => member)).toEqual(sync.members.map(({ id, ...member }) => member))
     await expect(planEquipmentInsertionAsync(args, async () => { throw new Error('cancelled') })).rejects.toThrow('cancelled')
   })
   test(`${node.type} connects on the browser reproduction pipe`, () => {

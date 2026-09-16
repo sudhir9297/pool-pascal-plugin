@@ -10,7 +10,7 @@ import { PoolLevelPreviewGroup } from './level-preview-group'
 import { worldPointToPoolLevel } from '../design/level-coordinates'
 import { createPoolPluginNode, type PoolPluginNodeType } from './scene-nodes'
 import { disposeObject3D } from './dispose-object'
-import { isInsertableEquipment, planEquipmentInsertionAsync, type EquipmentInsertionPlan } from '../design/equipment-insertion'
+import { isInsertableEquipment, planEquipmentInsertionAsync, type EquipmentInsertionPlan } from '../design/pipe-planning'
 import { createRoutingClient } from './routing-client'
 import { findValveInsertionTarget } from '../valve/design/inline-insertion'
 import { type RouteObstacle } from '../design/pipe-route'
@@ -107,7 +107,7 @@ export function FreePlacementTool<Node extends PlaceableNode>({
           obstacleCache.set(target.run.id, obstacles)
           }
           setPreview({ position, rotation: template.rotation, valid: false, pending: true, plan: lastPlan?.update.id === target.run.id ? lastPlan : null })
-          plan = await planEquipmentInsertionAsync([target.run, target.index, point, template, bounds, fitting.ports, obstacles], async args => {
+          plan = await planEquipmentInsertionAsync({ run: target.run, index: target.index, point, template, localBounds: bounds, fittingPorts: fitting.ports, obstacles }, async args => {
             if (disposed || request !== generation || useScene.getState().nodes !== nodes) throw new DOMException('Stale pipe route', 'AbortError')
             const result = await routing.route(args)
             if (disposed || request !== generation || useScene.getState().nodes !== nodes) throw new DOMException('Stale pipe route', 'AbortError')
