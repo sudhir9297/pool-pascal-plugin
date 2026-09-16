@@ -1,6 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { relative, resolve } from 'node:path'
+import { resolve } from 'node:path'
 
 type PackageManifest = {
   main: string
@@ -22,21 +22,11 @@ function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
-async function filesBelow(directory: string): Promise<string[]> {
-  const files: string[] = []
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = resolve(directory, entry.name)
-    if (entry.isDirectory()) files.push(...await filesBelow(path))
-    else files.push(path)
-  }
-  return files
-}
-
 for (const path of [manifest.main, manifest.types]) {
-  invariant(path === './src/index.ts', 'Package must resolve directly to source')
+  invariant(path.startsWith('./dist/'), 'Package must resolve to compiled output')
   await readFile(resolve(projectDirectory, path))
 }
-invariant(manifest.exports['.'].types === manifest.types && manifest.exports['.'].default === manifest.main, 'Exports must resolve to source')
+invariant(manifest.exports['.'].types === manifest.types && manifest.exports['.'].default === manifest.main, 'Exports must resolve to compiled output')
 for (const hook of ['preinstall', 'install', 'postinstall', 'prepare', 'prepack']) {
   invariant(!manifest.scripts[hook], `Package must not run ${hook}`)
 }
@@ -78,7 +68,7 @@ const [consumerExitCode, consumerStdout, consumerStderr] = await Promise.all([
 ])
 invariant(
   consumerExitCode === 0,
-  `Published source fails in a consumer project:\n${consumerStdout}${consumerStderr}`,
+  `Published package fails in a consumer project:\n${consumerStdout}${consumerStderr}`,
 )
 
 const pack = Bun.spawn(['npm', 'pack', '--dry-run', '--json', '--ignore-scripts'], {
@@ -99,12 +89,8 @@ invariant(report.size < 5_000_000, `Packed package is ${(report.size / 1_000_000
 invariant(report.bundled.length === 0, 'Runtime dependencies were bundled into the package')
 
 const publishedPaths = report.files.map((file) => file.path)
-for (const file of await filesBelow(resolve(projectDirectory, 'src'))) {
-  if (/\.test\.[cm]?[jt]sx?$/.test(file)) continue
-  invariant(publishedPaths.includes(relative(projectDirectory, file)), `Package is missing source or asset: ${file}`)
-}
 const forbidden = publishedPaths.filter((path) => (
-  path.startsWith('dist/')
+  path.startsWith('src/')
   || path.startsWith('scripts/')
   || path.startsWith('coverage/')
   || /(?:^|\/)node_modules\//.test(path)
@@ -124,10 +110,16 @@ for (const required of [
   'docs/public-api.md',
   'docs/testing-and-release.md',
   'package.json',
-  'src/index.ts',
-  'src/editor/routing-worker.ts',
+  'dist/index.js',
+  'dist/index.d.ts',
+  'dist/routing-worker.js',
 ]) {
   invariant(publishedPaths.includes(required), `Package is missing ${required}`)
+}
+
+for (const path of publishedPaths.filter((path) => path.startsWith('dist/') && path.endsWith('.js'))) {
+  const source = await readFile(resolve(projectDirectory, path), 'utf8')
+  invariant(!source.includes('"./routing-worker.ts"'), `Compiled package still references TypeScript worker source: ${path}`)
 }
 
 console.log(`Package artifact passed: ${nodeKinds.length} node kinds, ${publishedPaths.length} files, ${(report.size / 1_000_000).toFixed(2)} MB`)

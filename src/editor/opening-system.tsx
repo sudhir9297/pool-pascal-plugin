@@ -15,7 +15,12 @@ import { syncSharedPoolJoints } from '../design/shared-joint'
 import { syncPoolSpillovers } from '../spillover/design/sync'
 import { syncAutomaticPoolFittings } from '../design/sync-pool-fittings'
 import { poolAttachmentUpdates } from '../design/pool-attachments'
-import { getPoolChildResizePreviewPosition, getPoolLevelResizePreviewPath, getPoolLevelResizePreviewPosition } from './pool-render-plan'
+import {
+  getPoolChildResizePreviewPosition,
+  getPoolLevelResizePreviewPath,
+  getPoolLevelResizePreviewPosition,
+  selectPoolConnectedPipes,
+} from './pool-render-plan'
 import { PoolNode } from '../core/schema'
 
 function isOpeningRelevantNode(node: AnyNode | undefined) {
@@ -79,9 +84,7 @@ export function initializePoolOpeningSync() {
           data: { position: getPoolChildResizePreviewPosition(previousPool.data, pool.data, (child as unknown as { position: [number, number, number] }).position) },
         })
       }
-      for (const value of Object.values(nodes)) {
-        const connection = (value as unknown as { metadata?: { poolConnection?: { poolId?: string } } }).metadata?.poolConnection
-        if (connection?.poolId !== pool.data.id) continue
+      for (const value of selectPoolConnectedPipes(nodes, pool.data.id)) {
         const child = value as unknown as { id: string; type: string; path?: [number, number, number][]; position?: [number, number, number] }
         if (child.type === 'pipe-segment' && child.path) {
           genericChildUpdates.push({ id: child.id, data: { path: getPoolLevelResizePreviewPath(previousPool.data, pool.data, child.path) } })

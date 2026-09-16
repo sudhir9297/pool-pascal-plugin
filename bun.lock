@@ -20,10 +20,9 @@
         "@types/pdfkit": "^0.17.6",
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.2",
-        "@types/three": "^0.184.0",
         "next": "16.3.4",
         "react": "^19",
-        "three": "^0.185",
+        "three": "^0.186.0",
         "typescript": "6.0.3",
         "zod": "4.5.4",
         "zustand": "^5",
@@ -34,7 +33,7 @@
         "@pascal-app/viewer": ">=0.9.1 <1 || >=1.0.0-beta.0 <2",
         "@react-three/fiber": "^9",
         "react": "^18 || ^19",
-        "three": "^0.185",
+        "three": "^0.186.0",
         "zod": "^4",
         "zustand": "^5",
       },
@@ -503,7 +502,7 @@
 
     "tailwind-merge": ["tailwind-merge@3.6.0", "", {}, "sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w=="],
 
-    "three": ["three@0.185.1", "", {}, "sha512-5aojFCXKwnjBRZvUnt3WFfEcvUJgkN5LlijRFN95hMy8WVkG4I0QNcJE+OuWvuJ0bOdStrbfXn0pkd6/QyiAlg=="],
+    "three": ["three@0.186.0", "", {}, "sha512-cr/fIM2ddMSVbYVgkfD4jLJv7Fh/8ZTjvo+7gQeSVGUZHxpx9FDwoL5iC7hUz/LiRA8wMbqfnb90xKfm1/HHkQ=="],
 
     "three-bvh-csg": ["three-bvh-csg@0.0.18", "", { "peerDependencies": { "three": ">=0.179.0", "three-mesh-bvh": ">=0.9.7" } }, "sha512-M3GCZMmGFgASGuDf+YMamM83nVlD/vdwzVHcYbFxgW+g1S7/nKPiuY00YVHOMbjmJPh8mLevGZL65ItHUuGt2w=="],
 

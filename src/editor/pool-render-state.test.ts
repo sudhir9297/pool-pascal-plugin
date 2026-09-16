@@ -10,6 +10,7 @@ import {
   getPoolLevelResizePreviewPath,
   getPoolWaterResolution,
   getPoolWaterSettingsSignature,
+  selectPoolConnectedPipes,
   selectPoolRenderNodes,
 } from './pool-render-plan'
 import { shouldAdvancePoolWater } from './pool-render-state'
@@ -41,6 +42,32 @@ describe('pool render state', () => {
     ) as Record<string, AnyNode>
 
     expect(selectPoolRenderNodes(nodes, first.id)).toEqual([second, spillover])
+  })
+
+  test('selects only pipe nodes connected to the pool', () => {
+    const first = pool('pool_first')
+    const connectedPipe = {
+      id: 'pipe_connected',
+      type: 'pipe-segment',
+      metadata: { poolConnection: { poolId: first.id } },
+    } as unknown as AnyNode
+    const connectedFitting = {
+      id: 'fitting_connected',
+      type: 'pipe-fitting',
+      metadata: { poolConnection: { poolId: first.id } },
+    } as unknown as AnyNode
+    const unrelated = {
+      id: 'pipe_unrelated',
+      type: 'pipe-segment',
+      metadata: { poolConnection: { poolId: 'other_pool' } },
+    } as unknown as AnyNode
+
+    expect(selectPoolConnectedPipes({
+      [first.id]: first,
+      [connectedPipe.id]: connectedPipe,
+      [connectedFitting.id]: connectedFitting,
+      [unrelated.id]: unrelated,
+    }, first.id)).toEqual([connectedPipe, connectedFitting])
   })
 
   test('does not rebuild geometry for water-only changes', () => {

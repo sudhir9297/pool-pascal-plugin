@@ -3,8 +3,9 @@
 `@pascal-app/plugin-pool` adds procedural swimming pools, circulation equipment,
 pool-to-pool connections, stairs, and animated water features to Pascal.
 
-The package ships ESM TypeScript source and runtime assets. The host bundler
-transpiles `src/index.ts`, the routing worker, and the plugin's lazy imports.
+The package ships compiled ESM, declarations, source maps, and runtime assets.
+Hosts import the package entry point directly; they do not need to transpile
+the plugin's TypeScript source.
 No build or lifecycle scripts run during installation.
 
 ## Requirements
@@ -24,7 +25,7 @@ bun add @pascal-app/plugin-pool
 ```
 
 To pin a Git revision, use `bun add github:sudhir9297/pool-pascal-plugin#<sha>`.
-Source assets are bundled by the host; a prebuilt `dist/` is not required.
+Assets are included in the published `dist/` output.
 
 The host application must also provide the package's peer dependencies.
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useLiveNodeOverrides, useScene } from '@pascal-app/core'
+import { type AnyNode, useLiveNodeOverrides, useScene } from '@pascal-app/core'
 import { NodeRenderer, useSceneAtmosphere, useViewer } from '@pascal-app/viewer'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
@@ -27,11 +27,14 @@ import {
   getPoolResizePreviewTransform,
   getPoolWaterResolution,
   getPoolWaterSettingsSignature,
+  selectPoolConnectedPipes,
   selectPoolRenderNodes,
 } from './pool-render-plan'
 import { shouldAdvancePoolWater } from './pool-render-state'
 import { usePoolNodeHost } from './node-host'
 import { AttachmentPoolContext } from './attachment-pool'
+
+const NO_CONNECTED_PIPES: AnyNode[] = []
 
 export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   const ref = useRef<Group>(null!)
@@ -82,11 +85,11 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
     if (!child || child.parentId !== storeNode.id || 'poolId' in child) return []
     return [child]
   })))
-  const connectedPipes = useScene(useShallow((state) => Object.values(state.nodes).filter((candidate) => {
-    if (candidate.type !== 'pipe-segment' && candidate.type !== 'pipe-fitting') return false
-    const connection = (candidate as unknown as { metadata?: { poolConnection?: { poolId?: string } } }).metadata?.poolConnection
-    return connection?.poolId === storeNode.id
-  })))
+  const connectedPipes = useScene(useShallow(
+    (state) => horizontalResizeInProgress
+      ? selectPoolConnectedPipes(state.nodes, storeNode.id)
+      : NO_CONNECTED_PIPES,
+  ))
   useEffect(() => {
     if (!horizontalResizeInProgress || (genericChildren.length === 0 && connectedPipes.length === 0)) return
     const session = resizeSessionRef.current

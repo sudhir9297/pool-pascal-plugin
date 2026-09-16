@@ -9,6 +9,33 @@ type ConnectionNode = AnyNode & {
   targetPoolId?: unknown
 }
 
+type PoolConnectionIndex = {
+  pipesByPool: Map<string, AnyNode[]>
+}
+
+const poolConnectionIndices = new WeakMap<object, PoolConnectionIndex>()
+
+function poolConnectionIndex(nodes: Record<string, AnyNode>) {
+  const cached = poolConnectionIndices.get(nodes)
+  if (cached) return cached
+
+  const pipesByPool = new Map<string, AnyNode[]>()
+  for (const node of Object.values(nodes)) {
+    if (node.type !== 'pipe-segment' && node.type !== 'pipe-fitting') continue
+    const connection = (node as AnyNode & {
+      metadata?: { poolConnection?: { poolId?: string } }
+    }).metadata?.poolConnection
+    if (!connection?.poolId) continue
+    const pipes = pipesByPool.get(connection.poolId) ?? []
+    pipes.push(node)
+    pipesByPool.set(connection.poolId, pipes)
+  }
+
+  const index = { pipesByPool }
+  poolConnectionIndices.set(nodes, index)
+  return index
+}
+
 function connectionTouchesPool(node: AnyNode, poolId: string) {
   const candidate = node as ConnectionNode
   if (String(candidate.type) === 'pool:spillover') {
@@ -44,6 +71,14 @@ export function selectPoolRenderNodes(
     connectionIds.has(node.id)
     || (String(node.type) === 'pool:pool' && relatedPoolIds.has(node.id)),
   )
+}
+
+/** Returns pipe members explicitly owned by this pool's generated connection. */
+export function selectPoolConnectedPipes(
+  nodes: Record<string, AnyNode>,
+  poolId: string,
+) {
+  return poolConnectionIndex(nodes).pipesByPool.get(poolId) ?? []
 }
 
 export function countPools(nodes: Record<string, AnyNode>) {

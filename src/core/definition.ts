@@ -217,7 +217,8 @@ function poolRotateHandle(): HandleDescriptor<PoolNode> {
     kind: 'arc-resize',
     axis: 'angular',
     shape: 'rotate',
-    continuous: true,
+    // The editor's standard 15° snap applies by default. Holding Shift
+    // temporarily bypasses it for free, smooth positioning.
     apply: (initial, delta) => {
       const [rx, ry, rz] = initial.rotation
       return { rotation: [rx, ry - delta, rz] }

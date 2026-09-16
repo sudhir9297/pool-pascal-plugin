@@ -2,8 +2,8 @@
 
 ## Package boundary
 
-`src/index.ts` is the only published JavaScript entry point. It must remain safe
-to import in a server-rendered process. Node definitions expose small metadata
+`dist/index.js` is the only published JavaScript entry point, compiled from
+`src/index.ts`. It must remain safe to import in a server-rendered process. Node definitions expose small metadata
 objects and lazy-load browser-only tools, previews, and renderers.
 
 The build emits ESM, declarations, source maps, and copied assets under `dist/`.

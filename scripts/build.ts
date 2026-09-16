@@ -36,8 +36,13 @@ for (const output of bundle.outputs) {
   if (!output.path.endsWith('.js')) continue
   const source = await readFile(output.path, 'utf8')
   const directive = /^\s*["']use client["'];?\s*$/gm
-  if (!directive.test(source)) continue
-  await writeFile(output.path, `"use client";\n${source.replace(directive, '')}`)
+  const compiledSource = source.replaceAll('./routing-worker.ts', './routing-worker.js')
+  await writeFile(
+    output.path,
+    directive.test(compiledSource)
+      ? `"use client";\n${compiledSource.replace(directive, '')}`
+      : compiledSource,
+  )
 }
 
 const declarations = Bun.spawn([
