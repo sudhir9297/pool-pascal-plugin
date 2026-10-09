@@ -8,9 +8,7 @@ type PoolCandidate = {
 }
 
 export function getSelectedPool(nodes: Record<string, unknown>, selectedIds: readonly string[]): PoolNode | null {
-  const typedNodes = nodes as Record<string, PoolCandidate>
-  const pools = Object.values(typedNodes).filter((node) => node.type === 'pool:pool')
-  return getExplicitlySelectedPool(nodes, selectedIds) ?? (pools.length === 1 ? pools[0] as PoolNode : null)
+  return getExplicitlySelectedPool(nodes, selectedIds)
 }
 
 export function getExplicitlySelectedPool(nodes: Record<string, unknown>, selectedIds: readonly string[]): PoolNode | null {

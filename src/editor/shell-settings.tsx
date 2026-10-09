@@ -12,7 +12,7 @@ import type { PoolNode } from '../core/schema'
 import { usePoolStore } from './store'
 import { poolParametrics } from './parametrics'
 import { POOL_SHAPE_THUMBNAILS } from './shell-thumbnails'
-import { getSelectedPool } from './pool-selection'
+import { getExplicitlySelectedPool } from './pool-selection'
 import { editPoolOutline, poolOutlineAnchors } from '../design/outline-edit'
 import { FinishSetting } from './finish-setting'
 import { WaterPresetSetting } from './water-preset-setting'
@@ -44,8 +44,10 @@ function option(value: string): Option {
 export function PoolShellSettings() {
   const [shapePickerOpen, setShapePickerOpen] = useState(false)
   const drawingPool = useEditor((state) => state.mode === 'build' && state.tool === 'pool:pool')
+  const levelId = useViewer((state) => state.selection.levelId)
+  const readOnly = useScene((state) => state.readOnly)
   const selectedIds = useViewer((state) => state.selection.selectedIds)
-  const selectedPool = useScene((state) => getSelectedPool(state.nodes, selectedIds))
+  const selectedPool = useScene((state) => getExplicitlySelectedPool(state.nodes, selectedIds))
   const draft = usePoolStore(useShallow((state) => ({
     shape: state.shape,
     length: state.length,
@@ -156,7 +158,8 @@ export function PoolShellSettings() {
   }
 
   function chooseShape(shape: PoolShape) {
-    drawShape(shape, DEFAULT_POOL_SHAPE_DIMENSIONS[shape])
+    update({ shape, ...DEFAULT_POOL_SHAPE_DIMENSIONS[shape] })
+    setShapePickerOpen(false)
   }
 
   return (
@@ -164,12 +167,9 @@ export function PoolShellSettings() {
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <section className="flex flex-col gap-3 border-b border-sidebar-border px-3 py-4">
         <h3 className="font-semibold text-sm">Shape</h3>
-        <div className="flex items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 p-2">
-          <button
-            aria-label={`Draw ${shapeLabel(settings.shape)} pool`}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => drawShape(settings.shape, { length: settings.length, width: settings.width })}
-            type="button"
+        <div className={`flex items-center gap-3 rounded-xl border p-2 ${drawingPool ? 'border-sidebar-foreground bg-sidebar-accent/50 ring-1 ring-sidebar-foreground/30' : 'border-sidebar-border bg-sidebar-accent/20'}`}>
+          <div
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
           >
             <img alt="" className="size-14 shrink-0 rounded-lg object-cover" src={POOL_SHAPE_THUMBNAILS[settings.shape]} />
             <span className="min-w-0 flex-1">
@@ -178,15 +178,24 @@ export function PoolShellSettings() {
                 {settings.shape === 'circle' ? `Ø ${settings.length.toFixed(1)} m` : `${settings.length.toFixed(1)} × ${settings.width.toFixed(1)} m`}
               </span>
             </span>
-          </button>
+          </div>
           <button
             aria-controls="pool-shape-options"
             aria-expanded={shapePickerOpen}
+            disabled={readOnly}
             className="shrink-0 rounded-lg border border-sidebar-border px-2.5 py-1.5 text-xs font-medium hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setShapePickerOpen((open) => !open)}
             type="button"
           >{shapePickerOpen ? 'Close' : 'Change'}</button>
         </div>
+        {!selectedPool && !drawingPool && <>
+          <button type="button" disabled={readOnly || !levelId} className="min-h-10 w-full rounded-lg bg-sidebar-foreground px-3 text-sm font-semibold text-sidebar disabled:opacity-40" onClick={() => drawShape(settings.shape, { length: settings.length, width: settings.width })}>Place pool</button>
+          <p className="text-xs text-sidebar-foreground/60">{levelId ? 'Choose a shape and settings, then place your new pool.' : 'Select a floor to place a pool.'}</p>
+        </>}
+        {drawingPool && <p role="status" className="text-xs text-sidebar-foreground/80">
+          {settings.shape === 'spline' ? 'Drag on the ground to draw your pool · Esc to cancel.' : settings.shape === 'custom' ? 'Click to add outline points · Enter to finish · Esc to cancel.' : 'Click the ground to place · Esc to cancel.'}
+        </p>}
+        {selectedPool && !drawingPool && <p className="text-xs text-sidebar-foreground/60">Changes apply to {selectedPool.name || 'this pool'}.</p>}
         {shapePickerOpen && <div aria-label="Pool shapes" className="grid grid-cols-3 gap-1.5" id="pool-shape-options">
           {POOL_SHAPE_OPTIONS.map(({ value, label }) => (
             <button

@@ -203,6 +203,9 @@ export default function PoolTool() {
   const isFreehandDrawingRef = useRef(false)
   const pendingFreehandSelectionReturnRef = useRef(false)
   const previousSnappedPointRef = useRef<Point | null>(null)
+  const previousGridPointRef = useRef<Point | null>(null)
+  const previousMagneticSnapRef = useRef<string | null>(null)
+  const placementCommittedRef = useRef(false)
   const constructionPlaneRef = useRef<HorizontalConstructionPlane | null>(null)
   const freehandPointerIdRef = useRef<number | null>(null)
   const previousShapeRef = useRef(shape)
@@ -225,6 +228,9 @@ export default function PoolTool() {
     pendingFreehandSelectionReturnRef.current = false
     constructionPlaneRef.current = null
     previousSnappedPointRef.current = null
+    previousGridPointRef.current = null
+    previousMagneticSnapRef.current = null
+    placementCommittedRef.current = false
     clearSlabSnapFeedback()
     clearPlacementSurface()
   }, [shape])
@@ -278,6 +284,8 @@ export default function PoolTool() {
       pendingFreehandSelectionReturnRef.current = false
       constructionPlaneRef.current = null
       previousSnappedPointRef.current = null
+      previousGridPointRef.current = null
+      previousMagneticSnapRef.current = null
       clearSlabSnapFeedback()
       clearPlacementSurface()
     }
@@ -286,6 +294,7 @@ export default function PoolTool() {
       useEditor.getState().setMode('select')
     }
     const commitFreehandStroke = (rawPoints: Point[], deferSelectionReturn = false) => {
+      if (placementCommittedRef.current) return false
       const outline = buildFreehandPoolOutline(rawPoints, {
         closeDistance: FREEHAND_CLOSE_DISTANCE,
         simplifyTolerance: FREEHAND_SIMPLIFY_TOLERANCE,
@@ -299,6 +308,7 @@ export default function PoolTool() {
         levelYRef.current,
         { shape: 'spline', ...dimensions, outlineControlPoints: outline.anchors },
       )
+      placementCommittedRef.current = true
       setSelection({ selectedIds: [poolId] })
       const pointerId = freehandPointerIdRef.current
       resetDraft()
@@ -311,7 +321,7 @@ export default function PoolTool() {
     }
 
     const onGridMove = (event: GridEvent) => {
-      if (!cursorRef.current) return
+      if (!cursorRef.current || placementCommittedRef.current) return
       latestGridEventRef.current = event
       const activePoints = pointsRef.current
       const pointed = !isDrawnShape || activePoints.length === 0 ? pointedSurfaceFor(event) : null
@@ -338,13 +348,12 @@ export default function PoolTool() {
       const anglePoint: Point = isCustom && isAngleSnapActive() && lastPoint
         ? [...snapPointAlongAngleRay(lastPoint, rawPoint, DEFAULT_ANGLE_STEP, gridStep)]
         : gridPosition
-      const displayPoint = isSpline
-        ? rawPoint
-        : resolveSlabPlanPointSnap({
-            rawPoint,
-            fallbackPoint: anglePoint,
-            levelId: currentLevelId,
-          }).point
+      const surfaceSnap = isSpline ? null : resolveSlabPlanPointSnap({
+        rawPoint,
+        fallbackPoint: anglePoint,
+        levelId: currentLevelId,
+      })
+      const displayPoint = surfaceSnap?.point ?? rawPoint
       const hoverPlane = plane ?? resampleTerrainConstructionPlane(
         resolveEventConstructionPlane(event, pointed),
         displayPoint,
@@ -353,15 +362,17 @@ export default function PoolTool() {
       setLevelY(levelYRef.current)
       useFloorplanDraftPreview.getState().setCursorPoint(displayPoint)
       setSnappedCursorPosition(displayPoint)
-      if (
-        !isSpline &&
-        activePoints.length > 0 &&
-        previousSnappedPointRef.current &&
-        (displayPoint[0] !== previousSnappedPointRef.current[0] ||
-          displayPoint[1] !== previousSnappedPointRef.current[1])
-      ) {
+      const magneticSnap = surfaceSnap && (surfaceSnap.wallSnap || surfaceSnap.guides?.length)
+        ? JSON.stringify([surfaceSnap.wallSnap, surfaceSnap.wallIds,
+            surfaceSnap.guides?.map((guide) => [guide.axis, guide.coord, guide.candidateNodeId])])
+        : null
+      const gridChanged = gridStep > 0 && previousGridPointRef.current &&
+        (gridPosition[0] !== previousGridPointRef.current[0] || gridPosition[1] !== previousGridPointRef.current[1])
+      if (!isSpline && (gridChanged || (magneticSnap && magneticSnap !== previousMagneticSnapRef.current))) {
         triggerSFX('sfx:grid-snap')
       }
+      previousGridPointRef.current = gridStep > 0 ? gridPosition : null
+      previousMagneticSnapRef.current = magneticSnap
       previousSnappedPointRef.current = displayPoint
       cursorRef.current.position.set(displayPoint[0], hoverPlane.localY, displayPoint[1])
 
@@ -386,6 +397,7 @@ export default function PoolTool() {
     const frameInput = createFrameInput(onGridMove, () => isSpline && isFreehandDrawingRef.current)
 
     const finishCustomDrawing = () => {
+      if (placementCommittedRef.current) return
       frameInput.flush()
       const activePoints = pointsRef.current
       if (!isCustom || activePoints.length < 3 || !isPoolPolygonPlaceable(activePoints)) return
@@ -397,12 +409,14 @@ export default function PoolTool() {
         levelYRef.current,
         { shape, ...dimensions },
       )
+      placementCommittedRef.current = true
       setSelection({ selectedIds: [poolId] })
       resetDraft()
       returnToSelection()
     }
 
     const onGridClick = (event: GridEvent) => {
+      if (placementCommittedRef.current) return
       frameInput.flush()
       if (isSpline) return
       const clickPoint = previousSnappedPointRef.current ?? cursorPosition
@@ -414,7 +428,6 @@ export default function PoolTool() {
         const translated = presetLocalPoints.map(point => rotatePlanPoint(point, placementYawRef.current)).map(
           ([x, z]): Point => [x + clickPoint[0], z + clickPoint[1]],
         )
-        triggerSFX('sfx:structure-build-start')
         const poolId = commitPoolDrawing(
           currentLevelId,
           translated,
@@ -422,6 +435,7 @@ export default function PoolTool() {
           plane.elevation ?? levelYRef.current,
           { shape, length, width, rotationY: placementYawRef.current },
         )
+        placementCommittedRef.current = true
         setSelection({ selectedIds: [poolId] })
         resetDraft()
         returnToSelection()

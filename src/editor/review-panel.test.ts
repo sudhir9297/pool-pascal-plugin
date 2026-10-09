@@ -36,7 +36,9 @@ test('Review snapshots stay stable for repeated reads and update after fitting c
     const inlet = attachments.find(node => node.type === 'pool:inlet')
     state = { nodes: Object.fromEntries(Object.entries(state.nodes).filter(([id]) => id !== inlet.id)) }
     if (!text(render()).includes('3 placed')) throw new Error('Review counts did not update after fitting removal')
-    state = { nodes: {} }; selectedIds = []
+    selectedIds = []
+    if (!text(render()).includes('Place or select one pool')) throw new Error('Unselected pool was implicitly reviewed')
+    state = { nodes: {} }
     if (!text(render()).includes('Place or select one pool')) throw new Error('Empty review did not render')
   `
   const process = Bun.spawn([Bun.which('bun')!, '-e', script], {

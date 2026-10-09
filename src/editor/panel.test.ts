@@ -14,8 +14,9 @@ test('pool design steps navigate without changing the active editor tool', async
     import { mock } from 'bun:test'
     import * as React from 'react'
     let step = 'shell'
-    const tool = 'pool:pool'
-    const useEditor = Object.assign(() => ({}), { getState: () => ({ tool, cycleRotationAxis() {} }) })
+    let pool = null
+    const editor = { mode: 'select', tool: null, cycleRotationAxis() {}, setTool: tool => { editor.tool = tool }, setMode: mode => { editor.mode = mode } }
+    const useEditor = Object.assign(selector => selector(editor), { getState: () => editor })
     mock.module('react', () => ({
       ...React,
       useEffect() {},
@@ -23,13 +24,14 @@ test('pool design steps navigate without changing the active editor tool', async
       useState: () => [step, next => { step = next }],
     }))
     mock.module('@pascal-app/core', () => ({ useScene: selector => selector({ nodes: {} }) }))
-    mock.module('@pascal-app/viewer', () => ({ useViewer: selector => selector({ selection: { selectedIds: [], levelId: null } }) }))
+    const viewer = { selection: { selectedIds: [], levelId: null }, setSelection: () => { pool = null } }
+    mock.module('@pascal-app/viewer', () => ({ useViewer: Object.assign(selector => selector(viewer), { getState: () => viewer }) }))
     mock.module('@pascal-app/editor', () => ({ useEditor }))
     mock.module(${JSON.stringify(outlinePath)}, () => ({ usePoolOutlineControls: () => ({ nodeId: null, showAll: false }) }))
     mock.module(${JSON.stringify(shellPath)}, () => ({ PoolShellSettings() {} }))
     mock.module(${JSON.stringify(systemsPath)}, () => ({ PoolSystemsPanel() {} }))
     mock.module(${JSON.stringify(reviewPath)}, () => ({ PoolReviewPanel() {} }))
-    mock.module(${JSON.stringify(selectionPath)}, () => ({ getSelectedPool: () => null }))
+    mock.module(${JSON.stringify(selectionPath)}, () => ({ getExplicitlySelectedPool: () => pool }))
     mock.module(${JSON.stringify(fittingPath)}, () => ({ planPoolFittings: () => null }))
     mock.module(${JSON.stringify(sectionPath)}, () => ({ PoolSectionBarPortal() {} }))
     const { default: Panel } = await import(${JSON.stringify(panelPath)})
@@ -43,6 +45,14 @@ test('pool design steps navigate without changing the active editor tool', async
     tabs[1].props.onClick()
     tabs = findAll(Panel(), element => element.props?.role === 'tab')
     if (step !== 'systems' || tabs[1].props['aria-selected'] !== true) throw new Error('Systems step did not open')
+    pool = { id: 'pool_test', name: 'Swimming Pool 1', shape: 'rectangle' }
+    if (!findAll(Panel(), element => element.props?.children === 'Editing Swimming Pool 1').length) throw new Error('Editing state is not visible')
+    const add = findAll(Panel(), element => element.props?.children === 'Add new pool')[0]
+    add.props.onClick()
+    if (pool || editor.tool || editor.mode !== 'select' || step !== 'shell') throw new Error('Add new pool did not open a passive draft')
+    if (!findAll(Panel(), element => element.props?.children === 'New pool').length) throw new Error('New state is not visible')
+    editor.mode = 'build'; editor.tool = 'pool:pool'
+    if (!findAll(Panel(), element => element.props?.children === 'Placing a new pool').length) throw new Error('Placement state is not visible')
   `], { stdout: 'pipe', stderr: 'pipe' })
   const [exitCode, stderr] = await Promise.all([process.exited, new Response(process.stderr).text()])
   expect(stderr).toBe('')
