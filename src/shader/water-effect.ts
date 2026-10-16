@@ -12,6 +12,7 @@ import {
   Vector3,
   Vector4,
   type Texture,
+  type TextureNode,
   type WebGPURenderer,
 } from 'three/webgpu'
 import {
@@ -180,7 +181,8 @@ export function createImmersiveXRPoolWaterMaterial(
   return material
 }
 
-type TextureNodeLike = ReturnType<typeof texture> & { value: Texture }
+// ReturnType loses the RGBA channels when texture() has a generic overload.
+type TextureNodeLike = TextureNode<'vec4'>
 
 function makeTarget(resolution: number) {
   const target = new RenderTarget(resolution, resolution, {
