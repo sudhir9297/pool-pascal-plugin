@@ -7,6 +7,7 @@ const bun = process.execPath
 await runChecks([
   { label: 'documentation', command: [bun, 'run', 'check-docs'] },
   { label: 'architecture', command: [bun, 'run', 'check-architecture'] },
+  { label: 'render entry', command: [bun, 'run', 'check:render'] },
   { label: 'types', command: [bun, 'run', 'check-types'] },
   { label: 'tests', command: [bun, 'test'] },
   { label: 'build', command: [bun, 'run', 'build'] },

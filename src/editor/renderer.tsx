@@ -2,9 +2,8 @@
 
 import { type AnyNode, useLiveNodeOverrides, useLiveTransforms, useScene } from '@pascal-app/core'
 import { NodeRenderer, useSceneAtmosphere, useViewer } from '@pascal-app/viewer'
-import { useEditor } from '@pascal-app/editor'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Box3, Frustum, Matrix4, Mesh, Sphere, Vector3, type Group, type Material } from 'three'
 import { MeshBasicNodeMaterial, type WebGPURenderer } from 'three/webgpu'
 import { useShallow } from 'zustand/react/shallow'
@@ -39,11 +38,22 @@ import { usePoolNodeHost } from './node-host'
 import { AttachmentPoolContext } from './attachment-pool'
 import { disposeObject3D } from './dispose-object'
 import { usePoolAnimationActivity } from './animation-activity'
-import { PoolOutlineControls } from './outline-controls'
 
 const NO_CONNECTED_PIPES: AnyNode[] = []
 
-export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
+/**
+ * Read-only pool renderer: basin, coping, animated water, attached fittings and
+ * live resize/move previews. Editing hosts register `./renderer.edit`, which
+ * adds the outline controls through `overlay`.
+ */
+export default function PoolRenderer({
+  node: storeNode,
+  overlay,
+}: {
+  node: PoolNode
+  /** Extra content in the pool's frame, given the live (preview-merged) node. */
+  overlay?: (node: PoolNode) => ReactNode
+}) {
   const ref = useRef<Group>(null!)
   const nodeRef = useRef<PoolNode>(storeNode)
   const resizeSessionRef = useRef<{ pool: PoolNode; positions: Map<string, [number, number, number]> } | null>(null)
@@ -67,8 +77,6 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
   ))
   nodeRef.current = node
   const inputDragging = useViewer((state) => state.inputDragging)
-  const outlineSelected = useViewer((state) => state.selection.selectedIds.includes(storeNode.id as never))
-  const selecting = useEditor((state) => state.mode === 'select')
   const horizontalResizeInProgress = Boolean(
     liveOverride
     && !sectionPreviewInProgress
@@ -389,8 +397,7 @@ export default function PoolRenderer({ node: storeNode }: { node: PoolNode }) {
       <AttachmentPoolContext.Provider value={storeNode}>{node.children?.map((childId) => (
         <NodeRenderer key={`${node.id}:${childId}`} nodeId={childId as never} />
       ))}</AttachmentPoolContext.Provider>
-      {outlineSelected && selecting && (node.shape === 'custom' || node.shape === 'spline') &&
-        <PoolOutlineControls node={node} />}
+      {overlay?.(node)}
     </group>
   )
 }

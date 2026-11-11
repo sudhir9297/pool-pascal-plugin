@@ -1,56 +1,10 @@
-import { poolComponentFloorplan } from '../../rendering/component-floorplan'
-import { poolPlanMovableFrame } from '../../rendering/plan-frame'
-import type { AnyNodeId, NodeDefinition } from '@pascal-app/core'
-import { PoolSharedJointNode } from './schema'
-import { poolSharedJointParametrics } from '../editor/parametrics'
-import { bakePoolConnectionAnimations } from '../../core/export-animation'
+import type { NodeDefinition } from '@pascal-app/core'
+import { composeDefinition } from '../../definition-compose'
+import { poolSharedJointEditContribution } from './definition.edit'
+import { poolSharedJointRenderDefinition } from './definition.render'
+import type { PoolSharedJointNode } from './schema'
 
-const DEFAULT_POOL_SHARED_JOINT = {
-  position: [0, 0, 0] as [number, number, number],
-  rotation: [0, 0, 0] as [number, number, number],
-  poolIds: ['', ''] as [string, string],
-  intersection: [] as Array<Array<[number, number]>>,
-  copingStyle: 'continuous' as const,
-  connectionMode: 'submerged-shelf' as const,
-  length: 1,
-  width: 1,
-  thickness: 0.08,
-  rockWidth: 0.28,
-  transitionDepth: 0.55,
-  transitionHeight: 0.18,
-  transitionColor: '#2b7182',
-  commonFloorDepth: 1.5,
-  waterElevation: -0.12,
-  rockSeed: 9733,
-  surfaceColor: '#b8b7b0',
-}
-
-export const poolSharedJointDefinition: NodeDefinition<typeof PoolSharedJointNode> = {
-  kind: 'pool:shared-joint',
-  schemaVersion: 1,
-  schema: PoolSharedJointNode,
-  category: 'furnish',
-  distributionRole: 'run',
-  snapProfile: 'item',
-  defaults: () => ({ object: 'node', parentId: null, visible: true, metadata: {}, ...DEFAULT_POOL_SHARED_JOINT }),
-  capabilities: {
-    movable: { parentFrame: poolPlanMovableFrame, axes: ['x', 'y', 'z'], gridSnap: true },
-    rotatable: { axes: ['y'] },
-    selectable: { hitVolume: 'bbox' },
-    duplicable: false,
-    deletable: true,
-    groupable: true,
-    snappable: {},
-  },
-  floorplan: poolComponentFloorplan,
-  floorplanDependencies: (node) => node.poolIds as AnyNodeId[],
-  renderer: { kind: 'parametric', module: () => import('../editor/preview') },
-  exportAnimation: ({ node, object }) => bakePoolConnectionAnimations(node, object),
-  parametrics: poolSharedJointParametrics,
-  presentation: {
-    label: 'Pool connection',
-    description: 'A submerged transition and shared rock seam between two nearby pools.',
-    icon: { kind: 'iconify', name: 'lucide:unfold-horizontal' },
-    paletteSection: 'furnish',
-  },
-}
+export const poolSharedJointDefinition: NodeDefinition<typeof PoolSharedJointNode> = composeDefinition(
+  poolSharedJointRenderDefinition,
+  poolSharedJointEditContribution,
+)

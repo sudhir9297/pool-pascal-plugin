@@ -1,36 +1,10 @@
-import { poolComponentFloorplan } from '../../../rendering/component-floorplan'
-import { poolPlanDependencies } from '../../../rendering/plan-frame'
 import type { NodeDefinition } from '@pascal-app/core'
-import { poolWaterfallParametrics } from '../editor/parametrics'
-import { DEFAULT_POOL_WATERFALL, PoolWaterfallNode } from './schema'
-import { bakePoolWaterfallAnimations } from '../../../core/export-animation'
+import { composeDefinition } from '../../../definition-compose'
+import { poolWaterfallEditContribution } from './definition.edit'
+import { poolWaterfallRenderDefinition } from './definition.render'
+import type { PoolWaterfallNode } from './schema'
 
-export const poolWaterfallDefinition: NodeDefinition<typeof PoolWaterfallNode> = {
-  kind: 'pool:waterfall',
-  schemaVersion: 3,
-  schema: PoolWaterfallNode,
-  category: 'furnish',
-  distributionRole: 'run',
-  snapProfile: 'item',
-  defaults: () => ({ object: 'node', parentId: null, visible: true, metadata: {}, ...DEFAULT_POOL_WATERFALL }),
-  capabilities: {
-    selectable: { hitVolume: 'bbox' },
-    duplicable: true,
-    deletable: true,
-    groupable: true,
-    snappable: {},
-  },
-  floorplan: poolComponentFloorplan,
-  floorplanDependencies: poolPlanDependencies,
-  renderer: { kind: 'parametric', module: () => import('../editor/preview') },
-  exportAnimation: ({ node, object }) => bakePoolWaterfallAnimations(node, object),
-  tool: () => import('../editor/tool'),
-  toolHints: [{ key: 'Move', label: 'Aim at a pool edge or open ground' }, { key: 'Click', label: 'Place waterfall' }, { key: 'Esc', label: 'Cancel placement' }],
-  parametrics: poolWaterfallParametrics,
-  presentation: {
-    label: 'Waterfall',
-    description: 'Pool-edge or standalone waterfall with animated flow and optional receiving pool.',
-    icon: { kind: 'iconify', name: 'lucide:landmark' },
-    paletteSection: 'furnish',
-  },
-}
+export const poolWaterfallDefinition: NodeDefinition<typeof PoolWaterfallNode> = composeDefinition(
+  poolWaterfallRenderDefinition,
+  poolWaterfallEditContribution,
+)
