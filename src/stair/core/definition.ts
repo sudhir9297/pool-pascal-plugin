@@ -1,21 +1,10 @@
-import { poolFittingFloorplanMove } from '../../editor/floorplan-fitting-move'
-import { poolComponentFloorplan } from '../../rendering/component-floorplan'
-import { poolPlanDependencies, poolPlanMovableFrame } from '../../rendering/plan-frame'
 import type { NodeDefinition } from '@pascal-app/core'
-import { poolStairParametrics } from '../editor/parametrics'
-import { DEFAULT_POOL_STAIR, PoolStairNode } from './schema'
+import { composeDefinition } from '../../definition-compose'
+import { poolStairEditContribution } from './definition.edit'
+import { poolStairRenderDefinition } from './definition.render'
+import type { PoolStairNode } from './schema'
 
-export const poolStairDefinition: NodeDefinition<typeof PoolStairNode> = {
-  kind: 'pool:stair', schemaVersion: 2, schema: PoolStairNode, category: 'furnish', distributionRole: 'run', snapProfile: 'item',
-  defaults: () => ({ object: 'node', parentId: null, visible: true, metadata: {}, ...DEFAULT_POOL_STAIR }),
-  capabilities: { movable: { parentFrame: poolPlanMovableFrame, axes: ['x', 'y', 'z'], gridSnap: true }, rotatable: { axes: ['y'] }, selectable: { hitVolume: 'bbox' }, duplicable: true, deletable: true, groupable: true, snappable: {} },
-  floorplan: poolComponentFloorplan,
-  floorplanMoveTarget: poolFittingFloorplanMove,
-  floorplanDependencies: poolPlanDependencies,
-  renderer: { kind: 'parametric', module: () => import('../editor/preview') },
-  parametrics: poolStairParametrics,
-  tool: () => import('../editor/tool'),
-  affordanceTools: { move: () => import('../editor/move-tool') },
-  toolHints: [{ key: 'Click', label: 'Place stairs on pool wall' }, { key: 'Esc', label: 'Cancel placement' }],
-  presentation: { label: 'Pool ladders', description: 'Stainless-steel wall ladders based on the supplied pool references.', icon: { kind: 'iconify', name: 'lucide:steps' }, paletteSection: 'furnish' },
-}
+export const poolStairDefinition: NodeDefinition<typeof PoolStairNode> = composeDefinition(
+  poolStairRenderDefinition,
+  poolStairEditContribution,
+)

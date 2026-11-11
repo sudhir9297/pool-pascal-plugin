@@ -1,77 +1,10 @@
-import { poolComponentFloorplan } from '../../rendering/component-floorplan'
-import { poolPlanDependencies, poolPlanMovableFrame } from '../../rendering/plan-frame'
-import { useEditor } from '@pascal-app/editor'
-import { useScene, type AnyNode, type NodeDefinition } from '@pascal-app/core'
-import { connectionPorts } from '../../core/connection-ports'
-import { DEFAULT_POOL_VALVE, PoolValveNode } from './schema'
-import { getValvePortsLocal } from './ports'
-import { poolValveParametrics } from '../editor/parametrics'
+import type { NodeDefinition } from '@pascal-app/core'
+import { composeDefinition } from '../../definition-compose'
+import { poolValveEditContribution } from './definition.edit'
+import { poolValveRenderDefinition } from './definition.render'
+import type { PoolValveNode } from './schema'
 
-export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = {
-  kind: 'pool:valve',
-  schemaVersion: 1,
-  schema: PoolValveNode,
-  category: 'furnish',
-  distributionRole: 'fitting',
-  snapProfile: 'item',
-  defaults: () => ({
-    object: 'node',
-    parentId: null,
-    visible: true,
-    metadata: {},
-    ...DEFAULT_POOL_VALVE,
-  }),
-  capabilities: {
-    movable: { parentFrame: poolPlanMovableFrame, axes: ['x', 'y', 'z'], gridSnap: true, cursorAttached: true, portSnap: { systems: ['waste'] } },
-    rotatable: { axes: ['x', 'y', 'z'] },
-    selectable: { hitVolume: 'bbox' },
-    duplicable: true,
-    deletable: true,
-    groupable: true,
-    snappable: {},
-  },
-  ports: (node) => connectionPorts(node, getValvePortsLocal(node)),
-  keyboardActions: {
-    axisCycling: true,
-    r: {
-      appliesTo: (node) => String(node.type) === 'pool:valve',
-      run: (node: AnyNode) => {
-        const valve = node as unknown as PoolValveNode
-        const axis = useEditor.getState().rotationAxis
-        const rotation = [...valve.rotation] as [number, number, number]
-        const index = axis === 'x' ? 0 : axis === 'y' ? 1 : 2
-        rotation[index] += Math.PI / 2
-        useScene.getState().updateNode(valve.id as never, { rotation } as unknown as Partial<AnyNode>)
-      },
-    },
-    e: {
-      appliesTo: (node) => String(node.type) === 'pool:valve',
-      run: (node: AnyNode) => {
-        const valve = node as unknown as PoolValveNode
-        const nextHandleAngle = (valve.handleAngle + Math.PI / 2) % (Math.PI * 2)
-        const nextFlowPattern = valve.variant === 'two-way'
-          ? valve.flowPattern === 'open' ? 'closed' : 'open'
-          : (['left-right', 'left-branch', 'all', 'right-branch'] as const)[Math.round(nextHandleAngle / (Math.PI / 2)) % 4]!
-        useScene.getState().updateNode(valve.id as never, { handleAngle: nextHandleAngle, flowPattern: nextFlowPattern } as unknown as Partial<AnyNode>)
-      },
-    },
-  },
-  floorplan: poolComponentFloorplan,
-  floorplanDependencies: poolPlanDependencies,
-  renderer: { kind: 'parametric', module: () => import('../editor/preview') },
-  parametrics: poolValveParametrics,
-  tool: () => import('../editor/tool'),
-  toolHints: [
-    { key: 'Click', label: 'Place suction valve' },
-    { key: 'Alt', label: 'Switch rotation axis' },
-    { key: 'R', label: 'Rotate 90° on selected axis' },
-    { key: 'E', label: 'Operate valve handle' },
-    { key: 'Esc', label: 'Cancel placement' },
-  ],
-  presentation: {
-    label: 'Suction valve',
-    description: 'Place a 2-way or 3-way ball valve with connection sockets.',
-    icon: { kind: 'iconify', name: 'lucide:between-horizontal-start' },
-    paletteSection: 'furnish',
-  },
-}
+export const poolValveDefinition: NodeDefinition<typeof PoolValveNode> = composeDefinition(
+  poolValveRenderDefinition,
+  poolValveEditContribution,
+)

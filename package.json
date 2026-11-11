@@ -19,6 +19,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./render": {
+      "types": "./src/render.ts",
+      "default": "./src/render.ts"
     }
   },
   "files": [
@@ -39,6 +43,7 @@
     "check-docs": "bun run scripts/check-docs.ts",
     "check-architecture": "bun run scripts/check-architecture.ts",
     "check-package": "bun run scripts/check-package.ts",
+    "check:render": "bun scripts/check-render-entry.ts",
     "package:release": "bun run scripts/create-release-package.ts",
     "check-release": "bun run scripts/check-release.ts",
     "check-types": "tsc --noEmit",

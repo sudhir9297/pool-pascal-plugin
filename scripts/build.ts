@@ -8,7 +8,10 @@ await rm(outputDirectory, { recursive: true, force: true })
 await mkdir(outputDirectory, { recursive: true })
 
 const bundle = await Bun.build({
-  entrypoints: [fileURLToPath(new URL('../src/index.ts', import.meta.url))],
+  entrypoints: [
+    fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+    fileURLToPath(new URL('../src/render.ts', import.meta.url)),
+  ],
   outdir: outputDirectory,
   target: 'browser',
   format: 'esm',
